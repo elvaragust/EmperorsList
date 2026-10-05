@@ -1,0 +1,8 @@
+node_modules
+dist
+dev-dist
+coverage
+*.local
+.DS_Store
+# Game data is never committed: it is downloaded at runtime.
+data-cache/

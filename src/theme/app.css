@@ -1,0 +1,248 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* App shell: phone-width column, centred on larger screens. */
+.shell {
+  max-width: 480px;
+  height: 100%;
+  margin: 0 auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 24px;
+}
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 60px;
+  padding: 8px 2px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.screen-title {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 30px;
+  margin: 0;
+  flex: 1;
+}
+
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.section-label {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 18px 0 8px;
+}
+.muted {
+  color: var(--text-muted);
+}
+.small {
+  font-size: 13px;
+}
+.num {
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.row:first-child {
+  border-top: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--on-accent-strong);
+}
+.btn-block {
+  width: 100%;
+}
+
+/* Tab bar */
+.tabbar {
+  display: flex;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-deep);
+  padding: 6px 4px calc(10px + env(safe-area-inset-bottom));
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: var(--tap);
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.tab.active {
+  color: var(--accent);
+}
+
+/* Unit grid (weapons as columns, models as rows) */
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+}
+.grid th {
+  padding: 8px 2px 6px;
+  font-size: 13px;
+  text-align: center;
+}
+.grid th .total {
+  display: block;
+  font-size: 20px;
+  color: var(--accent);
+}
+.grid th .unit {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.grid td {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 2px;
+  border-top: 1px solid var(--line-soft);
+}
+.grid td.name {
+  text-align: left;
+  font-size: 13px;
+}
+.grid .melee-start {
+  border-left: 2px solid var(--line);
+}
+.grid .group td {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-align: left;
+  padding-top: 10px;
+}
+.mult {
+  display: inline-block;
+  min-width: 26px;
+  margin-right: 6px;
+  color: var(--accent);
+}
+
+/* Rule labels: style still to be chosen from the 8 options on the canvas. */
+.rule-label {
+  color: var(--rule-color);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.rule-label[data-variant='dotted'] {
+  border: 1.5px dotted var(--rule-color);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.rule-label[data-variant='bold'] {
+  font-size: 15px;
+  font-weight: 700;
+}
+.rule-label[data-variant='underline'] {
+  color: var(--text);
+  border-bottom: 2px solid var(--rule-color);
+}
+
+.toast {
+  position: sticky;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 8px 10px 16px;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
