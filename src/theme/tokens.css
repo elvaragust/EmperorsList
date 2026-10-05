@@ -1,0 +1,68 @@
+/*
+ * Design tokens. Every colour and font used by components comes from here.
+ * Faction themes only override these variables, so a theme never touches a component.
+ */
+:root {
+  --bg: #100b0b;
+  --bg-deep: #080606;
+  --surface: #1a1212;
+  --raised: #241818;
+  --line: #3a2624;
+  --line-soft: #2e1d1c;
+  --text: #e8dfcc;
+  --text-muted: #a89a85;
+  --accent: #c9a55a; /* selection, totals, active tab */
+  --accent-strong: #7a1e22; /* primary buttons */
+  --on-accent-strong: #f1e6d0;
+  --danger: #ff8e86;
+  --ok: #72e3a0;
+
+  --font-title: 'UnifrakturCook', serif;
+  --font-body: 'EB Garamond', Georgia, serif;
+  --font-ui: 'IBM Plex Sans Condensed', system-ui, sans-serif;
+
+  /* Rule-type colours (labels in search, definitions, datasheets). */
+  --rule-core: #b3bfce;
+  --rule-datasheet: #86b6f6;
+  --rule-stratagem: #f5bc4a;
+  --rule-enhancement: #bca6fc;
+  --rule-detachment: #55dbc7;
+  --rule-army: #a3acfb;
+  --rule-ability: #f68fc4;
+  --rule-keyword: #72e3a0;
+  --rule-weaponAbility: #fba463;
+
+  --radius: 14px;
+  --tap: 44px;
+}
+
+/* Black Templars: black, bone, crusader red, blackletter titles. */
+[data-theme='black-templars'] {
+  --bg: #0a0a0a;
+  --bg-deep: #000;
+  --surface: #151515;
+  --raised: #1e1e1e;
+  --line: #2a2a2a;
+  --line-soft: #222;
+  --text: #efeae0;
+  --text-muted: #9a958c;
+  --accent: #c8202c;
+  --accent-strong: #c8202c;
+  --on-accent-strong: #fff;
+}
+
+/* Adeptus Custodes: warm black, gold, crimson, inscription titles. */
+[data-theme='custodes'] {
+  --bg: #120e08;
+  --bg-deep: #0a0805;
+  --surface: #1b150c;
+  --raised: #251c10;
+  --line: #3a2e1c;
+  --line-soft: #2c2215;
+  --text: #f3ead6;
+  --text-muted: #a8987a;
+  --accent: #e0b354;
+  --accent-strong: #8e1b1f;
+  --on-accent-strong: #f3ead6;
+  --font-title: 'Cinzel', serif;
+}
