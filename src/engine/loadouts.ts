@@ -6,7 +6,10 @@ const char = (p: RawProfile, name: string) => p.characteristics?.find((c) => c.n
 
 /** Short column code from a weapon name: "Heavy Bolt Pistol" -> "HBP". Users can override later. */
 export function shortCode(name: string): string {
-  const words = name
+  const clean = name.replace(/^[^A-Za-z0-9]+/, '').trim();
+  const mode = clean.match(/^(.*?)\s+[-–—]\s+(.+)$/);
+  if (mode) return `${shortCode(mode[1]!)}-${mode[2]!.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}`;
+  const words = clean
     .replace(/[–—-]/g, ' ')
     .split(/\s+/)
     .filter((w) => w && !/^(w\/|and|of|the|&)$/i.test(w));

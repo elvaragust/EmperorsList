@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeWeaponGrid, sumAttacks } from '../weaponGrid';
-import { sketchLoadouts, sketchModels, sketchWeapons } from '@/sample/sketchSquad';
+import { sketchLoadouts, sketchModels, sketchWeapons } from './sketchFixture';
 
 describe('sumAttacks', () => {
   it('adds flat attacks', () => {

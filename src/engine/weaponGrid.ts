@@ -107,7 +107,7 @@ export function computeWeaponGrid(
     total: sumAttacks(
       loadouts.map((l) => ({
         attacks: w.attacks,
-        count: l.weaponIds.includes(w.id) ? byLoadout.get(l.key)?.length ?? 0 : 0,
+        count: occurrences(l, w.id) * (byLoadout.get(l.key)?.length ?? 0),
       })),
     ),
   }));
@@ -127,9 +127,17 @@ export function computeWeaponGrid(
       name: l.name,
       count: living.length,
       modelIds: living.map((m) => m.id),
-      cells: ordered.map((w) => (l.weaponIds.includes(w.id) ? w.attacks : '')),
+      cells: ordered.map((w) => {
+        const k = occurrences(l, w.id);
+        return k === 0 ? '' : k === 1 ? w.attacks : sumAttacks([{ attacks: w.attacks, count: k }]);
+      }),
     });
   });
 
   return { columns, groups, aliveModels: alive.length };
+}
+
+/** How many of a weapon one model of this loadout carries (e.g. two bolt pistols). */
+function occurrences(l: ModelLoadout, weaponId: string): number {
+  return l.weaponIds.reduce((n, id) => (id === weaponId ? n + 1 : n), 0);
 }

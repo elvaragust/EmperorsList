@@ -11,3 +11,5 @@ Short rules for anyone (human or AI) changing this code. The full plan, with rea
 7. **Theme through tokens only.** Components use CSS variables from `theme/tokens.css`; a faction theme only overrides variables.
 8. **Offline first.** Every screen must work with no network once data has been downloaded once.
 9. **Pinned versions, Node 18.** Dependencies are pinned exactly and must run on Node 18.18+.
+10. **No per-faction code.** Everything a faction does (sizes, limits, points brackets, detachment restrictions, leaders) comes from the data's own constraints, conditions and modifiers through `engine/rules`. If a rule is wrong, fix the evaluator or report the data, don't special-case a faction.
+11. **Build a new engine after every change.** `RosterEngine` memoises per instance; screens create one per roster object (`useRosterEngine`). Edits are immutable (`engine/rules/edit.ts`) and go through `saveRoster`, which refreshes cached names and points.
