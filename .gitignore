@@ -6,3 +6,4 @@ coverage
 .DS_Store
 # Game data is never committed: it is downloaded at runtime.
 data-cache/
+wahapedia/

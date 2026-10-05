@@ -1,45 +1,114 @@
-import { useMemo, useState } from 'react';
-import { createSearch, type SearchDoc } from '@/search/searchIndex';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo, useState, type CSSProperties } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { db } from '@/data/db';
+import { useAllIndex } from '@/data/gameData';
+import type { RuleKind } from '@/engine/types';
+import { buildDocs, type RefDoc } from '@/search/buildDocs';
+import { createSearch } from '@/search/searchIndex';
 import { RuleLabel } from '@/ui/RuleLabel';
+import { useRulePopup } from '@/ui/RulePopup';
 import { Screen } from '@/ui/Screen';
 
-/**
- * Placeholder documents written for the demo. Once a data pack is downloaded,
- * the index is built from its rules, profiles and stratagems instead.
- */
-const DEMO_DOCS: SearchDoc[] = [
-  { id: 'lh', kind: 'weaponAbility', name: 'Lethal Hits', text: 'A critical hit wounds automatically.', source: 'Core Rules' },
-  { id: 'ch', kind: 'core', name: 'Critical Hit', text: 'An unmodified hit roll of 6; Lethal Hits triggers on it.', source: 'Core Rules' },
-  { id: 'tp', kind: 'ability', name: 'Tactical Precision', text: 'Weapons in the led unit have Lethal Hits.', source: 'Lieutenant' },
-  { id: 'inf', kind: 'keyword', name: 'Infantry', text: 'Unit keyword.', source: 'Keywords' },
+const KINDS: { kind: RuleKind; label: string }[] = [
+  { kind: 'stratagem', label: 'Stratagems' },
+  { kind: 'datasheet', label: 'Units' },
+  { kind: 'ability', label: 'Abilities' },
+  { kind: 'enhancement', label: 'Enhancements' },
+  { kind: 'detachment', label: 'Detachments' },
+  { kind: 'army', label: 'Army rules' },
+  { kind: 'core', label: 'Core' },
+  { kind: 'weaponAbility', label: 'Weapon abilities' },
+  { kind: 'keyword', label: 'Keywords' },
 ];
 
 export function ReferenceScreen() {
-  const search = useMemo(() => createSearch(DEMO_DOCS), []);
-  const [q, setQ] = useState('lethal');
-  const hits = search(q);
+  const navigate = useNavigate();
+  const popup = useRulePopup();
+  const { index, error } = useAllIndex();
+  const imported = useLiveQuery(() => db.imported.toArray(), []);
+  const files = useLiveQuery(() => db.dataFiles.toArray(), []);
+  const [q, setQ] = useState('');
+  const [kinds, setKinds] = useState<RuleKind[]>([]);
+
+  const docs = useMemo(() => (index && imported ? buildDocs(index, imported) : []), [index, imported]);
+  const byId = useMemo(() => new Map(docs.map((d) => [d.id, d])), [docs]);
+  const search = useMemo(() => createSearch(docs), [docs]);
+  const hits = useMemo(() => search(q, kinds).slice(0, 80), [search, q, kinds]);
+  const factions = (files ?? []).filter((f) => !f.library && !f.gameSystem && f.catalogueId).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+
+  const open = (id: string) => {
+    const d = byId.get(id) as RefDoc | undefined;
+    if (!d) return;
+    if (d.route) navigate(d.route);
+    else popup.openDef({ name: d.name, text: d.text, kind: d.kind, source: d.source }, index, d.extra ? <p className="muted small">{d.extra}</p> : undefined);
+  };
+
+  const toggle = (k: RuleKind) => setKinds((ks) => (ks.includes(k) ? ks.filter((x) => x !== k) : [...ks, k]));
 
   return (
     <Screen title="Reference">
-      <label className="section-label" htmlFor="q">
-        Search rules, units, stratagems
-      </label>
-      <input
-        id="q"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        style={{ width: '100%', height: 48, borderRadius: 12, border: '1px solid var(--line)', background: 'var(--raised)', padding: '0 14px' }}
-      />
-      <div className="section-label">{hits.length} results · closest match first</div>
-      <div className="card">
-        {hits.map((h) => (
-          <div className="row" key={h.id} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-            <RuleLabel kind={h.kind} />
-            <div style={{ fontWeight: 600 }}>{h.name}</div>
-            <div className="muted small">{h.text}</div>
-          </div>
+      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search rules, units, stratagems…" aria-label="Search" />
+      <div className="filters">
+        {KINDS.map((k) => (
+          <button
+            key={k.kind}
+            className={`filter ${kinds.includes(k.kind) ? 'on' : ''}`}
+            style={{ '--filter-color': `var(--rule-${k.kind})` } as CSSProperties}
+            onClick={() => toggle(k.kind)}
+            aria-pressed={kinds.includes(k.kind)}
+          >
+            {k.label}
+          </button>
         ))}
       </div>
+      {error && <p className="muted">{error}</p>}
+      {!index && !error && <p className="muted">Loading the downloaded data…</p>}
+      {index && files && files.length === 0 && <p className="muted">Nothing downloaded yet. Create a list or open Settings → Data.</p>}
+
+      {q.trim() ? (
+        <div className="card">
+          {hits.map((h) => (
+            <button key={h.id} className="choice" onClick={() => open(h.id)} style={{ alignItems: 'flex-start' }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <strong>{h.name}</strong>
+                  <RuleLabel kind={h.kind} />
+                </div>
+                <div className="muted small">{h.source}</div>
+                {h.text && (
+                  <div className="small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.85 }}>
+                    {h.text.replace(/\^\^|\*\*/g, '').slice(0, 140)}
+                  </div>
+                )}
+              </span>
+            </button>
+          ))}
+          {hits.length === 0 && <div className="row muted">No matches.</div>}
+        </div>
+      ) : (
+        <>
+          <div className="section-label">Browse</div>
+          <div className="card">
+            <Link className="choice" to="/reference/core">
+              <span style={{ flex: 1 }}>Core rules A–Z</span>
+              <RuleLabel kind="core" />
+            </Link>
+            {factions.map((f) => (
+              <Link key={f.path} className="choice" to={`/reference/faction/${f.catalogueId}`}>
+                <span style={{ flex: 1 }}>{(f.name ?? f.path).replace(/^(Imperium|Chaos|Xenos|Aeldari) - (Adeptus Astartes - )?/, '')}</span>
+                <span className="muted small">Faction</span>
+              </Link>
+            ))}
+          </div>
+          {imported && imported.length === 0 && (
+            <p className="muted small" style={{ marginTop: 14 }}>
+              Stratagems are not in the community data. Import them from Wahapedia in Settings → Extra rules.
+            </p>
+          )}
+          {imported && imported.length > 0 && <p className="credit">Stratagems powered by Wahapedia ({imported.length} imported).</p>}
+        </>
+      )}
     </Screen>
   );
 }

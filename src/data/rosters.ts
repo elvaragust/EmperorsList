@@ -1,7 +1,7 @@
 import { db } from './db';
 import type { Roster } from '@/engine/types';
 
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 /** No limit on the number of lists. */
 export async function createRoster(partial: Pick<Roster, 'name' | 'factionName' | 'catalogueId'> & Partial<Roster>): Promise<string> {
@@ -12,6 +12,7 @@ export async function createRoster(partial: Pick<Roster, 'name' | 'factionName' 
     battleSize: 'strikeForce',
     pointsLimit: 2000,
     detachmentIds: [],
+    config: [],
     units: [],
     createdAt: now,
     updatedAt: now,
