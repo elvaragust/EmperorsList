@@ -17,6 +17,8 @@ export interface LivePlayer {
   faction: string;
   detachments: string[];
   disposition?: string;
+  /** This player's own primary mission (from their Force Disposition card). */
+  primary?: string;
 }
 
 export interface UnitSummary {
@@ -63,6 +65,7 @@ export type LiveAction =
   | { t: 'setTeam'; id: string; team: Team }
   | { t: 'setMode'; mode: LiveMode }
   | { t: 'setMission'; mission?: string; deployment?: string; twist?: string }
+  | { t: 'setPrimary'; mission?: string; disposition?: string }
   | { t: 'setFirst'; team: Team }
   | { t: 'start' }
   | { t: 'next' }
@@ -129,7 +132,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
   switch (a.t) {
     case 'join': {
       const existing = s.players.find((p) => p.id === a.player.id);
-      if (existing) return bump({ ...s, players: s.players.map((p) => (p.id === a.player.id ? { ...a.player, team: p.team } : p)) });
+      if (existing) return bump({ ...s, players: s.players.map((p) => (p.id === a.player.id ? { ...a.player, team: p.team, primary: p.primary, disposition: p.disposition ?? a.player.disposition } : p)) });
       if (s.stage !== 'lobby') return s; // no new players mid-game; rejoining is handled above
       const max = s.mode === '2v2' ? 4 : 2;
       if (s.players.length >= max) return s;
@@ -149,6 +152,10 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
     case 'setMission':
       if (!isHost) return s;
       return bump({ ...s, mission: a.mission ?? s.mission, deployment: a.deployment ?? s.deployment, twist: a.twist ?? s.twist });
+    case 'setPrimary': {
+      if (!s.players.some((p) => p.id === from)) return s;
+      return bump({ ...s, players: s.players.map((p) => (p.id === from ? { ...p, primary: a.mission || undefined, disposition: a.disposition ?? p.disposition } : p)) });
+    }
     case 'setFirst':
       if (!isHost) return s;
       return bump({ ...s, firstTurn: a.team, turn: s.stage === 'lobby' ? a.team : s.turn });

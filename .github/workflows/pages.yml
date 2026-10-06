@@ -39,6 +39,8 @@ jobs:
       - run: node scripts/wahapedia.mjs dist/wahapedia || true
       # Core Rules text for in-app rule popups. Never fails the build.
       - run: node scripts/core-rules.mjs dist/wahapedia || true
+      # Mission deck card text (primaries, secondaries, twists, deployments). Never fails the build.
+      - run: node scripts/missions.mjs dist/wahapedia || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

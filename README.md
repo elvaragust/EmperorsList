@@ -51,7 +51,7 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 Open a unit from the list. Everything is on one page, like the official app:
 - **Top:** the unit's points and model count. The 📄 button opens the full datasheet.
 - **Warlord** switch and **Unit enhancements** (tap to open; pick *None* or tap the chosen one again to remove it).
-- **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many.
+- **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many. A model the unit must have but is missing (e.g. the Sergeant) also gets + / − so you can add it.
 - **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
 - **▾ next to a weapon or enhancement** opens what it does: the weapon's profile (range, attacks, BS/WS, S, AP, D and its abilities) or the enhancement's rules text — so you can compare before you pick.
 - When a squad must all carry the same weapon, changing it on one model changes the whole unit.
@@ -89,15 +89,18 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 **Play → New game (this phone)** and follow the steps:
 1. Your army
 2. Opponent (name, faction, paste their list if you like)
-3. Mission — primary mission (yours listed first for your Force Disposition), deployment, twist, who goes first. 🎲 picks any of them at random
-4. Secondary missions — tap to choose (two at a time), or 🎲 *Draw 2*
+3. Mission — your **Force Disposition** (taken from your list; change it here if needed), then your **primary mission**: only your disposition's five cards are offered first — yours is the one under your opponent's symbol on your card. Then deployment, twist, **Attacker or Defender**, and who goes first. 🎲 next to each picks at random (primary only from your disposition); **Randomise all** does primary, deployment and twist at once. Each card's rules text shows under it as soon as you pick it.
+4. Secondary missions — choose **Fixed** or **Tactical** for you and your opponent. The rules for each are shown. Fixed: pick 2 of the Fixed-marked cards. Tactical: your deck is shuffled and dealt in the battle.
 5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
 
 **During the battle**
 - **Next** moves through the phases and turns. Both players get 1 CP at the start of every Command phase.
 - **Phase panel:** the stratagems you can use right now (tap the CP button to spend), plus your abilities that mention this phase.
-- **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row and remove a model; every total updates.
+- **Missions:** your primary, the twist and your secondaries with their rules text. Tactical: **Draw 2** at the start of your Command phase; cards you don't score stay in your hand; **Achieved** scores one (add its VP in Score), **Discard (+1CP)** gives you a CP, and **New card (1CP, once)** swaps one.
+- **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row to see each model: **− / +** tracks its wounds and losing the last one removes it; every total updates. Characters, vehicles and small units have a wound tracker at the top.
 - **Score:** primary and secondary VP per round.
+
+**Where the data comes from:** units, points and wargear come from the community BSData project (wh40k-11e), checked for updates once a day. If a new codex isn't reflected yet (missing or old options), the app shows it as soon as BSData is updated — Settings → Data shows the version you have.
 - **Log:** everything that happened.
 - **Notes:** tap the Notes bar to open or close your notes; they're kept for the whole game.
 - Pinned stratagems are always listed at the top, whatever the phase. Opening a unit and coming back keeps your place.
@@ -130,7 +133,7 @@ From a list's **⋯ menu → Export**:
 - **Share link** and **QR code** — opens the list in EmperorsList on another device.
 - **Print datacards** — one card per unit; print or save as PDF.
 
-**Import:** Lists → ⇣ → paste a list exported from the official app. Units, models, wargear, Warlord, enhancements and detachments are matched by name; anything that couldn't be matched is listed so you can fix it by hand.
+**Import:** Lists → ⇣ → paste a list exported from the official app. The faction, detachments and Force Disposition are found wherever they are in the header (if there's no disposition line, the detachment's one is used). Units, models, wargear, Warlord and enhancements are matched by name. Models the datasheet requires but the text left out (e.g. a Sergeant) are added, and everything that couldn't be matched or was added is listed so you can check it.
 
 ---
 

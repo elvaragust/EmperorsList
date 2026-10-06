@@ -38,6 +38,8 @@ export interface ModelLoadout {
   /** Group label shown as a bracket in the grid, e.g. "Initiates". */
   group: string;
   weaponIds: string[];
+  /** Wounds characteristic of one such model (0 when unknown). */
+  wounds?: number;
 }
 
 /** A concrete model in a roster unit. Identical models share a loadout key. */

@@ -6,7 +6,7 @@
  * "Powered by Wahapedia" wherever shown.
  */
 
-export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule' | 'coreRule';
+export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule' | 'coreRule' | 'mission';
 
 export interface ImportedRule {
   id: string;
@@ -190,4 +190,20 @@ export function coreSectionsToRules(sections: CoreSection[]): ImportedRule[] {
   return sections
     .filter((s) => s.text)
     .map((s) => ({ id: `wp-core-${s.num}`, kind: 'coreRule' as const, faction: 'Core', factionId: '', name: s.title, detachment: s.num, text: s.text, source: 'Wahapedia' as const }));
+}
+
+export interface MissionCard {
+  name: string;
+  /** primary | secondary | twist | deployment */
+  kind: string;
+  text: string;
+  /** e.g. fixed, attacker, defender */
+  tags?: string[];
+}
+
+/** Mission-deck cards (built from Wahapedia's mission deck page) stored like other imported rules. */
+export function missionCardsToRules(cards: MissionCard[]): ImportedRule[] {
+  return cards
+    .filter((c) => c.name && c.text)
+    .map((c) => ({ id: `wp-m-${c.kind}-${c.name}`, kind: 'mission' as const, faction: 'Mission deck', factionId: '', name: c.name, type: c.kind, legend: c.tags?.join(',') || undefined, text: c.text, source: 'Wahapedia' as const }));
 }

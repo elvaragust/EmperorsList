@@ -206,7 +206,8 @@ export class Room {
       // Mirror the shared turn into the local game so lists show the right round.
       update.round = state.round;
       update.stage = state.stage === 'lobby' ? 'setup' : state.stage;
-      if (state.mission) update.mission = state.mission;
+      const mine = state.players.find((p) => p.id === this.me.id)?.primary;
+      if (mine || state.mission) update.mission = mine ?? state.mission;
       if (state.stage === 'done') {
         const myTeam = state.players.find((p) => p.id === this.me.id)?.team;
         update.result = state.winner === 'draw' ? 'draw' : state.winner === myTeam ? 'win' : 'loss';

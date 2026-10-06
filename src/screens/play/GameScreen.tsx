@@ -16,7 +16,8 @@ import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel, PhasePanel } from './panels';
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
-import { MissionFields, SecondaryPicker } from './MissionFields';
+import { MissionFields } from './MissionFields';
+import { MissionsPanel, SecondarySetup } from './secondaries';
 
 const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'];
 
@@ -124,7 +125,16 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
       {step === 2 && (
         <>
-          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} />
+          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist, disposition: game.disposition }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} />
+          <div className="section-label">Attacker or Defender?</div>
+          <p className="small muted" style={{ marginTop: 0 }}>Roll off after the deployment card: the winner decides.</p>
+          <div className="seg" role="radiogroup">
+            {(['attacker', 'defender'] as const).map((r) => (
+              <button key={r} role="radio" aria-checked={game.role === r} className={game.role === r ? 'on' : undefined} onClick={() => set({ role: r })}>
+                {r === 'attacker' ? 'I am the Attacker' : 'I am the Defender'}
+              </button>
+            ))}
+          </div>
           <div className="section-label">Who goes first?</div>
           <div className="card">
             {(['me', 'them'] as const).map((s) => (
@@ -137,27 +147,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         </>
       )}
 
-      {step === 3 && (
-        <>
-          <div className="section-label">My secondaries</div>
-          <SecondaryPicker value={game.secondaries?.me ?? ''} onChange={(v) => set({ secondaries: { me: v, them: game.secondaries?.them ?? '' } })} />
-          <textarea
-            className="input"
-            style={{ minHeight: 60 }}
-            value={game.secondaries?.me ?? ''}
-            placeholder="Fixed or Tactical, and which"
-            onChange={(e) => set({ secondaries: { me: e.target.value, them: game.secondaries?.them ?? '' } })}
-          />
-          <div className="section-label">Their secondaries</div>
-          <SecondaryPicker value={game.secondaries?.them ?? ''} onChange={(v) => set({ secondaries: { me: game.secondaries?.me ?? '', them: v } })} />
-          <textarea
-            className="input"
-            style={{ minHeight: 60 }}
-            value={game.secondaries?.them ?? ''}
-            onChange={(e) => set({ secondaries: { me: game.secondaries?.me ?? '', them: e.target.value } })}
-          />
-        </>
-      )}
+      {step === 3 && <SecondarySetup game={game} set={set} />}
 
       {step === 4 && (
         <div className="card">
@@ -200,7 +190,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
 function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useSessionState<'phase' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
+  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [ending, setEnding] = useState(false);
   const [note, setNote] = useState('');
   const first = game.firstTurn ?? 'me';
@@ -287,9 +277,9 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
       <NotesPanel gameId={game.id} notes={game.notes} />
 
       <div className="seg" role="tablist">
-        {(['phase', 'units', 'score', 'log'] as const).map((t) => (
+        {(['phase', 'missions', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
+            {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'missions' ? 'Missions' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
         ))}
       </div>
@@ -305,6 +295,18 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
             g = withLog(g, `Used ${st.name} (${cost} CP)${again ? ' — already used this phase!' : ''}`, 'stratagem');
             void save(g);
           }}
+        />
+      )}
+
+      {tab === 'missions' && (
+        <MissionsPanel
+          game={game}
+          round={game.round}
+          turnKey={`${game.round}-${game.turn}`}
+          myCommandPhase={game.turn === 'me' && game.phase === 'command'}
+          primary={game.mission}
+          onChange={(p) => void save({ ...game, ...p })}
+          onCp={(d, why) => void db.games.get(game.id).then((g) => g && save(withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp')))}
         />
       )}
 

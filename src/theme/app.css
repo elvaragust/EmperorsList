@@ -1011,13 +1011,14 @@ textarea.input {
 }
 .sticky-bar {
   position: sticky;
-  bottom: 0;
+  /* The screen has 24px bottom padding; sticky offsets are measured inside it, so pull the bar down over it. */
+  bottom: -24px;
   z-index: 5;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 16px -16px -24px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  margin: auto -16px -24px;
+  padding: 10px 16px;
   background: var(--bg-deep);
   border-top: 1px solid var(--line);
 }
@@ -1058,4 +1059,77 @@ textarea.input {
 }
 .gear-detail .wtable {
   width: 100%;
+}
+
+/* Screens with a bottom bar: a column, so the bar sits on the tab bar even when the page is short. */
+.screen:has(> .sticky-bar) {
+  display: flex;
+  flex-direction: column;
+}
+.screen:has(> .sticky-bar) > * {
+  flex-shrink: 0;
+}
+.screen:has(> .sticky-bar) > .sticky-bar {
+  margin-top: auto;
+}
+
+/* Mission-deck card text */
+.card-text {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 4px 12px 8px;
+  margin: 4px 0 10px;
+  font-size: 14px;
+}
+.card-text-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 8px 0 4px;
+  text-align: left;
+  cursor: pointer;
+}
+.rules-list {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+}
+.rules-list li {
+  margin: 3px 0;
+}
+.tactical-card {
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+/* Wound tracking */
+.model-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wounds {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wounds .num {
+  min-width: 46px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text);
+}
+.wounds .num.hurt {
+  color: var(--danger);
+}
+.wound-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
 }

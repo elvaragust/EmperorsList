@@ -99,7 +99,8 @@ export interface ParsedList {
 }
 
 const SECTIONS = /^(CHARACTERS?|EPIC HER(O|OES)|BATTLELINE|DEDICATED TRANSPORTS?|OTHER DATASHEETS|ALLIED UNITS|INFANTRY|VEHICLES?|MONSTERS?|FORTIFICATIONS?)$/i;
-const UNIT_RE = /^(.+?)\s*[([]\s*(\d+)\s*(?:points|pts|pt)\s*[)\]]\s*$/i;
+const UNIT_RE = /^(.+?)\s*[([]\s*(\d[\d,.\s]*)\s*(?:points|pts|pt)\s*[)\]]\s*$/i;
+const num = (s: string) => Number(s.replace(/[,.\s]/g, ''));
 
 /** Parse the official app's text export (and close variants). */
 export function parseListText(text: string): ParsedList {
@@ -134,7 +135,7 @@ export function parseListText(text: string): ParsedList {
     const u = trimmed.match(UNIT_RE);
     if (u && inHeader && !out.title) {
       out.title = u[1]!.trim();
-      out.points = Number(u[2]);
+      out.points = num(u[2]!);
       continue;
     }
     const sizeLine = /incursion|strike force|onslaught/i.test(trimmed);
@@ -143,14 +144,14 @@ export function parseListText(text: string): ParsedList {
       if (/incursion/i.test(trimmed)) out.battleSize = 'incursion';
       else if (/strike force/i.test(trimmed)) out.battleSize = 'strikeForce';
       else if (/onslaught/i.test(trimmed)) out.battleSize = 'onslaught';
-      else if (/^force disposition:/i.test(trimmed)) out.disposition = trimmed.replace(/^force disposition:\s*/i, '');
+      else if (/^(force )?disposition:/i.test(trimmed)) out.disposition = trimmed.replace(/^(force )?disposition:\s*/i, '');
       else if (!out.faction) out.faction = trimmed;
-      else out.detachments.push(...trimmed.split(/\s*\+\s*/));
+      else out.detachments.push(...headerParts(trimmed));
       continue;
     }
     if (u) {
       inHeader = false;
-      cur = { name: u[1]!.trim(), points: Number(u[2]), lines: [] };
+      cur = { name: u[1]!.trim(), points: num(u[2]!), lines: [] };
       out.units.push(cur);
     } else if (!bullet) {
       cur = { name: trimmed, lines: [] };
@@ -158,6 +159,15 @@ export function parseListText(text: string): ParsedList {
     }
   }
   return out;
+}
+
+/** "Detachment: Gladius Task Force (2 DP) + Anvil Siege Force" -> the names. */
+export function headerParts(line: string): string[] {
+  return line
+    .replace(/^(detachments?|faction|army|chapter)\s*:\s*/i, '')
+    .split(/\s*(?:\+|,|\/|&)\s*/)
+    .map((p) => p.replace(/\s*[([][^)\]]*[)\]]\s*$/, '').trim())
+    .filter(Boolean);
 }
 
 export const normName = (s: string) =>
@@ -296,3 +306,48 @@ function setDeep(engine: RosterEngine, unit: RosterUnit, path: SelPath, name: st
 }
 
 export { PTS };
+
+/** Every name-like piece of the list's header (faction, sub-faction, detachments, disposition). */
+export function headerCandidates(parsed: ParsedList): string[] {
+  const out: string[] = [];
+  for (const l of parsed.headerLines) {
+    if (/incursion|strike force|onslaught/i.test(l)) continue;
+    if (parsed.title && l.startsWith(parsed.title)) continue;
+    out.push(...headerParts(l.replace(/^(force )?disposition:\s*/i, '')));
+  }
+  if (parsed.disposition) out.push(parsed.disposition);
+  return [...new Set(out)];
+}
+
+/** The faction file the header names; the most specific match wins ("Black Templars" over "Space Marines"). */
+export function matchFaction<T extends { name: string }>(parsed: ParsedList, factions: T[]): T | undefined {
+  const cands = headerCandidates(parsed).map(normName);
+  if (parsed.title) cands.push(normName(parsed.title));
+  const exact = factions.filter((f) => cands.includes(normName(f.name)));
+  if (exact.length) return exact.sort((a, b) => b.name.length - a.name.length)[0];
+  const loose = factions.filter((f) => cands.some((c) => c.length > 3 && (c.includes(normName(f.name)) || normName(f.name).includes(c))));
+  return loose.sort((a, b) => b.name.length - a.name.length)[0];
+}
+
+/** Detachments and Force Disposition named anywhere in the header, matched against the data. */
+export function matchConfig(parsed: ParsedList, choices: { detachments: { key: string; name: string }[]; dispositions: { key: string; name: string }[] }) {
+  const cands = headerCandidates(parsed);
+  const detachments: { key: string; name: string }[] = [];
+  let disposition: { key: string; name: string } | undefined;
+  const used = new Set<string>();
+  for (const c of cands) {
+    const n = normName(c);
+    const d = choices.detachments.find((x) => normName(x.name) === n);
+    if (d && !detachments.includes(d)) {
+      detachments.push(d);
+      used.add(c);
+      continue;
+    }
+    const p = choices.dispositions.find((x) => normName(x.name) === n);
+    if (p) {
+      disposition = p;
+      used.add(c);
+    }
+  }
+  return { detachments, disposition, unused: cands.filter((c) => !used.has(c)) };
+}

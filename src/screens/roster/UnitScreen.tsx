@@ -311,7 +311,10 @@ function ModelSection({
   onCount: (n: number) => void;
   onCarry: (optionKey: string, n: number, group?: ModelGroup) => void;
 }) {
-  const variable = !single && !(t.min === t.max && t.max >= 0);
+  // Fixed-size model kinds (e.g. exactly 1 Sergeant) still get + / − when the count is wrong, so a missing one can be added.
+  const variable = !single && (t.min !== t.max || t.max < 0 || t.count !== t.min);
+  const lo = Math.min(t.min, t.count);
+  const hi = t.max < 0 ? Math.max(99, t.count) : Math.max(t.max, t.count);
   const hasChoices = t.groups.some((g) => g.options.length > 1 || g.optional) || t.extras.length > 0;
   const empty = t.count === 0;
   return (
@@ -325,7 +328,7 @@ function ModelSection({
             </span>
           )}
         </span>
-        {variable ? <Stepper value={t.count} min={t.min} max={t.max} onChange={onCount} label={t.name} /> : <span className="num" style={{ padding: '0 12px' }}>{t.count}</span>}
+        {variable ? <Stepper value={t.count} min={lo} max={hi} onChange={onCount} label={t.name} /> : <span className="num" style={{ padding: '0 12px' }}>{t.count}</span>}
       </div>
       {!empty && (t.fixed.length > 0 || hasChoices) && (
         <Collapse title="Wargear options" defaultOpen={hasChoices}>
