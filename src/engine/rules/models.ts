@@ -53,6 +53,15 @@ export function unitModels(engine: RosterEngine, unitId: string, prefix = ''): U
     return engine.ev.name(inst);
   };
 
+  // Wounds: the model's own Unit profile, else the unit's (matched by name when it has several).
+  const unitProfiles = root.node ? infoOf(index, root.node).profiles.filter((p) => p.typeName === 'Unit') : [];
+  const woundsOf = (inst: Inst, name: string): number => {
+    const own = inst.node ? infoOf(index, inst.node).profiles.filter((p) => p.typeName === 'Unit') : [];
+    const pool = own.length ? own : unitProfiles;
+    const prof = pool.find((p) => p.name === name) ?? pool.find((p) => name.startsWith(p.name) || p.name.startsWith(name)) ?? pool[0];
+    const w = prof?.characteristics?.find((c) => c.name.toUpperCase() === 'W')?.$text;
+    return Number.parseInt(w ?? '', 10) || 0;
+  };
   const addModel = (inst: Inst, parent: Inst | undefined, path: string) => {
     const weaponIds: string[] = [];
     // A model's own profiles plus everything selected under it.
@@ -60,7 +69,7 @@ export function unitModels(engine: RosterEngine, unitId: string, prefix = ''): U
     const name = engine.ev.name(inst);
     const key = `${name}|${[...weaponIds].sort().join(',')}`;
     if (!out.loadouts.some((l) => l.key === key)) {
-      out.loadouts.push({ key, name, group: parent ? groupLabel(parent, inst) : name, weaponIds });
+      out.loadouts.push({ key, name, group: parent ? groupLabel(parent, inst) : name, weaponIds, wounds: woundsOf(inst, name) });
     }
     for (let n = 0; n < Math.max(inst.count, 1); n++) out.models.push({ id: `${prefix}${path}#${n}`, loadoutKey: key, alive: true });
   };

@@ -17,6 +17,7 @@ import { NotesPanel } from './panels';
 import { ScoreRow } from './GameScreen';
 import { PhasePanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
+import { MissionsPanel, SecondarySetup } from './secondaries';
 
 /** A game played live across phones (1v1 or 2v2). The host's phone is the referee. */
 export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
@@ -98,6 +99,7 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
   }, [url]);
   const need = state.mode === '2v2' ? 4 : 2;
   const teamsOk = state.players.filter((p) => p.team === 'A').length === need / 2 && state.players.filter((p) => p.team === 'B').length === need / 2;
+  const me = state.players.find((p) => p.id === myId);
 
   return (
     <Screen title="Live game · Lobby" back>
@@ -158,10 +160,14 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
       {isHost ? (
         <>
           <MissionFields
-            value={{ mission: state.mission, deployment: state.deployment, twist: state.twist }}
-            onChange={(v) => dispatch({ t: 'setMission', mission: v.mission ?? '', deployment: v.deployment ?? '', twist: v.twist ?? '' })}
-            disposition={state.players.find((p) => p.id === state.hostId)?.disposition}
+            value={{ mission: me?.primary, deployment: state.deployment, twist: state.twist, disposition: me?.disposition }}
+            onChange={(v) => {
+              dispatch({ t: 'setMission', mission: v.mission ?? '', deployment: v.deployment ?? '', twist: v.twist ?? '' });
+              dispatch({ t: 'setPrimary', mission: v.mission, disposition: v.disposition });
+            }}
+            disposition={me?.disposition}
           />
+          <PrimariesList state={state} />
           <div className="section-label">Goes first</div>
           <div className="filters">
             {(['A', 'B'] as Team[]).map((t) => (
@@ -178,12 +184,34 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
         </>
       ) : (
         <>
-          <MissionFields readOnly value={{ mission: state.mission, deployment: state.deployment, twist: state.twist }} onChange={() => undefined} />
+          <MissionFields readOnly value={{ deployment: state.deployment, twist: state.twist }} onChange={() => undefined} />
+          <MissionFields primaryOnly value={{ mission: me?.primary, disposition: me?.disposition }} onChange={(v) => dispatch({ t: 'setPrimary', mission: v.mission, disposition: v.disposition })} disposition={me?.disposition} />
+          <PrimariesList state={state} />
           <p className="small">First turn: {teamNames(state, state.firstTurn)}</p>
         </>
       )}
+      <div className="section-label">Attacker or Defender?</div>
+      <div className="seg" role="radiogroup">
+        {(['attacker', 'defender'] as const).map((r) => (
+          <button key={r} role="radio" aria-checked={game.role === r} className={game.role === r ? 'on' : undefined} onClick={() => void db.games.update(game.id, { role: r })}>
+            {r === 'attacker' ? 'Attacker' : 'Defender'}
+          </button>
+        ))}
+      </div>
+      <SecondarySetup game={game} set={(p) => void db.games.update(game.id, p)} opponent={false} />
       <LeaveButton game={game} />
     </Screen>
+  );
+}
+
+/** Each player's own primary mission. */
+function PrimariesList({ state }: { state: LiveState }) {
+  const set = state.players.filter((p) => p.primary);
+  if (!set.length) return null;
+  return (
+    <p className="small muted">
+      Primaries: {state.players.map((p) => `${p.name}: ${p.primary ?? '—'}`).join(' · ')}
+    </p>
   );
 }
 
@@ -211,7 +239,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
-  const [tab, setTab] = useSessionState<'phase' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
+  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [note, setNote] = useState('');
   const [ending, setEnding] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -321,12 +349,26 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       <NotesPanel gameId={game.id} notes={game.notes} />
 
       <div className="seg" role="tablist">
-        {(['phase', 'units', 'score', 'log'] as const).map((t) => (
+        {(['phase', 'missions', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
+            {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'missions' ? 'Missions' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
         ))}
       </div>
+
+      {tab === 'missions' && (
+        <>
+          <MissionsPanel
+            game={game}
+            round={state.round}
+            turnKey={`${state.round}-${state.turn}`}
+            myCommandPhase={myTurn && state.phase === 'command'}
+            primary={state.players.find((p) => p.id === myId)?.primary ?? state.mission}
+            onChange={(p) => void db.games.update(game.id, p)}
+            onCp={(d) => dispatch({ t: 'cp', id: myId, value: Math.max(0, (state.cp[myId] ?? 0) + d) })}
+          />
+        </>
+      )}
 
       {tab === 'phase' && (
         <PhasePanel

@@ -97,6 +97,10 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
   }
 
   for (const r of imported) {
+    if (r.kind === 'mission') {
+      add({ id: r.id, kind: 'core', name: r.name, text: r.text, source: `Mission deck · ${r.type ?? ''} · Wahapedia`, group: 'Mission deck' });
+      continue;
+    }
     if (r.kind === 'coreRule') {
       add({ id: r.id, kind: 'core', name: r.name, text: r.text, source: `Core Rules ${r.detachment ?? ''} · Wahapedia`, group: 'Core Rules (Wahapedia)' });
       continue;

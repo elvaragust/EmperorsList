@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { coreSectionsToRules, importWahapedia, type CoreSection, type WahapediaFiles } from '@/engine/wahapedia';
+import { coreSectionsToRules, importWahapedia, missionCardsToRules, type CoreSection, type MissionCard, type WahapediaFiles } from '@/engine/wahapedia';
 import { setCoreSections } from '@/engine/rules/glossary';
 import { db } from './db';
 import { currentSource, fetchDataFile, sourceState } from './dataPacks';
@@ -128,7 +128,42 @@ export async function syncWahapedia(force = false): Promise<{ imported: number }
       /* ignore */
     }
     await loadCoreRules();
+    await syncMissions(true);
     return { imported: rules.length };
+  } catch {
+    return undefined;
+  }
+}
+
+const MISSION_KEY = 'emperorslist.missionsStamp';
+
+/** Mission-deck card text, published next to the app by the build (scripts/missions.mjs). */
+export async function syncMissions(force = false): Promise<number | undefined> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}wahapedia/missions.json`, { cache: 'no-cache' });
+    if (!res.ok) return undefined;
+    const body = (await res.json()) as { fetchedAt?: string; cards?: MissionCard[] };
+    const stamp = body.fetchedAt ?? '';
+    let prev = '';
+    try {
+      prev = localStorage.getItem(MISSION_KEY) ?? '';
+    } catch {
+      /* ignore */
+    }
+    const have = await db.imported.where('kind').equals('mission').count();
+    if (!force && stamp && stamp === prev && have > 0) return have;
+    const rows = missionCardsToRules(body.cards ?? []);
+    if (!rows.length) return undefined;
+    await db.transaction('rw', db.imported, async () => {
+      await db.imported.where('kind').equals('mission').delete();
+      await db.imported.bulkPut(rows);
+    });
+    try {
+      localStorage.setItem(MISSION_KEY, stamp);
+    } catch {
+      /* ignore */
+    }
+    return rows.length;
   } catch {
     return undefined;
   }
@@ -146,5 +181,5 @@ export function startupSync() {
   started = true;
   void loadCoreRules();
   void syncAllFactions();
-  void syncWahapedia();
+  void syncWahapedia().then(() => syncMissions());
 }

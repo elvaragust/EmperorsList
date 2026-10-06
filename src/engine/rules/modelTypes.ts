@@ -184,4 +184,37 @@ export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, 
   return autoFill(engineFor, u);
 }
 
+/**
+ * Add models the datasheet requires but the unit doesn't have: first any kind
+ * below its own minimum (the Sergeant), then a model group below its minimum
+ * (topped up with the kind that has room). Returns what was added.
+ */
+export function fillMinimumModels(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit): { unit: RosterUnit; added: string[] } {
+  let u = unit;
+  const added: string[] = [];
+  for (let pass = 0; pass < 8; pass++) {
+    const e = engineFor(u);
+    const types = modelTypes(e, u.id).filter((t) => t.key);
+    const short = types.find((t) => t.count < t.min);
+    if (short) {
+      u = setOptionCount(e, u, [], short.key, short.min);
+      added.push(`${short.min - short.count}× ${short.name}`);
+      continue;
+    }
+    const low = types.find((t) => t.group && t.group.min > 0 && t.group.selected < t.group.min);
+    if (low?.group) {
+      const need = low.group.min - low.group.selected;
+      const room = (t: ModelType) => (t.max < 0 ? 999 : t.max - t.count);
+      const target = types.filter((t) => t.group?.name === low.group!.name && room(t) > 0).sort((a, b) => room(b) - room(a))[0];
+      if (!target) break;
+      const to = target.count + Math.min(need, room(target));
+      u = setOptionCount(e, u, [], target.key, to);
+      added.push(`${to - target.count}× ${target.name}`);
+      continue;
+    }
+    break;
+  }
+  return { unit: u, added };
+}
+
 export type { SelPath };

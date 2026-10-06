@@ -47,6 +47,17 @@ export interface SavedGame {
   deployment?: string;
   twist?: string;
   secondaries?: { me: string; them: string };
+  /** Fixed: two Fixed-marked cards all game. Tactical: draw two each Command phase. */
+  secondaryMode?: { me?: 'fixed' | 'tactical'; them?: 'fixed' | 'tactical' };
+  /** My Tactical secondaries deck and hand. */
+  tactical?: import('@/engine/missions').TacticalState;
+  /** Force Dispositions for this game (mine defaults to the list's). */
+  disposition?: string;
+  opponentDisposition?: string;
+  /** Attacker or Defender, from the deployment roll-off. */
+  role?: 'attacker' | 'defender';
+  /** Wounds lost per model ("unitId/modelId" -> damage taken). */
+  wounds?: Record<string, number>;
   checklist?: Record<string, boolean>;
   firstTurn?: 'me' | 'them';
   startedAt: number;

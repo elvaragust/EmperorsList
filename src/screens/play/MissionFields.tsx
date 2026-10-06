@@ -1,67 +1,105 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { db } from '@/data/db';
-import { MISSION_DECK, primariesFor, toggleInList } from '@/engine/missions';
+import { DISPOSITIONS, MISSION_DECK, ownPrimaries, primariesFor, toggleInList } from '@/engine/missions';
+import { CardText, useMissionCards } from './missionCards';
 import { LayoutPicker, LayoutPreview } from './layouts';
 
 export interface MissionValue {
   mission?: string;
   deployment?: string;
   twist?: string;
+  /** Your Force Disposition for this game (when the list doesn't set one, or to play another). */
+  disposition?: string;
 }
 
-/** Mission, deployment and twist from the current mission deck (or typed in), plus saved layouts. */
 const pickRandom = <T,>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
 
-/** A whole mission at random: primary for the Force Disposition, a deployment and (half the time) a twist. */
+/** Everything at random: a primary from your Force Disposition only, a deployment and a twist. */
 export function randomMission(disposition?: string): MissionValue {
-  const primaries = disposition && MISSION_DECK.primaries[disposition] ? MISSION_DECK.primaries[disposition]! : Object.values(MISSION_DECK.primaries).flat();
-  return { mission: pickRandom(primaries), deployment: pickRandom(MISSION_DECK.deployments), twist: pickRandom(MISSION_DECK.twists) };
+  return { mission: pickRandom(ownPrimaries(disposition)), deployment: pickRandom(MISSION_DECK.deployments), twist: pickRandom(MISSION_DECK.twists) };
 }
 
-export function MissionFields({ value, onChange, disposition, readOnly }: { value: MissionValue; onChange: (v: MissionValue) => void; disposition?: string; readOnly?: boolean }) {
+/** Mission, deployment and twist from the current mission deck, each with its card text, plus saved layouts. */
+export function MissionFields({ value, onChange, disposition: listDisposition, readOnly, primaryOnly }: { value: MissionValue; onChange: (v: MissionValue) => void; disposition?: string; readOnly?: boolean; primaryOnly?: boolean }) {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const layouts = useLiveQuery(() => db.layouts.toArray(), []);
+  const cards = useMissionCards();
+  const disposition = value.disposition || listDisposition;
+  const own = ownPrimaries(disposition);
   if (readOnly) {
     return (
-      <p className="small">
-        {[value.mission || 'Mission not set yet', value.deployment, value.twist].filter(Boolean).join(' · ')}
-        <LayoutPreview name={value.deployment} />
-      </p>
+      <>
+        <p className="small">
+          {[value.mission || 'Mission not set yet', value.deployment, value.twist].filter(Boolean).join(' · ')}
+          <LayoutPreview name={value.deployment} />
+        </p>
+        <CardText name={value.mission} cards={cards} compact />
+        <CardText name={value.twist} cards={cards} compact />
+      </>
     );
   }
+  const dice = (onClick: () => void, label: string, disabled?: boolean) => (
+    <button className="btn btn-sm btn-ghost" style={{ minHeight: 24, padding: 0 }} disabled={disabled} aria-label={label} onClick={(e) => (e.preventDefault(), onClick())}>
+      🎲
+    </button>
+  );
   return (
     <>
-      <button className="btn btn-sm" onClick={() => onChange(randomMission(disposition))}>
-        🎲 Random mission
-      </button>
+      <label className="field">
+        <span>Your Force Disposition{listDisposition && value.disposition && value.disposition !== listDisposition ? ` (your list: ${listDisposition})` : ''}</span>
+        <select className="input" value={disposition ?? ''} onChange={(e) => onChange({ ...value, disposition: e.target.value || undefined, mission: ownPrimaries(e.target.value).includes(value.mission ?? '') ? value.mission : undefined })}>
+          <option value="">Choose…</option>
+          {DISPOSITIONS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      </label>
+      {!primaryOnly && (
+        <button className="btn btn-sm" onClick={() => onChange({ ...value, ...randomMission(disposition) })} disabled={!disposition}>
+          🎲 Randomise all (primary, deployment, twist)
+        </button>
+      )}
+      {!disposition && <p className="small muted">Pick your Force Disposition first — your primary mission comes from its card.</p>}
       <label className="field">
         <span style={{ display: 'flex' }}>
-          <span style={{ flex: 1 }}>Primary mission{disposition ? ` (yours first: ${disposition})` : ''}</span>
-          <button className="btn btn-sm btn-ghost" style={{ minHeight: 24, padding: 0 }} onClick={(e) => (e.preventDefault(), onChange({ ...value, mission: randomMission(disposition).mission }))}>
-            🎲
-          </button>
+          <span style={{ flex: 1 }}>Primary mission{disposition ? ` · ${disposition}` : ''}</span>
+          {dice(() => onChange({ ...value, mission: pickRandom(own) }), 'Random primary mission', !own.length)}
         </span>
         <select className="input" value={value.mission ?? ''} onChange={(e) => onChange({ ...value, mission: e.target.value })}>
           <option value="">Choose…</option>
-          {primariesFor(disposition).map((g) => (
-            <optgroup key={g.disposition} label={g.disposition}>
-              {g.missions.map((m) => (
+          {own.length > 0 && (
+            <optgroup label={`${disposition} — the one under your opponent's symbol`}>
+              {own.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
             </optgroup>
-          ))}
+          )}
+          {primariesFor(disposition)
+            .filter((g) => g.disposition !== disposition)
+            .map((g) => (
+              <optgroup key={g.disposition} label={`Other: ${g.disposition} (twists that swap missions)`}>
+                {g.missions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           {value.mission && !Object.values(MISSION_DECK.primaries).flat().includes(value.mission) && <option value={value.mission}>{value.mission}</option>}
         </select>
       </label>
+      <CardText name={value.mission} cards={cards} />
+      {!primaryOnly && (
+      <>
       <label className="field">
         <span style={{ display: 'flex' }}>
           <span style={{ flex: 1 }}>Deployment</span>
-          <button className="btn btn-sm btn-ghost" style={{ minHeight: 24, padding: 0 }} onClick={(e) => (e.preventDefault(), onChange({ ...value, deployment: pickRandom(MISSION_DECK.deployments) }))}>
-            🎲
-          </button>
+          {dice(() => onChange({ ...value, deployment: pickRandom(MISSION_DECK.deployments) }), 'Random deployment')}
         </span>
         <select className="input" value={value.deployment ?? ''} onChange={(e) => onChange({ ...value, deployment: e.target.value })}>
           <option value="">Choose…</option>
@@ -83,6 +121,7 @@ export function MissionFields({ value, onChange, disposition, readOnly }: { valu
           )}
         </select>
       </label>
+      <CardText name={value.deployment} cards={cards} />
       <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
         Pick a saved layout photo
       </button>
@@ -91,9 +130,7 @@ export function MissionFields({ value, onChange, disposition, readOnly }: { valu
       <label className="field">
         <span style={{ display: 'flex' }}>
           <span style={{ flex: 1 }}>Twist</span>
-          <button className="btn btn-sm btn-ghost" style={{ minHeight: 24, padding: 0 }} onClick={(e) => (e.preventDefault(), onChange({ ...value, twist: pickRandom(MISSION_DECK.twists) }))}>
-            🎲
-          </button>
+          {dice(() => onChange({ ...value, twist: pickRandom(MISSION_DECK.twists) }), 'Random twist')}
         </span>
         <select className="input" value={value.twist ?? ''} onChange={(e) => onChange({ ...value, twist: e.target.value })}>
           <option value="">None</option>
@@ -104,12 +141,10 @@ export function MissionFields({ value, onChange, disposition, readOnly }: { valu
           ))}
         </select>
       </label>
-      <p className="small muted">
-        Card names from the {MISSION_DECK.name}.{' '}
-        <a className="tag" href={MISSION_DECK.url} target="_blank" rel="noreferrer">
-          READ THE CARDS ON WAHAPEDIA ↗
-        </a>
-      </p>
+      <CardText name={value.twist} cards={cards} />
+      </>
+      )}
+      <p className="credit">Cards from the {MISSION_DECK.name} · card text powered by Wahapedia.</p>
     </>
   );
 }
