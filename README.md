@@ -71,8 +71,9 @@ The number at the top right of a list says what's wrong (too many points, a miss
 
 ## 4. Reading rules
 
-- **Anything underlined is tappable** — keywords, weapon abilities, rule names and game terms inside rules text (for example *Deep Strike*, *Lethal Hits*, *surge move*). A sheet opens with the definition. Core rules that aren't in the data link to the Core Rules online.
+- **Anything underlined is tappable** — keywords, weapon abilities, rule names and game terms inside rules text (for example *Deep Strike*, *Lethal Hits*, *surge move*). A sheet opens with the definition — including the full Core Rules, which are built into the app.
 - **Reference → search** finds everything; the coloured labels show what kind of rule each result is (Stratagem, Enhancement, Detachment rule…). Filter by kind with the words under the search box.
+- **Reference → Core rules** has every Core Rules section (searchable) and the core abilities A–Z.
 - **Faction pages** (Reference → a faction): army rules, every detachment (tap ▸), and all datasheets.
 
 ### Pins ★
@@ -106,6 +107,7 @@ What's shared: whose turn it is and the current phase, everyone's CP, both teams
 
 - **Look around freely** — the phase words under the header only change *your* screen (the current phase has a •). Only the team whose turn it is (or the host) moves the game on.
 - **You can only change your own CP and your own team's score.** You see theirs update as they type.
+- **End the game:** the host ends it for everyone (⋯ menu). Other players can *End the game on my phone* to save the result and stop following.
 - **Turn off live changes** (⋯ menu): unlinks your phone. You keep everyone's army and score as they were and can change anything yourself. *Reconnect* joins again.
 - Phones connect directly to each other; nothing is stored online. Everyone needs internet during the game, and the host's game must stay open.
 
@@ -135,7 +137,7 @@ Pick a faction and enter how many models you own, have built and have painted. F
 
 - **Appearance** — follow each army's colours or always use one theme; text size; title font; rule label style; wide layout for laptops.
 - **Data** — check for updates (also happens daily by itself); use a different data source.
-- **Extra rules** — refresh stratagems from Wahapedia, or import Wahapedia CSV files by hand.
+- **Extra rules** — refresh stratagems and Core Rules from Wahapedia, or import Wahapedia CSV files / a saved Core Rules page by hand.
 - **Live games** — optional own connection server.
 - **Backup** — save all lists, games, collection, pins and layouts to a file, and restore them on another device.
 
@@ -150,6 +152,8 @@ Pick a faction and enter how many models you own, have built and have painted. F
 **Does it work offline?** Yes, after the first start. Live games need internet.
 
 **Why is a unit or rule missing or wrong?** The data comes from the community; it may not be updated yet. Settings → Data → Check for updates.
+
+**Where do the Core Rules come from?** Wahapedia's Core Rules page, fetched when the site is built and updated daily.
 
 **Why aren't the mission card rules shown?** Only the card names are included; tap *Read the cards on Wahapedia* during setup for the full text.
 

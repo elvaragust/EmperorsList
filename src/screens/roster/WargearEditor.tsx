@@ -207,7 +207,7 @@ function ModelCard({
   const sameKind = siblings.filter((s) => s.node?.key === inst.node?.key).length;
   return (
     <div className="card model-card">
-      <button className="model-head" onClick={() => editable && setOpen(!open)} aria-expanded={editable ? open : undefined}>
+      <button className="model-head" onClick={() => editable && setOpen(!open)} aria-expanded={editable ? open : undefined} disabled={!editable} style={editable ? undefined : { cursor: 'default', opacity: 1 }}>
         <span style={{ flex: 1, textAlign: 'left' }}>
           <span className="model-title">
             {!single && <span className="mult">{count}×</span>}

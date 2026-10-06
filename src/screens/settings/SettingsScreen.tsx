@@ -4,8 +4,9 @@ import { db } from '@/data/db';
 import { currentSource, DEFAULT_SOURCE, setSource, sourceName } from '@/data/dataPacks';
 import { clearIndexCache } from '@/data/gameData';
 import { downloadText, exportBackup, restoreBackup } from '@/data/backup';
-import { detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
-import { syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
+import { coreSectionsToRules, detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
+import { parseCoreRules } from '@/engine/coreRules';
+import { loadCoreRules, syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
 import { peerServer, setPeerServer } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
 import { setAppearance, useAppearance, type Appearance } from '@/theme/appearance';
@@ -62,11 +63,24 @@ export function SettingsScreen() {
   const importWp = async (list: FileList | null) => {
     if (!list?.length) return;
     const parts: WahapediaFiles = {};
+    let core = 0;
     for (const f of [...list]) {
       const text = await f.text();
+      if (/\.html?$/i.test(f.name) || /^\s*</.test(text)) {
+        // A saved Core Rules page.
+        const rules = coreSectionsToRules(parseCoreRules(text));
+        if (rules.length) {
+          await db.imported.where('kind').equals('coreRule').delete();
+          await db.imported.bulkPut(rules);
+          await loadCoreRules();
+          core = rules.length;
+        }
+        continue;
+      }
       const kind = detectFile(f.name, text);
       if (kind) parts[kind] = text;
     }
+    if (core && !(parts.stratagems || parts.enhancements || parts.detachmentAbilities)) return setWpStatus(`Imported ${core} Core Rules sections.`);
     if (parts.stratagems || parts.enhancements || parts.detachmentAbilities) {
       const rules = importWahapedia(parts);
       await db.imported.bulkPut(rules);
@@ -162,12 +176,12 @@ export function SettingsScreen() {
       <div className="section-label">Extra rules (Wahapedia)</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
-          <div className="small">Stratagems, enhancements and detachment rules from Wahapedia are built into the app and load by themselves. If they're missing (for example when running the app locally), import the CSV files by hand.</div>
+          <div className="small">Stratagems, enhancements and detachment rules from Wahapedia are built into the app and load by themselves. The Core Rules are included too, so tapping a rule shows its text. If they're missing (for example when running the app locally), import the CSV files or a saved Core Rules web page by hand.</div>
           <button className="btn" onClick={updateStrats}>
             Update from Wahapedia
           </button>
           <div className="muted small">{importedCount ?? 0} imported rules</div>
-          <input ref={wpInput} type="file" accept=".csv,text/csv,text/plain" multiple hidden onChange={(e) => importWp(e.target.files)} />
+          <input ref={wpInput} type="file" accept=".csv,text/csv,text/plain,.html,.htm,text/html" multiple hidden onChange={(e) => importWp(e.target.files)} />
           <div className="btn-row" style={{ margin: 0 }}>
             <button className="btn btn-sm" onClick={() => wpInput.current?.click()}>
               Import CSV files

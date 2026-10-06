@@ -118,3 +118,19 @@ describe('names', () => {
     expect(shortCode('➤ Plasma pistol - supercharge')).toBe('PP-SU');
   });
 });
+
+describe('core rules page', () => {
+  it('splits numbered sections and finds terms', async () => {
+    const { parseCoreRules } = await import('../coreRules');
+    const { setCoreSections, findCoreSection } = await import('../rules/glossary');
+    const html = `<nav>x</nav><h2>Moving 03</h2><p>Models move across the battlefield.</p>
+<div><span>Advance 09.06</span></div><p>When a unit Advances, roll one D6 and add it to the Move characteristic.</p>
+<h3><b>Surge Moves</b> 21.02</h3><p>Some rules let a unit make a surge move, like a Normal move.</p>`;
+    const sections = parseCoreRules(html);
+    expect(sections.map((s) => `${s.num} ${s.title}`)).toEqual(['03 Moving', '09.06 Advance', '21.02 Surge Moves']);
+    setCoreSections(sections);
+    expect(findCoreSection('surge move')?.num).toBe('21.02');
+    expect(findCoreSection('Advance')?.num).toBe('09.06');
+    setCoreSections([]);
+  });
+});

@@ -37,6 +37,8 @@ jobs:
       - run: cp dist/index.html dist/404.html && touch dist/.nojekyll
       # Wahapedia extras (stratagems etc.), published next to the app. Never fails the build.
       - run: node scripts/wahapedia.mjs dist/wahapedia || true
+      # Core Rules text for in-app rule popups. Never fails the build.
+      - run: node scripts/core-rules.mjs dist/wahapedia || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

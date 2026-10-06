@@ -6,7 +6,7 @@
  * "Powered by Wahapedia" wherever shown.
  */
 
-export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule';
+export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule' | 'coreRule';
 
 export interface ImportedRule {
   id: string;
@@ -177,4 +177,17 @@ export function stratagemsFor(all: ImportedRule[], detachmentNames: string[], fa
     if (core) return true;
     return !det && hints.some((h) => r.faction.toLowerCase().includes(h) || h.includes(r.faction.toLowerCase()));
   });
+}
+
+export interface CoreSection {
+  num: string;
+  title: string;
+  text: string;
+}
+
+/** Core Rules sections (built from Wahapedia's Core Rules page) stored like other imported rules. */
+export function coreSectionsToRules(sections: CoreSection[]): ImportedRule[] {
+  return sections
+    .filter((s) => s.text)
+    .map((s) => ({ id: `wp-core-${s.num}`, kind: 'coreRule' as const, faction: 'Core', factionId: '', name: s.title, detachment: s.num, text: s.text, source: 'Wahapedia' as const }));
 }

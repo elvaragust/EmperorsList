@@ -196,6 +196,11 @@ export class Room {
   private async persist(state: LiveState) {
     this.state = state;
     const g = await db.games.get(this.gameId);
+    if (g?.live?.unlinked) {
+      // The player turned live changes off: don't overwrite their copy.
+      this.close();
+      return;
+    }
     if (g?.live) {
       const update: Partial<SavedGame> = { live: { ...g.live, state } };
       // Mirror the shared turn into the local game so lists show the right round.
