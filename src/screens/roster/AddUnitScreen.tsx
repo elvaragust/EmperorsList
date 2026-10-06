@@ -11,6 +11,7 @@ import { Composition } from '@/ui/Composition';
 import { AbilityList, StatLine } from '@/ui/DatasheetView';
 import { PinButton, pinId } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
+import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 
@@ -56,11 +57,13 @@ export function AddUnitScreen() {
       .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
   }, [choices, q, role, engine]);
 
-  const add = async (key: string) => {
+  /** Add a unit and stay here, so several can be added in a row. */
+  const add = async (key: string, open = false) => {
     if (!engine || !roster) return;
     const unit = newUnit(engine, key);
     await saveRoster(index, { ...roster, units: [...roster.units, unit] });
-    navigate(`/roster/${roster.id}/unit/${unit.id}`, { replace: true });
+    if (open) navigate(`/roster/${roster.id}/unit/${unit.id}`, { replace: true });
+    else showToast(`Added ${unit.name}`, { label: 'EDIT', to: `/roster/${roster.id}/unit/${unit.id}` });
   };
 
   const inList = (key: string) => roster?.units.filter((u) => u.entryId === key).length ?? 0;
@@ -99,7 +102,18 @@ export function AddUnitScreen() {
         })}
       </div>
       {engine && list.length === 0 && <p className="muted">No units match.</p>}
-      <p className="small muted">Tap a unit to read it first, or + to add it straight away.</p>
+      <p className="small muted">Tap a unit to read it first, or + to add it straight away (you stay here to add more).</p>
+      {roster && (
+        <div className="sticky-bar">
+          <span className="pts-chip">{(engine?.totalPoints() ?? 0).toLocaleString('en')} / {(engine?.pointsLimit() ?? roster.pointsLimit).toLocaleString('en')}</span>
+          <span className="muted small" style={{ flex: 1 }}>
+            {roster.units.length} units in the list
+          </span>
+          <button className="btn btn-sm btn-primary" onClick={() => navigate(`/roster/${roster.id}`, { replace: true })}>
+            Done
+          </button>
+        </div>
+      )}
       <Sheet open={Boolean(preview)} onClose={() => setPreview(null)} title={previewData?.name}>
         {previewData && preview && (
           <>
@@ -110,7 +124,7 @@ export function AddUnitScreen() {
               </span>
               <PinButton pin={{ id: pinId('datasheet', previewData.name), kind: 'datasheet', name: previewData.name, route: `/reference/unit/${roster?.catalogueId}/${preview}`, source: `${previewData.points} pts` }} />
             </div>
-            <button className="btn btn-primary btn-block" style={{ margin: '10px 0' }} onClick={() => add(preview)}>
+            <button className="btn btn-primary btn-block" style={{ margin: '10px 0' }} onClick={() => (add(preview), setPreview(null))}>
               Add to list
             </button>
             {previewData.sheet.stats.map((p) => (

@@ -9,7 +9,7 @@ import { createSearch } from '@/search/searchIndex';
 import { RuleLabel } from '@/ui/RuleLabel';
 import { useRulePopup } from '@/ui/RulePopup';
 import { Screen } from '@/ui/Screen';
-import { PinButton } from '@/ui/PinButton';
+import { PinButton, pinId } from '@/ui/PinButton';
 
 const KINDS: { kind: RuleKind; label: string }[] = [
   { kind: 'stratagem', label: 'Stratagems' },
@@ -78,7 +78,8 @@ export function ReferenceScreen() {
       {q.trim() ? (
         <div className="card">
           {hits.map((h) => (
-            <button key={h.id} className="choice" onClick={() => open(h.id)} style={{ alignItems: 'flex-start' }}>
+            <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', borderTop: '1px solid var(--line-soft)' }}>
+            <button className="choice" onClick={() => open(h.id)} style={{ alignItems: 'flex-start', borderTop: 0, flex: 1 }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
                   <strong>{h.name}</strong>
@@ -92,6 +93,8 @@ export function ReferenceScreen() {
                 )}
               </span>
             </button>
+            <PinButton small pin={{ id: pinId(h.kind, h.name), kind: h.kind, name: h.name, text: h.text, source: h.source, route: (byId.get(h.id) as RefDoc | undefined)?.route }} />
+            </div>
           ))}
           {hits.length === 0 && <div className="row muted">No matches.</div>}
         </div>

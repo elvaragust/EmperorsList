@@ -39,7 +39,7 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 1. **Lists → New list.**
 2. **Faction** — pick your army.
 3. **Battle size** — Incursion (1,000), Strike Force (2,000), Onslaught (3,000) or your own points.
-4. **Detachments** — tap **▸** to read a detachment's rules, enhancements and stratagems *before* choosing it; tick the box to choose it. The Detachment Point budget is shown at the top.
+4. **Detachments** — tap **▸** to read a detachment before choosing it; its Rules, Enhancements and Stratagems each open separately. Tick the box to choose it. The Next button stays at the bottom while you scroll. The Detachment Point budget is shown at the top.
 5. **Force Disposition** and a name → **Create list**.
 
 ### Adding units
@@ -48,16 +48,15 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 - New units start with their standard models and wargear.
 
 ### Changing a unit
-Open a unit from the list:
-- **Unit** — what models it has and what each carries.
-- **Wargear**, laid out like the official app:
-  - **Character** — the Warlord switch and the Enhancement list (pick *None* or tap the chosen one again to remove it).
-  - **Unit size** — how many of each model.
-  - **Wargear** — a card per model (or group of identical models) showing what it carries; tap it to change weapons. *Give one of these different wargear* splits a model off.
-  - **Options** — anything else the unit can take.
-  - When a squad must all carry the same weapon, picking it on any model changes the whole unit.
-- **Datasheet** — stats, weapons, abilities and keywords.
-- **⋯ menu** — nickname, duplicate, remove.
+Open a unit from the list. Everything is on one page, like the official app:
+- **Top:** the unit's points and model count. The 📄 button opens the full datasheet.
+- **Warlord** switch and **Unit enhancements** (tap to open; pick *None* or tap the chosen one again to remove it).
+- **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many.
+- **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
+- When a squad must all carry the same weapon, changing it on one model changes the whole unit.
+- The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
+
+**Adding units:** in *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
 
 **Warlord:** open a Character → Wargear → tick **Warlord**. **Enhancements** for your chosen detachment appear in the same place.
 
@@ -87,8 +86,8 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 **Play → New game (this phone)** and follow the steps:
 1. Your army
 2. Opponent (name, faction, paste their list if you like)
-3. Mission — primary mission (yours listed first for your Force Disposition), deployment, twist, who goes first
-4. Secondary missions — tap to choose
+3. Mission — primary mission (yours listed first for your Force Disposition), deployment, twist, who goes first. 🎲 picks any of them at random
+4. Secondary missions — tap to choose (two at a time), or 🎲 *Draw 2*
 5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
 
 **During the battle**
@@ -96,7 +95,9 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 - **Phase panel:** the stratagems you can use right now (tap the CP button to spend), plus your abilities that mention this phase.
 - **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row and remove a model; every total updates.
 - **Score:** primary and secondary VP per round.
-- **Log:** everything that happened, plus your notes.
+- **Log:** everything that happened.
+- **Notes:** tap the Notes bar to open or close your notes; they're kept for the whole game.
+- Pinned stratagems are always listed at the top, whatever the phase. Opening a unit and coming back keeps your place.
 
 ### Live across phones (1v1 or 2v2)
 - **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.

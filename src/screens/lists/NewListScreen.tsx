@@ -165,8 +165,13 @@ export function NewListScreen() {
               />
             </label>
           )}
-          <div className="btn-row">
-            <button className="btn btn-primary btn-block" disabled={!roster.config.length} onClick={() => setStep(2)}>
+          <div className="sticky-bar">
+            {step > 0 && (
+              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
+                ‹
+              </button>
+            )}
+            <button className="btn btn-primary" style={{ flex: 1 }} disabled={!roster.config.length} onClick={() => setStep(2)}>
               Next
             </button>
           </div>
@@ -185,8 +190,13 @@ export function NewListScreen() {
           </div>
           <p className="small muted">Tap ▸ to read a detachment's rules, enhancements and stratagems before picking it.</p>
           {dp?.max !== undefined && dp.used > dp.max && <p className="issue-title">Over the Detachment Point limit by {dp.used - dp.max}.</p>}
-          <div className="btn-row">
-            <button className="btn btn-primary btn-block" disabled={!roster.detachmentIds.length} onClick={() => setStep(3)}>
+          <div className="sticky-bar">
+            {step > 0 && (
+              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
+                ‹
+              </button>
+            )}
+            <button className="btn btn-primary" style={{ flex: 1 }} disabled={!roster.detachmentIds.length} onClick={() => setStep(3)}>
               Next
             </button>
           </div>
@@ -216,17 +226,17 @@ export function NewListScreen() {
             <span>List name</span>
             <input className="input" value={roster.name} onChange={(e) => setRoster({ ...roster, name: e.target.value })} />
           </label>
-          <div className="btn-row">
-            <button className="btn btn-primary btn-block" onClick={finish}>
+          <div className="sticky-bar">
+            {step > 0 && (
+              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
+                ‹
+              </button>
+            )}
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={finish}>
               Create list
             </button>
           </div>
         </>
-      )}
-      {step > 0 && (
-        <button className="btn btn-ghost btn-block" onClick={() => setStep(step - 1)}>
-          Back a step
-        </button>
       )}
     </Screen>
   );

@@ -12,6 +12,8 @@ import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
+import { useSessionState } from '@/ui/useSessionState';
+import { NotesPanel } from './panels';
 import { ScoreRow } from './GameScreen';
 import { PhasePanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
@@ -209,13 +211,20 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
-  const [tab, setTab] = useState<'phase' | 'units' | 'score' | 'log'>('phase');
+  const [tab, setTab] = useSessionState<'phase' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [note, setNote] = useState('');
   const [ending, setEnding] = useState(false);
   const [menu, setMenu] = useState(false);
   // What I'm looking at is mine; the game's current phase is shared.
-  const [viewPhase, setViewPhase] = useState(state.phase);
-  useEffect(() => setViewPhase(state.phase), [state.phase, state.turn, state.round]);
+  // Kept when you open a unit and come back; follows the game when the shared phase moves on.
+  const stamp = `${state.round}-${state.turn}-${state.phase}`;
+  const [view, setView] = useSessionState(`battle-view:${game.id}`, { phase: state.phase, seen: stamp });
+  useEffect(() => {
+    if (view.seen !== stamp) setView({ phase: state.phase, seen: stamp });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stamp]);
+  const viewPhase = view.seen === stamp ? view.phase : state.phase;
+  const setViewPhase = (p: typeof state.phase) => setView({ phase: p, seen: stamp });
   const myTurn = state.turn === myTeam;
   const mayAdvance = unlinked || canAdvance(state, myId);
   const n = nextPhase({ round: state.round, turn: state.turn === state.firstTurn ? 'me' : 'them', phase: state.phase }, 'me');
@@ -308,6 +317,8 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
           {mayAdvance ? `Next: ${nextText}` : `${teamNames(state, state.turn)} moves the turn on`}
         </button>
       </div>
+
+      <NotesPanel gameId={game.id} notes={game.notes} />
 
       <div className="seg" role="tablist">
         {(['phase', 'units', 'score', 'log'] as const).map((t) => (
