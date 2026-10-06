@@ -23,6 +23,8 @@ import { CollectionScreen } from '@/screens/collection/CollectionScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { RulePopupProvider } from '@/ui/RulePopup';
 import { DataBanner } from '@/ui/DataBanner';
+import { ToastHost } from '@/ui/Toast';
+import { PinnedScreen } from '@/screens/reference/PinnedScreen';
 import { useEffect } from 'react';
 import { startupSync } from '@/data/bootstrap';
 
@@ -45,6 +47,7 @@ export function App() {
           <Route path="/roster/:id/unit/:unitId" element={<UnitScreen />} />
           <Route path="/reference" element={<ReferenceScreen />} />
           <Route path="/reference/core" element={<CoreRulesScreen />} />
+          <Route path="/reference/pinned" element={<PinnedScreen />} />
           <Route path="/reference/faction/:catalogueId" element={<FactionScreen />} />
           <Route path="/reference/unit/:catalogueId/:key" element={<RefUnitScreen />} />
           <Route path="/play" element={<PlayScreen />} />
@@ -58,6 +61,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/lists" replace />} />
         </Routes>
         <TabBar />
+        <ToastHost />
       </div>
     </RulePopupProvider>
   );

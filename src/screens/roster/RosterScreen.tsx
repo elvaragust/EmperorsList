@@ -189,6 +189,9 @@ export function RosterScreen() {
         <Link className="menu-item" to={`/roster/${roster.id}/export`}>
           Export text / share link / QR
         </Link>
+        <Link className="menu-item" to="/reference/pinned">
+          Pinned rules and stratagems
+        </Link>
         <Link className="menu-item" to={`/roster/${roster.id}/print`}>
           Print datacards
         </Link>

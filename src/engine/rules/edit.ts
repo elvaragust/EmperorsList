@@ -227,3 +227,82 @@ export function refreshCaches(engine: RosterEngine, units: RosterUnit[]): Roster
     };
   });
 }
+
+/**
+ * After an edit, pick anything the rules now require: e.g. a sergeant whose
+ * weapon must match the rest of the squad follows when the squad's weapon
+ * changes. Runs a few passes, rebuilding the engine each time.
+ */
+export function autoFill(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, maxPasses = 6): RosterUnit {
+  let current = unit;
+  for (let pass = 0; pass < maxPasses; pass++) {
+    const engine = engineFor(current);
+    const fix = findRequired(engine, current.id);
+    if (!fix) return current;
+    const next = setOptionCount(engine, current, fix.path, fix.key, fix.count);
+    if (next === current) return current;
+    current = next;
+  }
+  return current;
+}
+
+function findRequired(engine: RosterEngine, unitId: string): { path: SelPath; key: string; count: number } | undefined {
+  const root = engine.unitInst(unitId);
+  if (!root) return undefined;
+  const visit = (inst: Inst, path: SelPath): { path: SelPath; key: string; count: number } | undefined => {
+    const views = engine.optionsUnder(inst);
+    const flat = (vs: ReturnType<RosterEngine['optionsUnder']>, inChoice: boolean): { path: SelPath; key: string; count: number } | undefined => {
+      for (const v of vs) {
+        if (v.kind === 'group') {
+          const r = flat(v.children, v.max === 1);
+          if (r) return r;
+        } else if (!v.hidden && v.min > v.selected && inChoice && v.node.type !== 'model') {
+          return { path, key: v.node.key, count: v.min };
+        }
+      }
+      return undefined;
+    };
+    const here = flat(views, false);
+    if (here) return here;
+    for (let i = 0; i < (inst.sel?.children.length ?? 0); i++) {
+      const child = inst.children.find((c) => c.sel === inst.sel!.children[i]);
+      if (!child) continue;
+      const r = visit(child, [...path, i]);
+      if (r) return r;
+    }
+    return undefined;
+  };
+  return visit(root, []);
+}
+
+/**
+ * Pick an option on every model in the unit that offers one with the same
+ * name (for squads whose models must all carry the same weapon), then let
+ * `autoFill` settle anything else the rules require.
+ */
+export function setForWholeUnit(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, optionName: string): RosterUnit {
+  let current = unit;
+  const engine = engineFor(current);
+  const root = engine.unitInst(unit.id);
+  if (!root) return unit;
+  const targets: { path: SelPath; key: string }[] = [];
+  const visit = (inst: Inst, path: SelPath) => {
+    if (inst.node) {
+      const hit = offeredEntries(engine.index, inst.node).find((o) => o.node.name === optionName && o.groups.length > 0);
+      if (hit && path.length) targets.push({ path, key: hit.node.key });
+    }
+    inst.sel?.children.forEach((sel, i) => {
+      const child = inst.children.find((c) => c.sel === sel);
+      if (child) visit(child, [...path, i]);
+    });
+  };
+  visit(root, []);
+  for (const t of targets) {
+    const e = engineFor(current);
+    const inst = instAt(e, current.id, t.path);
+    if (!inst) continue;
+    const already = inst.children.some((c) => c.node?.key === t.key && c.count > 0);
+    if (!already) current = setOptionCount(e, current, t.path, t.key, 1);
+  }
+  return autoFill(engineFor, current);
+}

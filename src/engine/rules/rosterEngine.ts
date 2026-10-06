@@ -400,6 +400,29 @@ export class RosterEngine {
     };
     check(this.tree.force);
 
+    // Errors and warnings the data attaches to selections (e.g. "You cannot mix weapons in this squad").
+    const walkMsgs = (i: Inst) => {
+      for (const c of i.children) {
+        if (c.count > 0 && c.node) {
+          for (const fm of c.node.modifiers) {
+            if (fm.mod.field !== 'error' && fm.mod.field !== 'warning') continue;
+            if (!ev.timesApplies(fm, c)) continue;
+            const uid = unitIdOf(c);
+            const unit = this.roster.units.find((u) => u.id === uid);
+            push(`msg:${uid}:${fm.mod.value}`, {
+              severity: fm.mod.field === 'error' ? 'error' : 'advice',
+              title: `${unit ? `${unit.name}: ` : ''}${String(fm.mod.value)}`,
+              why: 'A rule in the data for this unit.',
+              fix: 'Open the unit',
+              unitId: uid,
+            });
+          }
+        }
+        walkMsgs(c);
+      }
+    };
+    walkMsgs(this.tree.force);
+
     // Leaders
     for (const u of this.roster.units) {
       if (!u.leaderOf) continue;

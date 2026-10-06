@@ -253,3 +253,21 @@ describe.skipIf(!have)('text export and import round trip', () => {
     expect(m1).toEqual(m0);
   });
 });
+
+describe.skipIf(!have)('squads that must share a weapon', () => {
+  it('picking the sergeant weapon changes the whole Aggressor Squad', async () => {
+    const { setForWholeUnit } = await import('../rules/edit');
+    const index = load();
+    const sm = [...index.catalogues.values()].find((c) => /Space Marines/.test(c.name))!;
+    const roots = rootOptions(index, sm.id);
+    let roster = blank(sm.id);
+    roster = setBattleSize(new RosterEngine(index, roster, roots), roster, 'strikeForce');
+    const unit = newUnit(new RosterEngine(index, roster, roots), roots.find((r) => r.node.name === 'Aggressor Squad')!.key);
+    const engineFor = (u: typeof unit) => new RosterEngine(index, { ...roster, units: [u] }, roots);
+    const after = setForWholeUnit(engineFor, unit, 'Auto Boltstorm Gauntlets & Fragstorm Grenade Launcher');
+    const e = engineFor(after);
+    const names = unitModels(e, after.id).loadouts.flatMap((l) => l.weaponIds.map((w) => unitModels(e, after.id).weapons.get(w)!.name));
+    expect(names.some((n) => /Flamestorm/i.test(n))).toBe(false);
+    expect(e.issues().filter((i) => i.unitId === after.id)).toEqual([]);
+  });
+});

@@ -49,7 +49,14 @@ export function ReferenceScreen() {
   const toggle = (k: RuleKind) => setKinds((ks) => (ks.includes(k) ? ks.filter((x) => x !== k) : [...ks, k]));
 
   return (
-    <Screen title="Reference">
+    <Screen
+      title="Reference"
+      actions={
+        <Link className="btn btn-sm btn-ghost" to="/reference/pinned" aria-label="Pinned">
+          ★ {pins?.length ? pins.length : ''}
+        </Link>
+      }
+    >
       <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search rules, units, stratagems…" aria-label="Search" />
       <div className="filters">
         {KINDS.map((k) => (

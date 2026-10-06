@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Pin } from '@/data/db';
+import { showToast } from './Toast';
 
 /** Star toggle that pins or unpins something. Pins show at the top of Reference and in battle. */
 export function PinButton({ pin, small }: { pin: Omit<Pin, 'createdAt'>; small?: boolean }) {
@@ -7,8 +8,13 @@ export function PinButton({ pin, small }: { pin: Omit<Pin, 'createdAt'>; small?:
   const toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (pinned) void db.pins.delete(pin.id);
-    else void db.pins.put({ ...pin, createdAt: Date.now() });
+    if (pinned) {
+      void db.pins.delete(pin.id);
+      showToast(`Unpinned ${pin.name}`);
+    } else {
+      void db.pins.put({ ...pin, createdAt: Date.now() });
+      showToast(`Pinned ${pin.name}`, { label: 'VIEW PINS', to: '/reference/pinned' });
+    }
   };
   return (
     <button

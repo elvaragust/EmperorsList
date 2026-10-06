@@ -50,7 +50,12 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 ### Changing a unit
 Open a unit from the list:
 - **Unit** — what models it has and what each carries.
-- **Wargear** — change unit size, swap weapons, take upgrades. Choose-one options work like radio buttons. *Split one off* gives a single model different gear.
+- **Wargear**, laid out like the official app:
+  - **Character** — the Warlord switch and the Enhancement list (pick *None* or tap the chosen one again to remove it).
+  - **Unit size** — how many of each model.
+  - **Wargear** — a card per model (or group of identical models) showing what it carries; tap it to change weapons. *Give one of these different wargear* splits a model off.
+  - **Options** — anything else the unit can take.
+  - When a squad must all carry the same weapon, picking it on any model changes the whole unit.
 - **Datasheet** — stats, weapons, abilities and keywords.
 - **⋯ menu** — nickname, duplicate, remove.
 
