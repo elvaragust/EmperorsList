@@ -61,6 +61,13 @@ To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and u
 **Table layouts**
 - Play → Table layouts: save photos or screenshots of terrain/deployment layouts and pick them when setting up a game
 
+## Hosting on GitHub Pages
+
+`.github/workflows/pages.yml` builds and publishes the app on every push to `main`.
+One-time setup: on GitHub open the repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+The app is then at `https://<user>.github.io/<repo>/` — open it on your phone and use "Add to Home Screen".
+Locally the app runs at `/`; the workflow sets `BASE_PATH` to `/<repo>/` for Pages.
+
 ## Real-data tests
 
 Game data is never committed. To run the engine against real data:

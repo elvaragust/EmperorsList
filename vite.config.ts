@@ -6,7 +6,11 @@ import { fileURLToPath, URL } from 'node:url';
 
 // The app shell is cached for offline use. Game data is NOT bundled: it is
 // downloaded at runtime from community sources and cached in IndexedDB.
+// BASE is the path the app is served from: "/" locally, "/EmperorsList/" on GitHub Pages.
+const base = process.env.BASE_PATH ?? '/';
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -20,10 +24,13 @@ export default defineConfig({
         background_color: '#100B0B',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: base,
+        scope: base,
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        navigateFallback: `${base}index.html`,
       },
     }),
   ],
