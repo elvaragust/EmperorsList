@@ -9,7 +9,8 @@ import { blankRoster } from '@/search/buildDocs';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
-import { WeaponGridView } from '@/ui/WeaponGridView';
+import { Composition } from '@/ui/Composition';
+import { PinButton, pinId } from '@/ui/PinButton';
 
 /** Read-only datasheet from the reference, built on the default loadout. */
 export function RefUnitScreen() {
@@ -32,9 +33,14 @@ export function RefUnitScreen() {
   if (!data) return <Screen title="Datasheet" back><p className="muted">Loading…</p></Screen>;
   return (
     <Screen title={data.sheet.name} back>
-      <div className="muted small">{data.points} pts with the default loadout</div>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span className="muted small" style={{ flex: 1 }}>
+          {data.points} pts with the default loadout
+        </span>
+        <PinButton pin={{ id: pinId('datasheet', data.sheet.name), kind: 'datasheet', name: data.sheet.name, route: `/reference/unit/${catalogueId}/${key}`, source: `${data.points} pts` }} />
+      </div>
       <div className="section-label">Default models</div>
-      <WeaponGridView loadouts={data.models.loadouts} models={data.models.models} weapons={data.models.weapons} dead={[]} />
+      <Composition models={data.models} />
       <DatasheetView sheet={data.sheet} weapons={[...data.models.weapons.values()]} index={index} />
     </Screen>
   );

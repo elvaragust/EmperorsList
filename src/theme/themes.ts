@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { applyAppearance, getAppearance, useAppearance } from './appearance';
 
 /**
  * Faction themes follow the list that is open; everywhere else uses the base
@@ -47,13 +48,32 @@ export function themeForFaction(factionName?: string): string | undefined {
 
 /** Apply a faction theme while the calling screen is mounted. */
 export function useFactionTheme(factionName?: string) {
+  const { themeMode, fixedTheme } = useAppearance();
   useEffect(() => {
-    const theme = themeForFaction(factionName);
     const root = document.documentElement;
+    if (themeMode === 'fixed') {
+      applyAppearance();
+      return;
+    }
+    const theme = themeForFaction(factionName);
     if (theme) root.dataset.theme = theme;
     else delete root.dataset.theme;
     return () => {
-      delete root.dataset.theme;
+      if (getAppearance().themeMode !== 'fixed') delete root.dataset.theme;
     };
-  }, [factionName]);
+  }, [factionName, themeMode, fixedTheme]);
 }
+
+/** Every theme, for the "always use one theme" setting. */
+export const THEME_CHOICES: { id: string; label: string }[] = [
+  { id: '', label: 'House gothic (default)' },
+  ...THEMES.map((t) => ({
+    id: t.theme,
+    label: t.theme
+      .split('-')
+      .map((w) => w[0]!.toUpperCase() + w.slice(1))
+      .join(' ')
+      .replace('Tau', "T'au")
+      .replace('Emperors', "Emperor's"),
+  })),
+];

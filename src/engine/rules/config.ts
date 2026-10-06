@@ -1,3 +1,5 @@
+import type { DataIndex } from '../bsdata/index';
+import type { RawEntry } from '../bsdata/raw';
 import type { BattleSize, Roster, Selection } from '../types';
 import { PTS } from './evaluate';
 import { virtualChild, type Inst } from './instance';
@@ -13,6 +15,7 @@ export const DISPOSITION_CATEGORIES: Record<string, string> = {
   'b4a7-5083-fe94-4d24': 'Reconnaissance',
 };
 const THREE_DP = '7d80-2de5-816e-9d2b';
+const ENH_COST = 'f759-1bc4-cb3a-f0d2';
 
 export interface ConfigOption {
   key: string;
@@ -150,4 +153,54 @@ export function setDisposition(engine: RosterEngine, roster: Roster, key: string
 
 export function setToggle(roster: Roster, rootKey: string, on: boolean): Roster {
   return replaceConfig(roster, rootKey, on ? { entryId: rootKey, count: 1, children: [] } : undefined);
+}
+
+export interface EnhancementInfo {
+  id: string;
+  name: string;
+  text: string;
+  pts?: number;
+}
+
+const enhCache = new WeakMap<object, Map<string, EnhancementInfo[]>>();
+
+/**
+ * Enhancements per detachment key. The data keys an enhancement's visibility
+ * on its detachment's id (in its own or its group's hidden modifiers), and
+ * groups are usually named "<Detachment> Enhancements".
+ */
+export function enhancementsByDetachment(index: DataIndex, detachments: { key: string; name: string }[]): Map<string, EnhancementInfo[]> {
+  let cache = enhCache.get(index);
+  if (!cache) {
+    cache = new Map();
+    enhCache.set(index, cache);
+  }
+  const out = new Map<string, EnhancementInfo[]>();
+  const todo = detachments.filter((d) => {
+    const hit = cache!.get(d.key);
+    if (hit) out.set(d.key, hit);
+    return !hit;
+  });
+  if (!todo.length) return out;
+  const parentOf = new Map<string, RawEntry>();
+  for (const g of index.entries.values()) if (!g.type) g.selectionEntries?.forEach((x) => parentOf.set(x.id, g));
+  todo.forEach((d) => out.set(d.key, []));
+  for (const e of index.entries.values()) {
+    if (!e.costs?.some((c) => c.typeId === ENH_COST && c.value > 0)) continue;
+    const json = JSON.stringify(e.modifiers ?? []);
+    const parent = parentOf.get(e.id);
+    const groupJson = JSON.stringify(parent?.modifiers ?? []);
+    for (const d of todo) {
+      if (json.includes(d.key) || groupJson.includes(d.key) || parent?.name === `${d.name} Enhancements`) {
+        out.get(d.key)!.push({
+          id: e.id,
+          name: e.name,
+          text: e.profiles?.map((p) => p.characteristics?.map((c) => c.$text ?? '').join('\n')).join('\n') ?? '',
+          pts: e.costs.find((c) => c.typeId === PTS)?.value,
+        });
+      }
+    }
+  }
+  todo.forEach((d) => cache!.set(d.key, out.get(d.key)!));
+  return out;
 }

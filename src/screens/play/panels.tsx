@@ -14,12 +14,16 @@ import { useRulePopup } from '@/ui/RulePopup';
 export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: RosterEngine; phase: Phase; myTurn: boolean; onSpend: (s: ImportedRule, cost: number) => void }) {
   const popup = useRulePopup();
   const imported = useLiveQuery(() => db.imported.toArray(), []);
+  const pins = useLiveQuery(() => db.pins.toArray(), []);
+  const pinnedNames = useMemo(() => new Set((pins ?? []).filter((p) => p.kind === 'stratagem').map((p) => p.name.toLowerCase())), [pins]);
+  const otherPins = (pins ?? []).filter((p) => p.kind !== 'stratagem' && p.kind !== 'datasheet');
   const index = engine?.index;
   const strats = useMemo(() => {
     if (!imported || !engine) return [];
     const hints = [engine.roster.factionName, ...[...engine.index.catalogues.values()].map((c) => c.name.split(' - ').pop() ?? '')];
-    return stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints).filter((s) => stratagemFits(s, phase, myTurn ? 'me' : 'them'));
-  }, [imported, engine, phase, myTurn]);
+    const list = stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints).filter((s) => stratagemFits(s, phase, myTurn ? 'me' : 'them'));
+    return list.sort((a, b) => Number(pinnedNames.has(b.name.toLowerCase())) - Number(pinnedNames.has(a.name.toLowerCase())));
+  }, [imported, engine, phase, myTurn, pinnedNames]);
   const abilities = useMemo(() => {
     if (!engine) return [];
     const out: { unit: string; name: string; text: string }[] = [];
@@ -45,7 +49,10 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
               style={{ flex: 1, textAlign: 'left', textDecoration: 'none' }}
               onClick={() => popup.openDef({ name: s.name, text: s.text, kind: 'stratagem', source: `${s.cp ?? '?'} CP · ${s.detachment ?? s.faction} · Wahapedia` }, index)}
             >
-              <div style={{ fontWeight: 600 }}>{s.name}</div>
+              <div style={{ fontWeight: 600 }}>
+                {pinnedNames.has(s.name.toLowerCase()) && <span className="tag">★ </span>}
+                {s.name}
+              </div>
               <div className="muted small">{[s.detachment ?? 'Core', s.turn].filter(Boolean).join(' · ')}</div>
             </button>
             <button className="btn btn-sm" onClick={() => onSpend(s, Number(s.cp ?? 0) || 0)}>
@@ -68,6 +75,22 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
         ))}
         {abilities.length === 0 && <div className="row muted small">Nothing mentions this phase.</div>}
       </div>
+      {otherPins.length > 0 && (
+        <>
+          <div className="section-label">Pinned</div>
+          <div className="card">
+            {otherPins.map((p) => (
+              <button key={p.id} className="choice" onClick={() => popup.openDef({ name: p.name, text: p.text ?? '', kind: p.kind, source: p.source ?? '' }, index)}>
+                <span style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600 }}>{p.name}</div>
+                  {p.source && <div className="muted small">{p.source}</div>}
+                </span>
+                <RuleLabel kind={p.kind} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {imported && imported.length > 0 && <p className="credit">Stratagems powered by Wahapedia.</p>}
     </>
   );

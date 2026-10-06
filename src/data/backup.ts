@@ -2,8 +2,8 @@ import { db } from './db';
 
 /** Everything the user made (lists, games, collection, layouts, imported extra rules). No downloaded game data. */
 export async function exportBackup(): Promise<string> {
-  const [rosters, games, collection, imported, layouts] = await Promise.all([db.rosters.toArray(), db.games.toArray(), db.collection.toArray(), db.imported.toArray(), db.layouts.toArray()]);
-  return JSON.stringify({ app: 'emperorslist', kind: 'backup', version: 3, exportedAt: new Date().toISOString(), rosters, games, collection, imported, layouts });
+  const [rosters, games, collection, imported, layouts, pins] = await Promise.all([db.rosters.toArray(), db.games.toArray(), db.collection.toArray(), db.imported.toArray(), db.layouts.toArray(), db.pins.toArray()]);
+  return JSON.stringify({ app: 'emperorslist', kind: 'backup', version: 3, exportedAt: new Date().toISOString(), rosters, games, collection, imported, layouts, pins });
 }
 
 export interface RestoreResult {
@@ -15,19 +15,21 @@ export interface RestoreResult {
 
 /** Merge a backup into this device. Items with the same id are replaced by the backup's copy. */
 export async function restoreBackup(text: string): Promise<RestoreResult> {
-  const data = JSON.parse(text) as { app?: string; rosters?: unknown[]; games?: unknown[]; collection?: unknown[]; imported?: unknown[]; layouts?: unknown[] };
+  const data = JSON.parse(text) as { app?: string; rosters?: unknown[]; games?: unknown[]; collection?: unknown[]; imported?: unknown[]; layouts?: unknown[]; pins?: unknown[] };
   if (data.app !== 'emperorslist') throw new Error('This file is not an EmperorsList backup.');
   const rosters = (data.rosters ?? []) as Parameters<typeof db.rosters.bulkPut>[0];
   const games = (data.games ?? []) as Parameters<typeof db.games.bulkPut>[0];
   const collection = (data.collection ?? []) as Parameters<typeof db.collection.bulkPut>[0];
   const imported = (data.imported ?? []) as Parameters<typeof db.imported.bulkPut>[0];
   const layouts = (data.layouts ?? []) as Parameters<typeof db.layouts.bulkPut>[0];
+  const pins = (data.pins ?? []) as Parameters<typeof db.pins.bulkPut>[0];
   rosters.forEach((r) => {
     r.config ??= [];
     r.detachmentIds ??= [];
   });
-  await db.transaction('rw', [db.rosters, db.games, db.collection, db.imported, db.layouts], async () => {
+  await db.transaction('rw', [db.rosters, db.games, db.collection, db.imported, db.layouts, db.pins], async () => {
     await db.layouts.bulkPut(layouts);
+    await db.pins.bulkPut(pins);
     await db.rosters.bulkPut(rosters);
     await db.games.bulkPut(games);
     await db.collection.bulkPut(collection);

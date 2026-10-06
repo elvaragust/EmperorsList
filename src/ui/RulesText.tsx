@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import type { DataIndex } from '@/engine/bsdata/index';
-import { lookupRule } from '@/engine/rules/glossary';
+import { lookupRule, termMatcher } from '@/engine/rules/glossary';
 import { useRulePopup } from './RulePopup';
 
 /**
@@ -10,6 +10,29 @@ import { useRulePopup } from './RulePopup';
 export function RulesText({ text, index, inline }: { text: string; index?: DataIndex; inline?: boolean }) {
   const popup = useRulePopup();
   const paragraphs = text.replace(/\r/g, '').split(/\n{2,}/);
+  const matcher = index ? termMatcher(index) : undefined;
+  /** Plain text with known rule names and core terms made tappable (e.g. "surge move", "Deep Strike"). */
+  const linkify = (chunk: string, key: string): ReactNode[] => {
+    const re = matcher?.re;
+    if (!re || !chunk) return [chunk];
+    const parts: ReactNode[] = [];
+    let at = 0;
+    let n = 0;
+    re.lastIndex = 0;
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(chunk))) {
+      if (mm.index > at) parts.push(chunk.slice(at, mm.index));
+      const word = mm[0];
+      parts.push(
+        <button key={`${key}-t${n++}`} className="kw kw-soft" onClick={() => popup.openTerm(matcher!.canonical.get(word.toLowerCase()) ?? word, index)}>
+          {word}
+        </button>,
+      );
+      at = mm.index + word.length;
+    }
+    if (at < chunk.length) parts.push(chunk.slice(at));
+    return parts;
+  };
   const render = (para: string, pi: number) => {
     const out: ReactNode[] = [];
     const re = /\^\^\*\*(.+?)\*\*\^\^|\^\^(.+?)\^\^|\*\*(.+?)\*\*|\[([A-Z][A-Z0-9 +\-"']+)\]/g;
@@ -17,7 +40,7 @@ export function RulesText({ text, index, inline }: { text: string; index?: DataI
     let m: RegExpExecArray | null;
     let k = 0;
     while ((m = re.exec(para))) {
-      if (m.index > last) out.push(para.slice(last, m.index));
+      if (m.index > last) out.push(...linkify(para.slice(last, m.index), `${pi}-${k++}`));
       const kw = m[1] ?? m[2];
       const bold = m[3];
       const ability = m[4];
@@ -42,7 +65,7 @@ export function RulesText({ text, index, inline }: { text: string; index?: DataI
       }
       last = m.index + m[0].length;
     }
-    if (last < para.length) out.push(para.slice(last));
+    if (last < para.length) out.push(...linkify(para.slice(last), `${pi}-end`));
     return out;
   };
   if (inline) return <>{paragraphs.map((p, i) => <Fragment key={i}>{render(p, i)}</Fragment>)}</>;

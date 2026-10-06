@@ -14,7 +14,7 @@ import { AbilityList, DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
-import { WeaponGridView } from '@/ui/WeaponGridView';
+import { Composition } from '@/ui/Composition';
 import { combinedModels, leaderBuffTag } from './combined';
 
 type Tab = 'models' | 'wargear' | 'datasheet';
@@ -43,21 +43,6 @@ export function UnitScreen() {
 
   const save = (fn: (r: Roster) => Roster) => saveRoster(index, fn(roster));
   const saveUnit = (u: RosterUnit) => save((r) => ({ ...r, units: r.units.map((x) => (x.id === u.id ? u : x)) }));
-  const dead = Object.entries(roster.tracking ?? {}).flatMap(([uid, ids]) => ids.map((m) => `${uid}/${m}`));
-
-  const toggleModel = (prefixed: string, alive: boolean) => {
-    const [uid, ...rest] = prefixed.split('/');
-    const mid = rest.join('/');
-    save((r) => {
-      const t = { ...(r.tracking ?? {}) };
-      const list = new Set(t[uid!] ?? []);
-      if (alive) list.delete(mid);
-      else list.add(mid);
-      t[uid!] = [...list];
-      return { ...r, tracking: t };
-    });
-  };
-
   const pts = engine?.unitPoints(unit.id) ?? unit.points;
   const together = attached.reduce((s, a) => s + (engine?.unitPoints(a.id) ?? a.points), pts);
   const targets = engine?.attachTargets(unit.id) ?? [];
@@ -112,7 +97,7 @@ export function UnitScreen() {
       <div className="seg" role="tablist">
         {(['models', 'wargear', 'datasheet'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)} role="tab" aria-selected={tab === t}>
-            {t === 'models' ? (attached.length ? 'Combined' : 'Models') : t === 'wargear' ? 'Wargear' : 'Datasheet'}
+            {t === 'models' ? (attached.length ? 'Combined' : 'Unit') : t === 'wargear' ? 'Wargear' : 'Datasheet'}
           </button>
         ))}
       </div>
@@ -121,11 +106,10 @@ export function UnitScreen() {
         <>
           {attached.length > 0 && (
             <p className="muted small">
-              {unit.name} led by {attached.map((a) => a.nickname || a.name).join(' and ')}. Tap a row to remove a model; totals update.
+              {unit.name} led by {attached.map((a) => a.nickname || a.name).join(' and ')}. The shots-per-weapon grid and model removal are in Play.
             </p>
           )}
-          {!attached.length && <p className="muted small">Tap a row to see single models and remove one; totals update.</p>}
-          <WeaponGridView loadouts={combined.loadouts} models={combined.models} weapons={combined.weapons} dead={dead} onToggle={toggleModel} />
+          <Composition models={combined} />
           {leaderAbilities.length > 0 && (
             <>
               <div className="section-label">Abilities from attached characters</div>

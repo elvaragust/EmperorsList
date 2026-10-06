@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { nextPhase, PHASE_NAMES, PHASES, ROUNDS, totalScore } from '@/engine/game';
-import { otherTeam, teamNames, type LiveAction, type LiveState, type Team } from '@/engine/live';
+import { canAdvance, LOCAL, otherTeam, reduce, teamNames, type LiveAction, type LiveState, type Team } from '@/engine/live';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { closeRoom, joinUrl, type Room } from '@/sync/room';
 import { useRoom } from '@/sync/useRoom';
@@ -13,14 +13,28 @@ import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { ScoreRow } from './GameScreen';
 import { PhasePanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
-import { LayoutPicker } from './layouts';
+import { MissionFields } from './MissionFields';
 
 /** A game played live across phones (1v1 or 2v2). The host's phone is the referee. */
 export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
   const room = useRoom(game);
   const state = game.live?.state;
   const myId = game.live!.myId;
-  const dispatch = (a: LiveAction) => room?.dispatch(a);
+  const unlinked = Boolean(game.live?.unlinked);
+  const dispatch = (a: LiveAction) => {
+    if (!unlinked) return room?.dispatch(a);
+    // Offline copy: apply locally, you may change everything.
+    if (!state || !game.live) return;
+    const next = reduce(state, a, LOCAL);
+    if (next === state) return;
+    const myTeam = next.players.find((p) => p.id === myId)?.team;
+    void db.games.update(game.id, {
+      live: { ...game.live, state: next },
+      round: next.round,
+      stage: next.stage === 'lobby' ? 'setup' : next.stage,
+      result: next.stage === 'done' ? (next.winner === 'draw' ? 'draw' : next.winner === myTeam ? 'win' : 'loss') : game.result,
+    });
+  };
 
   // Share how many models each of my units has left, so the other players can see it.
   const mine = useMemo(() => (engine ? toSummaries(unitsLeft(engine, game.casualties)) : undefined), [engine, game.casualties]);
@@ -81,7 +95,6 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
   }, [url]);
   const need = state.mode === '2v2' ? 4 : 2;
   const teamsOk = state.players.filter((p) => p.team === 'A').length === need / 2 && state.players.filter((p) => p.team === 'B').length === need / 2;
-  const [layoutOpen, setLayoutOpen] = useState(false);
 
   return (
     <Screen title="Live game · Lobby" back>
@@ -141,17 +154,11 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
       <div className="section-label">Mission</div>
       {isHost ? (
         <>
-          <label className="field">
-            <span>Mission</span>
-            <input className="input" defaultValue={state.mission ?? ''} onBlur={(e) => dispatch({ t: 'setMission', mission: e.target.value })} />
-          </label>
-          <label className="field">
-            <span>Deployment / layout</span>
-            <input className="input" defaultValue={state.deployment ?? ''} onBlur={(e) => dispatch({ t: 'setMission', deployment: e.target.value })} />
-          </label>
-          <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
-            Pick a saved layout
-          </button>
+          <MissionFields
+            value={{ mission: state.mission, deployment: state.deployment, twist: state.twist }}
+            onChange={(v) => dispatch({ t: 'setMission', mission: v.mission ?? '', deployment: v.deployment ?? '', twist: v.twist ?? '' })}
+            disposition={state.players.find((p) => p.id === state.hostId)?.disposition}
+          />
           <div className="section-label">Goes first</div>
           <div className="filters">
             {(['A', 'B'] as Team[]).map((t) => (
@@ -167,12 +174,11 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
           </div>
         </>
       ) : (
-        <p className="small">
-          {state.mission || 'Mission not set yet'}
-          {state.deployment ? ` · ${state.deployment}` : ''} · first turn: {teamNames(state, state.firstTurn)}
-        </p>
+        <>
+          <MissionFields readOnly value={{ mission: state.mission, deployment: state.deployment, twist: state.twist }} onChange={() => undefined} />
+          <p className="small">First turn: {teamNames(state, state.firstTurn)}</p>
+        </>
       )}
-      <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} onPick={(name) => dispatch({ t: 'setMission', deployment: name })} />
       <LeaveButton game={game} />
     </Screen>
   );
@@ -198,43 +204,67 @@ function LeaveButton({ game }: { game: SavedGame }) {
 
 function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; state: LiveState; room?: Room; engine?: RosterEngine; dispatch: (a: LiveAction) => void }) {
   const myId = game.live!.myId;
-  const isHost = game.live?.role === 'host';
+  const unlinked = Boolean(game.live?.unlinked);
+  const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
   const [tab, setTab] = useState<'phase' | 'units' | 'score' | 'log'>('phase');
   const [note, setNote] = useState('');
   const [ending, setEnding] = useState(false);
+  const [menu, setMenu] = useState(false);
+  // What I'm looking at is mine; the game's current phase is shared.
+  const [viewPhase, setViewPhase] = useState(state.phase);
+  useEffect(() => setViewPhase(state.phase), [state.phase, state.turn, state.round]);
   const myTurn = state.turn === myTeam;
+  const mayAdvance = unlinked || canAdvance(state, myId);
   const n = nextPhase({ round: state.round, turn: state.turn === state.firstTurn ? 'me' : 'them', phase: state.phase }, 'me');
   const nextTeam: Team = n.turn === 'me' ? state.firstTurn : otherTeam(state.firstTurn);
   const nextText = n.gameOver ? 'end of game' : nextTeam !== state.turn ? `${teamNames(state, nextTeam)}'s turn` : PHASE_NAMES[n.phase];
   const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties) : []), [engine, game.casualties]);
   const usedThisPhase = useLiveQuery(() => db.games.get(game.id).then((g) => g?.used ?? []), [game.id]);
+  const mine = (id: string) => unlinked || id === myId;
+
+  const unlink = async () => {
+    closeRoom(game.id);
+    await db.games.update(game.id, { live: { ...game.live!, unlinked: true } });
+    setMenu(false);
+  };
+  const relink = async () => {
+    await db.games.update(game.id, { live: { ...game.live!, unlinked: false } });
+    setMenu(false);
+  };
 
   return (
     <Screen
       title={`Round ${state.round}`}
       back
       actions={
-        isHost ? (
-          <button className="btn btn-sm btn-ghost" onClick={() => setEnding(true)}>
-            End
-          </button>
-        ) : undefined
+        <button className="icon-btn" aria-label="Game menu" onClick={() => setMenu(true)}>
+          ⋯
+        </button>
       }
     >
-      <Status room={room} />
+      {unlinked ? (
+        <div className="small" style={{ color: 'var(--accent)', marginBottom: 6 }}>
+          ● Offline copy — you can change everything. The other players' armies are kept as they were.
+        </div>
+      ) : (
+        <Status room={room} />
+      )}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontWeight: 600 }}>{myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`}</span>
+        <span style={{ fontWeight: 600 }}>
+          {myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`} · {PHASE_NAMES[state.phase]}
+        </span>
         <span className="spacer" />
         <span className="num">
           VP {totalScore(state.vp[myTeam])}–{totalScore(state.vp[otherTeam(myTeam)])}
         </span>
       </div>
-      <div className="filters" style={{ marginTop: 6 }}>
+      <div className="filters" style={{ marginTop: 6 }} aria-label="Look at a phase (only on your screen)">
         {PHASES.map((p) => (
-          <button key={p} className={`filter ${state.phase === p ? 'on' : ''}`} onClick={() => dispatch({ t: 'phase', phase: p })}>
+          <button key={p} className={`filter ${viewPhase === p ? 'on' : ''}`} onClick={() => setViewPhase(p)}>
             {PHASE_NAMES[p]}
+            {p === state.phase ? ' •' : ''}
           </button>
         ))}
       </div>
@@ -244,23 +274,29 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             <span>
               {p.id === myId ? 'Your CP' : `${p.name} CP`} <span className="muted small">· Team {p.team}</span>
             </span>
-            <Stepper value={state.cp[p.id] ?? 0} onChange={(v) => dispatch({ t: 'cp', id: p.id, value: v })} label={`${p.name} CP`} />
+            {mine(p.id) ? (
+              <Stepper value={state.cp[p.id] ?? 0} onChange={(v) => dispatch({ t: 'cp', id: p.id, value: v })} label={`${p.name} CP`} />
+            ) : (
+              <span className="num" style={{ fontSize: 20, padding: '0 14px' }}>
+                {state.cp[p.id] ?? 0}
+              </span>
+            )}
           </div>
         ))}
       </div>
       <div className="btn-row">
-        <button className="btn" onClick={() => dispatch({ t: 'prev' })}>
+        <button className="btn" onClick={() => dispatch({ t: 'prev' })} disabled={!mayAdvance}>
           ‹
         </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (n.gameOver ? isHost && setEnding(true) : dispatch({ t: 'next' }))} disabled={n.gameOver && !isHost}>
-          Next: {nextText}
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (n.gameOver ? isHost && setEnding(true) : dispatch({ t: 'next' }))} disabled={!mayAdvance || (n.gameOver && !isHost)}>
+          {mayAdvance ? `Next: ${nextText}` : `${teamNames(state, state.turn)} moves the turn on`}
         </button>
       </div>
 
       <div className="seg" role="tablist">
         {(['phase', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[state.phase] : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
+            {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
         ))}
       </div>
@@ -268,7 +304,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       {tab === 'phase' && (
         <PhasePanel
           engine={engine}
-          phase={state.phase}
+          phase={viewPhase}
           myTurn={myTurn}
           onSpend={(s, cost) => {
             const again = (usedThisPhase ?? []).some((u) => u.id === s.id && u.round === state.round && u.phase === state.phase);
@@ -311,11 +347,18 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
                 ))}
                 <span />
                 {(['primary', 'secondary'] as const).map((kind) => (
-                  <ScoreRow key={kind} label={kind === 'primary' ? 'Pri' : 'Sec'} values={state.vp[team][kind]} onChange={(r, v) => dispatch({ t: 'vp', team, kind, round: r, value: v })} />
+                  <ScoreRow
+                    key={kind}
+                    label={kind === 'primary' ? 'Pri' : 'Sec'}
+                    values={state.vp[team][kind]}
+                    readOnly={!unlinked && team !== myTeam}
+                    onChange={(r, v) => dispatch({ t: 'vp', team, kind, round: r, value: v })}
+                  />
                 ))}
               </div>
             </div>
           ))}
+          {!unlinked && <p className="small muted">Each team enters its own score; you see theirs as they type it.</p>}
         </div>
       )}
 
@@ -343,7 +386,30 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
         </>
       )}
 
-      <Sheet open={ending} onClose={() => setEnding(false)} title="End the game for everyone?">
+      <Sheet open={menu} onClose={() => setMenu(false)} title="Game">
+        {isHost && (
+          <button className="menu-item" onClick={() => (setMenu(false), setEnding(true))}>
+            End the game{unlinked ? '' : ' for everyone'}
+          </button>
+        )}
+        {!unlinked ? (
+          <button className="menu-item" onClick={unlink}>
+            <span>
+              Turn off live changes
+              <div className="muted small">Unlinks this phone. You keep everyone's army and score as they are now, and can change anything yourself.</div>
+            </span>
+          </button>
+        ) : (
+          <button className="menu-item" onClick={relink}>
+            <span>
+              Reconnect to the live game
+              <div className="muted small">{game.live?.role === 'host' ? 'Others can rejoin; your offline changes are kept.' : "The host's game replaces your offline changes."}</div>
+            </span>
+          </button>
+        )}
+      </Sheet>
+
+      <Sheet open={ending} onClose={() => setEnding(false)} title={unlinked ? 'End the game?' : 'End the game for everyone?'}>
         <p>
           Final score {teamNames(state, 'A')} {totalScore(state.vp.A)} – {totalScore(state.vp.B)} {teamNames(state, 'B')}.
         </p>

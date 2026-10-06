@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
 import { rootsFor, saveRoster, useIndex } from '@/data/gameData';
-import { configChoices, setBattleSize, setDetachments, setDisposition } from '@/engine/rules/config';
+import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition } from '@/engine/rules/config';
+import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import type { BattleSize, Roster } from '@/engine/types';
 import { db } from '@/data/db';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
-import { RulesText } from '@/ui/RulesText';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 const SIZES: { size: BattleSize; label: string; points: number; note: string }[] = [
@@ -98,7 +98,8 @@ export function NewListScreen() {
   }, [factions, filter]);
 
   const dp = engine?.detachmentPoints();
-  const visibleDetachments = choices?.detachments.filter((d) => !d.hidden) ?? [];
+  const visibleDetachments = useMemo(() => choices?.detachments.filter((d) => !d.hidden) ?? [], [choices]);
+  const enhByDet = useMemo(() => (index ? enhancementsByDetachment(index, visibleDetachments) : new Map()), [index, visibleDetachments]);
   const titles = ['Faction', 'Battle size', 'Detachments', 'Disposition'];
 
   return (
@@ -123,7 +124,7 @@ export function NewListScreen() {
                 {list.map((f) => (
                   <button key={f.path} className="choice" disabled={Boolean(busy)} onClick={() => pickFaction(f)}>
                     <span style={{ flex: 1 }}>{f.name}</span>
-                    <span className="muted small">{f.downloaded ? 'On device' : 'Download'}</span>
+                    <span className="muted small">{f.downloaded ? '' : 'Loading…'}</span>
                   </button>
                 ))}
               </div>
@@ -177,34 +178,12 @@ export function NewListScreen() {
           <p className="muted small">
             Detachment Points: <span className="num">{dp?.used ?? 0}</span> / {dp?.max ?? '–'}. Pick one or more detachments.
           </p>
-          <div className="card">
-            {visibleDetachments.map((d) => {
-              const on = roster.detachmentIds.includes(d.key);
-              return (
-                <div key={d.key}>
-                  <button className="choice" role="checkbox" aria-checked={on} onClick={() => toggleDetachment(d.key)}>
-                    <span className="mark square" />
-                    <span style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{d.name}</div>
-                      <div className="muted small">
-                        {d.dp} DP{d.dispositions.length ? ` · ${d.dispositions.join(', ')}` : ''}
-                      </div>
-                    </span>
-                  </button>
-                  {on && d.rules.length > 0 && (
-                    <div style={{ padding: '0 14px 10px 48px' }} className="small">
-                      {d.rules.map((r) => (
-                        <div key={r.name}>
-                          <strong>{r.name}</strong>
-                          <RulesText text={r.text} index={index} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            {visibleDetachments.map((d) => (
+              <DetachmentCard key={d.key} d={d} enhancements={enhByDet.get(d.key) ?? []} index={index} selected={roster.detachmentIds.includes(d.key)} onToggle={() => toggleDetachment(d.key)} />
+            ))}
           </div>
+          <p className="small muted">Tap ▸ to read a detachment's rules, enhancements and stratagems before picking it.</p>
           {dp?.max !== undefined && dp.used > dp.max && <p className="issue-title">Over the Detachment Point limit by {dp.used - dp.max}.</p>}
           <div className="btn-row">
             <button className="btn btn-primary btn-block" disabled={!roster.detachmentIds.length} onClick={() => setStep(3)}>

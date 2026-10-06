@@ -224,7 +224,7 @@ export class Room {
 
 /** One room per live game, kept open while the app runs (moving between screens doesn't drop it). */
 export function roomFor(game: SavedGame): Room | undefined {
-  if (!game.live) return undefined;
+  if (!game.live || game.live.unlinked) return undefined;
   let r = rooms.get(game.id);
   if (!r) {
     const me = game.live.me;
