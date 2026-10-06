@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { db } from '@/data/db';
 import { DISPOSITIONS, MISSION_DECK, ownPrimaries, primariesFor, toggleInList } from '@/engine/missions';
 import { CardText, useMissionCards } from './missionCards';
+import { DeploymentMap } from './deploymentMap';
 import { LayoutPicker, LayoutPreview } from './layouts';
 
 export interface MissionValue {
@@ -13,6 +14,7 @@ export interface MissionValue {
   disposition?: string;
 }
 
+const SWAP_TWISTS = ['Scrambled Communications', 'Mirrored World'];
 const pickRandom = <T,>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
 
 /** Everything at random: a primary from your Force Disposition only, a deployment and a twist. */
@@ -27,6 +29,8 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
   const cards = useMissionCards();
   const disposition = value.disposition || listDisposition;
   const own = ownPrimaries(disposition);
+  // Only twists that swap or copy Primary Missions let you play another disposition's card.
+  const swapTwist = SWAP_TWISTS.includes(value.twist ?? '');
   if (readOnly) {
     return (
       <>
@@ -34,6 +38,7 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
           {[value.mission || 'Mission not set yet', value.deployment, value.twist].filter(Boolean).join(' · ')}
           <LayoutPreview name={value.deployment} />
         </p>
+        <DeploymentMap name={value.deployment} />
         <CardText name={value.mission} cards={cards} compact />
         <CardText name={value.twist} cards={cards} compact />
       </>
@@ -80,9 +85,9 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
             </optgroup>
           )}
           {primariesFor(disposition)
-            .filter((g) => g.disposition !== disposition)
+            .filter((g) => g.disposition !== disposition && (swapTwist || !disposition))
             .map((g) => (
-              <optgroup key={g.disposition} label={`Other: ${g.disposition} (twists that swap missions)`}>
+              <optgroup key={g.disposition} label={disposition ? `${g.disposition} (allowed by the ${value.twist} twist)` : g.disposition}>
                 {g.missions.map((m) => (
                   <option key={m} value={m}>
                     {m}
@@ -90,6 +95,7 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
                 ))}
               </optgroup>
             ))}
+          {value.mission && !own.includes(value.mission) && !(swapTwist || !disposition) && <option value={value.mission}>{value.mission} (not your disposition)</option>}
           {value.mission && !Object.values(MISSION_DECK.primaries).flat().includes(value.mission) && <option value={value.mission}>{value.mission}</option>}
         </select>
       </label>
@@ -110,6 +116,7 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
               </option>
             ))}
           </optgroup>
+          <option value="Other">Other</option>
           {layouts && layouts.length > 0 && (
             <optgroup label="Your saved layouts">
               {layouts.map((l) => (
@@ -121,7 +128,8 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
           )}
         </select>
       </label>
-      <CardText name={value.deployment} cards={cards} />
+      <DeploymentMap name={value.deployment} />
+      <CardText name={value.deployment} cards={cards} compact />
       <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
         Pick a saved layout photo
       </button>

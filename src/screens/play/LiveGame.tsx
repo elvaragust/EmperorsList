@@ -15,9 +15,10 @@ import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
 import { ScoreRow } from './GameScreen';
-import { PhasePanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
+import { PhasePanel, RoundBar, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
+import { OpponentUnits } from './OpponentUnits';
 
 /** A game played live across phones (1v1 or 2v2). The host's phone is the referee. */
 export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
@@ -100,6 +101,11 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
   const need = state.mode === '2v2' ? 4 : 2;
   const teamsOk = state.players.filter((p) => p.team === 'A').length === need / 2 && state.players.filter((p) => p.team === 'B').length === need / 2;
   const me = state.players.find((p) => p.id === myId);
+  const myRole = state.attacker && me ? (state.attacker === me.team ? 'attacker' : 'defender') : undefined;
+  // Keep this phone's copy in step, so the secondary deck uses the right cards.
+  useEffect(() => {
+    if (myRole && game.role !== myRole) void db.games.update(game.id, { role: myRole });
+  }, [myRole, game.role, game.id]);
 
   return (
     <Screen title="Live game · Lobby" back>
@@ -191,13 +197,15 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
         </>
       )}
       <div className="section-label">Attacker or Defender?</div>
+      <p className="small muted" style={{ marginTop: 0 }}>Roll off after the deployment card; the winner sets it here for both sides.</p>
       <div className="seg" role="radiogroup">
         {(['attacker', 'defender'] as const).map((r) => (
-          <button key={r} role="radio" aria-checked={game.role === r} className={game.role === r ? 'on' : undefined} onClick={() => void db.games.update(game.id, { role: r })}>
-            {r === 'attacker' ? 'Attacker' : 'Defender'}
+          <button key={r} role="radio" aria-checked={myRole === r} className={myRole === r ? 'on' : undefined} disabled={!me} onClick={() => me && dispatch({ t: 'setAttacker', team: r === 'attacker' ? me.team : otherTeam(me.team) })}>
+            {r === 'attacker' ? 'We attack' : 'We defend'}
           </button>
         ))}
       </div>
+      {state.attacker && <p className="small">Attacker: {teamNames(state, state.attacker)} · Defender: {teamNames(state, otherTeam(state.attacker))}</p>}
       <SecondarySetup game={game} set={(p) => void db.games.update(game.id, p)} opponent={false} />
       <LeaveButton game={game} />
     </Screen>
@@ -304,6 +312,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       ) : (
         <Status room={room} />
       )}
+      <RoundBar round={state.round} disabled={!mayAdvance} onPick={(r) => dispatch({ t: 'round', round: r })} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontWeight: 600 }}>
           {myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`} · {PHASE_NAMES[state.phase]}
@@ -366,6 +375,12 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             primary={state.players.find((p) => p.id === myId)?.primary ?? state.mission}
             onChange={(p) => void db.games.update(game.id, p)}
             onCp={(d) => dispatch({ t: 'cp', id: myId, value: Math.max(0, (state.cp[myId] ?? 0) + d) })}
+            onVp={(kind, vp) => {
+              const team = myTeam;
+              const i = Math.min(state.round, state.vp[team][kind].length) - 1;
+              dispatch({ t: 'vp', team, kind, round: i, value: (state.vp[team][kind][i] ?? 0) + vp });
+              showToast(`+${vp} VP added to round ${state.round}`);
+            }}
           />
         </>
       )}
@@ -394,7 +409,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
                 <div className="section-label">
                   {p.name} · {p.army} {p.team === myTeam ? '(teammate)' : ''}
                 </div>
-                <SummaryList units={state.units[p.id] ?? []} />
+                {p.list ? <OpponentUnits game={game} playerId={p.id} summary={state.units[p.id]} /> : <SummaryList units={state.units[p.id] ?? []} />}
               </div>
             ))}
         </>

@@ -2,6 +2,7 @@ import type { SavedGame } from '@/data/db';
 import { uid } from '@/data/rosters';
 import { makeRoomCode, newLiveState, type LivePlayer } from '@/engine/live';
 import type { Roster } from '@/engine/types';
+import { toPayload } from '@/engine/share';
 import { newGame } from './games';
 
 const NAME_KEY = 'emperorslist.playerName';
@@ -21,7 +22,7 @@ export function rememberName(n: string) {
 }
 
 function player(roster: Roster, name: string): LivePlayer {
-  return { id: uid(), name: name || 'Player', team: 'A', army: roster.name, faction: roster.factionName, detachments: roster.detachmentNames ?? [], disposition: roster.forceDisposition };
+  return { id: uid(), name: name || 'Player', team: 'A', army: roster.name, faction: roster.factionName, detachments: roster.detachmentNames ?? [], disposition: roster.forceDisposition, list: toPayload(roster) };
 }
 
 export function newHostedGame(roster: Roster, name: string): SavedGame {

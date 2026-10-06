@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { useRulePopup } from '@/ui/RulePopup';
 import { RulesText } from '@/ui/RulesText';
+import { parseCard, scoreItems, sectionsFor } from '@/engine/missionCard';
 
 export interface CardInfo {
   name: string;
@@ -48,4 +49,128 @@ export function useCardPopup(cards: Map<string, CardInfo>) {
     const c = cards.get(name.toLowerCase());
     if (c) popup.openDef({ name: c.name, text: c.text, kind: 'core', source: `Mission deck · ${c.kind} · Wahapedia` }, undefined);
   };
+}
+
+/**
+ * A card laid out for scoring: the part for this battle round first (when to
+ * score, a tick or a counter per scoring line, caps applied), the add-to-score
+ * button, and the rest folded away.
+ */
+export function ScoreCard({
+  name,
+  cards,
+  round,
+  onAdd,
+  addLabel = 'Add',
+  footer,
+}: {
+  name: string;
+  cards: Map<string, CardInfo>;
+  round: number;
+  onAdd?: (vp: number) => void;
+  addLabel?: string;
+  footer?: React.ReactNode;
+}) {
+  const c = cards.get(name.toLowerCase());
+  const parsed = useMemo(() => (c ? parseCard(c.text) : undefined), [c]);
+  const [counts, setCounts] = useState<Record<string, number[]>>({});
+  const [more, setMore] = useState(false);
+  const now = parsed ? sectionsFor(parsed, round) : [];
+  const later = parsed ? parsed.sections.filter((s) => !now.includes(s)) : [];
+  const total = now.reduce((sum, s) => sum + scoreItems(s.items, counts[s.title] ?? []), 0);
+  const setCount = (title: string, i: number, n: number) => setCounts((all) => {
+    const list = [...(all[title] ?? [])];
+    list[i] = Math.max(0, n);
+    return { ...all, [title]: list };
+  });
+  return (
+    <div className="score-card">
+      <div className="score-card-head">
+        <strong style={{ flex: 1 }}>{name}</strong>
+        {c?.tags.includes('fixed') && <span className="tag">FIXED</span>}
+      </div>
+      {!c && <p className="small muted" style={{ margin: '4px 0' }}>Card text not loaded on this device.</p>}
+      {parsed && parsed.sections.length === 0 && <RulesText text={c!.text} />}
+      {now.map((s) => (
+        <div key={s.title} className="score-section">
+          <div className="round-pill">{s.title}</div>
+          {s.when && (
+            <div className="small">
+              <strong>When:</strong> {s.when}
+            </div>
+          )}
+          {s.lines.map((l, i) => (
+            <RulesText key={i} text={l} />
+          ))}
+          {s.items.map((it, i) => {
+            const n = counts[s.title]?.[i] ?? 0;
+            const label = (
+              <span style={{ flex: 1 }}>
+                <RulesText inline text={it.text} />
+                <span className="vp">
+                  {it.bonus ? '+' : ''}
+                  {it.vp}VP{it.each ? ' each' : ''}
+                  {it.cap ? ` (max ${it.cap})` : ''}
+                </span>
+              </span>
+            );
+            return it.each ? (
+              <div key={i} className="score-line">
+                {label}
+                <span className="wounds">
+                  <button className="btn btn-sm" onClick={() => setCount(s.title, i, n - 1)} aria-label="One fewer">
+                    −
+                  </button>
+                  <span className="num">{n}</span>
+                  <button className="btn btn-sm" onClick={() => setCount(s.title, i, n + 1)} aria-label="One more">
+                    +
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <button key={i} className="score-line" role="checkbox" aria-checked={n > 0} onClick={() => setCount(s.title, i, n > 0 ? 0 : 1)}>
+                {label}
+                <span className={`check ${n > 0 ? 'on' : ''}`}>{n > 0 ? '✓' : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+      {parsed && parsed.sections.length > 0 && now.length === 0 && <p className="small muted">Nothing to score on this card in round {round}.</p>}
+      {onAdd && now.some((s) => s.items.length) && (
+        <button
+          className="btn btn-sm btn-primary btn-block"
+          disabled={total <= 0}
+          onClick={() => {
+            onAdd(total);
+            setCounts({});
+          }}
+        >
+          {addLabel} {total} VP
+        </button>
+      )}
+      {footer}
+      {parsed && (parsed.intro.length > 0 || later.length > 0 || parsed.notes.length > 0) && (
+        <button className="link-btn small" onClick={() => setMore(!more)} aria-expanded={more}>
+          {more ? 'Hide' : 'Show'} the rest of the card {more ? '▴' : '▾'}
+        </button>
+      )}
+      {more && parsed && (
+        <div className="small muted">
+          {parsed.intro.map((l, i) => (
+            <RulesText key={i} text={l} />
+          ))}
+          {later.map((s) => (
+            <div key={s.title} style={{ marginTop: 6 }}>
+              <div className="round-pill dim">{s.title}</div>
+              {s.when && <div>When: {s.when}</div>}
+              {[...s.lines, ...s.items.map((it) => `${it.bonus ? '+' : ''}${it.text} — ${it.vp}VP${it.cap ? ` (max ${it.cap})` : ''}`)].map((l, i) => (
+                <RulesText key={i} text={l} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

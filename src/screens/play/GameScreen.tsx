@@ -11,13 +11,17 @@ import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
+import { showToast } from '@/ui/Toast';
 import { saveGame, withLog } from './games';
 import { useSessionState } from '@/ui/useSessionState';
-import { NotesPanel, PhasePanel } from './panels';
+import { NotesPanel, PhasePanel, RoundBar } from './panels';
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
+import { OpponentUnits } from './OpponentUnits';
+import { importListText } from '@/data/importList';
+import { matchFaction, parseListText } from '@/engine/listText';
 
 const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'];
 
@@ -67,6 +71,26 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
   }, []);
   const step = game.setupStep;
   const set = (patch: Partial<SavedGame>) => saveGame({ ...game, ...patch });
+  const [oppStatus, setOppStatus] = useState('');
+  // Read the pasted list into a roster (their faction from the picker or the list header).
+  const readOpponent = async (text: string) => {
+    if (!text.trim()) return set({ opponentList: '', opponentRoster: undefined });
+    const parsed = parseListText(text);
+    const f = factions.find((x) => x.name === game.opponentFaction) ?? matchFaction(parsed, factions);
+    if (!f) {
+      setOppStatus('Pick their faction above to read the list.');
+      return set({ opponentList: text });
+    }
+    try {
+      setOppStatus('Reading their list…');
+      const { roster } = await importListText(parsed, f);
+      await set({ opponentList: text, opponentFaction: f.name, opponentRoster: roster, opponentName: game.opponentName || '' });
+      setOppStatus(`Their list: ${roster.units.length} units read — tap them in the battle's Units tab.`);
+    } catch (e) {
+      setOppStatus(`Couldn't read their list: ${e instanceof Error ? e.message : String(e)}`);
+      void set({ opponentList: text });
+    }
+  };
 
   const checklist = useMemo(() => {
     const items: { id: string; text: string }[] = [
@@ -117,9 +141,11 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
             </select>
           </label>
           <label className="field">
-            <span>Their list (optional — paste their text export)</span>
-            <textarea className="input" defaultValue={game.opponentList ?? ''} onBlur={(e) => set({ opponentList: e.target.value })} />
+            <span>Their list (optional — paste their text export to look at their units during the game)</span>
+            <textarea className="input" defaultValue={game.opponentList ?? ''} onBlur={(e) => void readOpponent(e.target.value)} />
           </label>
+          {oppStatus && <p className="small muted">{oppStatus}</p>}
+          {!oppStatus && game.opponentRoster && <p className="small muted">Their list: {game.opponentRoster.units.length} units read.</p>}
         </>
       )}
 
@@ -241,6 +267,7 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
         </button>
       }
     >
+      <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontWeight: 600 }}>{game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`}</span>
         <span className="spacer" />
@@ -307,9 +334,25 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
           primary={game.mission}
           onChange={(p) => void save({ ...game, ...p })}
           onCp={(d, why) => void db.games.get(game.id).then((g) => g && save(withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp')))}
+          onVp={(kind, vp, why) =>
+            void db.games.get(game.id).then((g) => {
+              if (!g) return;
+              const i = Math.min(g.round, g.vp.me[kind].length) - 1;
+              const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? x + vp : x)) };
+              void save(withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: +${vp} VP (${kind}, round ${g.round})`, 'vp'));
+              showToast(`+${vp} VP added to round ${g.round}`);
+            })
+          }
         />
       )}
 
+      {tab === 'units' && game.opponentRoster && (
+        <>
+          <div className="section-label">{who('them')}'s units</div>
+          <OpponentUnits game={game} playerId="local" />
+          <div className="section-label">Your units</div>
+        </>
+      )}
       {tab === 'units' && (
         <div className="card">
           {unitsLeft.map(({ u, group, total, dead }) => (

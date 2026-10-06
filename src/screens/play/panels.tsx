@@ -7,6 +7,7 @@ import { db } from '@/data/db';
 import { abilityInPhase, type Phase } from '@/engine/game';
 import type { UnitSummary } from '@/engine/live';
 import { datasheet, unitModels } from '@/engine/rules/models';
+import { catalogueChain } from '@/engine/bsdata/index';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { stratagemFits, stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
 import { RuleLabel } from '@/ui/RuleLabel';
@@ -20,14 +21,14 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
   const pinnedNames = useMemo(() => new Set((pins ?? []).filter((p) => p.kind === 'stratagem').map((p) => p.name.toLowerCase())), [pins]);
   const otherPins = (pins ?? []).filter((p) => p.kind !== 'stratagem' && p.kind !== 'datasheet');
   const index = engine?.index;
-  const allMine = useMemo(() => {
-    if (!imported || !engine) return [];
-    const hints = [engine.roster.factionName, ...[...engine.index.catalogues.values()].map((c) => c.name.split(' - ').pop() ?? '')];
-    return stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints);
-  }, [imported, engine]);
   const strats = useMemo(() => {
     if (!imported || !engine) return [];
-    const hints = [engine.roster.factionName, ...[...engine.index.catalogues.values()].map((c) => c.name.split(' - ').pop() ?? '')];
+    // Only your own faction (and the ones it builds on, e.g. Space Marines for Black Templars) — never the opponent's.
+    const chain = catalogueChain(engine.index, engine.roster.catalogueId);
+    // Allied catalogues (Agents of the Imperium…) count only when the list has a unit from them.
+    const used = new Set(engine.roster.units.map((u) => engine.index.origin.get(engine.unitInst(u.id)?.node?.targetId ?? '') ?? ''));
+    const own = chain.filter((c, i) => !c.library && (i === 0 || /space marines/i.test(c.name) || used.has(c.id)));
+    const hints = [engine.roster.factionName, ...own.map((c) => c.name.split(' - ').pop() ?? '')];
     const list = stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints).filter((s) => stratagemFits(s, phase, myTurn ? 'me' : 'them'));
     return list.sort((a, b) => Number(pinnedNames.has(b.name.toLowerCase())) - Number(pinnedNames.has(a.name.toLowerCase())));
   }, [imported, engine, phase, myTurn, pinnedNames]);
@@ -45,7 +46,6 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
     return out;
   }, [engine, phase]);
   const cpOf = (s: ImportedRule) => Number.parseInt(s.cp ?? '0', 10) || 0;
-  const pinnedNow = allMine.filter((s) => pinnedNames.has(s.name.toLowerCase()) && !strats.includes(s));
   const row = (s: ImportedRule, offPhase = false) => (
     <div key={s.id} className="row">
       <button
@@ -67,13 +67,7 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
   );
   return (
     <>
-      {pinnedNow.length > 0 && (
-        <>
-          <div className="section-label">Pinned stratagems</div>
-          <div className="card">{pinnedNow.map((s) => row(s, true))}</div>
-        </>
-      )}
-      <div className="section-label">Your stratagems</div>
+      <div className="section-label">Your stratagems · {myTurn ? 'your turn' : "opponent's turn"}</div>
       {imported && imported.length === 0 && <p className="small muted">Get stratagems in Settings → Extra rules to see them here.</p>}
       <div className="card">
         {strats.map((s) => row(s))}
@@ -188,5 +182,18 @@ export function NotesPanel({ gameId, notes }: { gameId: string; notes?: string }
         aria-label="Game notes"
       />
     </Collapse>
+  );
+}
+
+/** Battle rounds 1–5 as buttons: tap one to jump to the start of that round. */
+export function RoundBar({ round, onPick, disabled }: { round: number; onPick: (r: number) => void; disabled?: boolean }) {
+  return (
+    <div className="round-bar" role="group" aria-label="Battle round">
+      {[1, 2, 3, 4, 5].map((r) => (
+        <button key={r} className={r === round ? 'on' : r < round ? 'past' : undefined} aria-pressed={r === round} disabled={disabled && r !== round} onClick={() => r !== round && onPick(r)}>
+          R{r}
+        </button>
+      ))}
+    </div>
   );
 }

@@ -1133,3 +1133,161 @@ textarea.input {
   font-weight: 700;
   color: var(--danger);
 }
+
+/* Scoring a mission card */
+.score-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 10px 12px;
+  margin: 6px 0 10px;
+  font-size: 14px;
+}
+.score-card.struck {
+  opacity: 0.5;
+}
+.score-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.score-section {
+  margin: 6px 0;
+}
+.round-pill {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent-strong, #fff);
+  margin: 4px 0;
+}
+.round-pill.dim {
+  background: var(--raised);
+  color: var(--text-muted);
+}
+.score-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: none;
+  padding: 8px 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.score-line .vp {
+  display: inline-block;
+  margin-left: 6px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.link-btn {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  padding: 6px 0;
+  cursor: pointer;
+}
+.done-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 6px 0 10px;
+}
+.done-list button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.done-list button.discarded {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* Deployment sketch */
+:root {
+  --deploy-attacker: rgba(214, 64, 64, 0.55);
+  --deploy-defender: rgba(70, 130, 220, 0.55);
+}
+.deploy-map {
+  margin: 6px 0 10px;
+}
+.deploy-map svg {
+  width: 100%;
+  max-width: 360px;
+  display: block;
+}
+.deploy-board {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 0.4;
+}
+.deploy-mid {
+  stroke: var(--line);
+  stroke-width: 0.25;
+  stroke-dasharray: 1 1;
+}
+.deploy-centre {
+  fill: var(--text-muted);
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin: 0 2px 0 6px;
+}
+.swatch.att {
+  background: var(--deploy-attacker);
+}
+.swatch.def {
+  background: var(--deploy-defender);
+}
+
+.round-bar {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+.round-bar button {
+  flex: 1;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  cursor: pointer;
+}
+.round-bar button.past {
+  color: var(--text-muted);
+}
+.round-bar button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent-strong, #fff);
+}
+
+.gear-nested {
+  padding: 4px 0 8px 18px;
+  border-left: 3px solid var(--accent);
+  margin-left: 14px;
+}
+.gear-nested .card,
+.gear-nested .choice {
+  background: transparent;
+}

@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
-import { autoFill, setForWholeUnit, setOptionCount } from '@/engine/rules/edit';
+import { autoFill, instAt, setForWholeUnit, setOptionCount, type SelPath } from '@/engine/rules/edit';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { modelTypes, setModelsWithOption, type ModelGroup, type ModelOption, type ModelType } from '@/engine/rules/modelTypes';
 import { RosterEngine, WARLORD_CATEGORY, type OptionView } from '@/engine/rules/rosterEngine';
@@ -177,6 +177,27 @@ export function UnitScreen() {
             t={t}
             single={singleModel}
             index={index}
+            nested={(mt, o) => {
+              // Find the picked option's selection and show the choices under it.
+              let path: SelPath | undefined;
+              if (!mt.key) {
+                const i = unit.selections.findIndex((x) => x.entryId === o.key && x.count > 0);
+                if (i >= 0) path = [i];
+              } else {
+                const mi = unit.selections.findIndex((x) => x.entryId === mt.key && x.children.some((c) => c.entryId === o.key && c.count > 0));
+                const ci = mi >= 0 ? unit.selections[mi]!.children.findIndex((c) => c.entryId === o.key && c.count > 0) : -1;
+                if (ci >= 0) path = [mi, ci];
+              }
+              const inst = path ? instAt(engine, unit.id, path) : undefined;
+              if (!path || !inst) return null;
+              const views = engine.optionsUnder(inst).filter((v) => !(v.hidden && !v.selected));
+              if (!views.length) return null;
+              return (
+                <div className="gear-nested">
+                  <OptionList engine={engine} engineFor={engineFor} unit={unit} path={path} views={views} onChange={commit} />
+                </div>
+              );
+            }}
             onCount={(n) => commit(setOptionCount(engine, unit, [], t.key, n))}
             onCarry={(optionKey, n, group) => {
               let next = setModelsWithOption(engineFor, unit, t.key, optionKey, n, group);
@@ -304,8 +325,11 @@ function ModelSection({
   onCount,
   onCarry,
   index,
+  nested,
 }: {
   index?: DataIndex;
+  /** Choices inside a picked option (e.g. "Pistol and Melee Weapon" → which pistol, which melee weapon). */
+  nested?: (t: ModelType, o: ModelOption) => ReactNode;
   t: ModelType;
   single: boolean;
   onCount: (n: number) => void;
@@ -350,7 +374,7 @@ function ModelSection({
                 </span>
               </div>
               {g.options.map((o) => (
-                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} />
+                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} nested={nested?.(t, o)} />
               ))}
             </div>
           ))}
@@ -358,7 +382,7 @@ function ModelSection({
             <div className="gear-box">
               <div className="gear-box-head">Options</div>
               {t.extras.map((o) => (
-                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n)} index={index} />
+                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n)} index={index} nested={nested?.(t, o)} />
               ))}
             </div>
           )}
@@ -379,7 +403,7 @@ function InfoToggle({ open, onClick, name }: { open: boolean; onClick: () => voi
 }
 
 /** A wargear row: tap to pick it, the chevron opens its weapon profile underneath. */
-function GearRow({ o, count, onSet, radio, lockOn, index }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean; index?: DataIndex }) {
+function GearRow({ o, count, onSet, radio, lockOn, index, nested }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean; index?: DataIndex; nested?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const info = index ? hasGearInfo(index, o.node) : false;
   const pts = o.points ? <span className="num muted small">+{o.points}</span> : null;
@@ -412,6 +436,7 @@ function GearRow({ o, count, onSet, radio, lockOn, index }: { o: ModelOption; co
         </div>
       )}
       {open && index && <GearDetails index={index} node={o.node} />}
+      {o.carried > 0 && nested}
     </div>
   );
 }
