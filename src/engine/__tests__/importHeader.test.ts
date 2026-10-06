@@ -72,3 +72,11 @@ describe('missions', () => {
     expect(atk).toContain('Beacon');
   });
 });
+
+describe('lists without a header', () => {
+  it('treats the first line as a unit when bullets follow it', () => {
+    const p = parseListText('Necron Warriors (90 Points)\n  • 10x Necron Warrior\nImmortals (75 Points)\n  • 5x Immortal\n');
+    expect(p.units.map((u) => u.name)).toEqual(['Necron Warriors', 'Immortals']);
+    expect(p.title).toBeUndefined();
+  });
+});

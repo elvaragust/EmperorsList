@@ -165,17 +165,25 @@ export function stratagemFits(r: ImportedRule, phase: (typeof PHASES)[number], t
   return phaseOk && turnOk;
 }
 
-/** Stratagems for an army: its detachments' ones plus core ones. Matching is by name. */
+/**
+ * Stratagems for an army: its detachments' ones plus core ones and its own
+ * faction's general ones. Matching is by name; the same stratagem listed more
+ * than once (Wahapedia repeats core ones) is kept once.
+ */
 export function stratagemsFor(all: ImportedRule[], detachmentNames: string[], factionHints: string[]): ImportedRule[] {
   const dets = detachmentNames.map((d) => d.toLowerCase());
-  const hints = factionHints.map((h) => h.toLowerCase());
+  const hints = factionHints.map((h) => h.toLowerCase()).filter((h) => h.length > 2);
+  const seen = new Set<string>();
   return all.filter((r) => {
     if (r.kind !== 'stratagem') return false;
     const det = (r.detachment ?? '').toLowerCase();
-    if (det && dets.includes(det)) return true;
     const core = !det && (/core/i.test(r.type ?? '') || r.factionId === '' || /core/i.test(r.faction));
-    if (core) return true;
-    return !det && hints.some((h) => r.faction.toLowerCase().includes(h) || h.includes(r.faction.toLowerCase()));
+    const ok = (det && dets.includes(det)) || core || (!det && hints.some((h) => r.faction.toLowerCase() === h || r.faction.toLowerCase().includes(h)));
+    if (!ok) return false;
+    const key = `${r.name.toLowerCase()}|${r.cp ?? ''}|${core ? 'core' : det}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 

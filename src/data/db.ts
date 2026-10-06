@@ -56,6 +56,8 @@ export interface SavedGame {
   opponentDisposition?: string;
   /** Attacker or Defender, from the deployment roll-off. */
   role?: 'attacker' | 'defender';
+  /** The opponent's army read from the list they pasted (for read-only unit views). */
+  opponentRoster?: Roster;
   /** Wounds lost per model ("unitId/modelId" -> damage taken). */
   wounds?: Record<string, number>;
   checklist?: Record<string, boolean>;

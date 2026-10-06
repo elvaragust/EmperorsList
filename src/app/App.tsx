@@ -17,6 +17,7 @@ import { PlayScreen } from '@/screens/play/PlayScreen';
 import { NewGameScreen } from '@/screens/play/NewGameScreen';
 import { GameScreen } from '@/screens/play/GameScreen';
 import { GameUnitScreen } from '@/screens/play/GameUnitScreen';
+import { OpponentUnitScreen } from '@/screens/play/OpponentUnits';
 import { JoinScreen } from '@/screens/play/JoinScreen';
 import { LayoutsScreen } from '@/screens/play/layouts';
 import { CollectionScreen } from '@/screens/collection/CollectionScreen';
@@ -58,6 +59,7 @@ export function App() {
           <Route path="/play/layouts" element={<LayoutsScreen />} />
           <Route path="/play/:gameId" element={<GameScreen />} />
           <Route path="/play/:gameId/unit/:unitId" element={<GameUnitScreen />} />
+          <Route path="/play/:gameId/opp/:playerId/:idx" element={<OpponentUnitScreen />} />
           <Route path="/collection" element={<CollectionScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/lists" replace />} />

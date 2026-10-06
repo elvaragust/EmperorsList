@@ -1,7 +1,7 @@
 import type { SavedGame } from '@/data/db';
-import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, scoreTactical, secondariesFor, type TacticalState } from '@/engine/missions';
+import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, type TacticalState } from '@/engine/missions';
 import { showToast } from '@/ui/Toast';
-import { CardText, cardTags, useMissionCards, type CardInfo } from './missionCards';
+import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
 
 type Mode = 'fixed' | 'tactical';
 const list = (v?: string) =>
@@ -108,8 +108,9 @@ export function SecondarySetup({ game, set, opponent = true }: { game: SavedGame
 }
 
 /**
- * Battle: my primary and twist, and my secondaries — the two Fixed cards, or
- * the Tactical hand with draw / achieved / discard for 1CP / new orders.
+ * Battle: my primary (scored line by line for this round), the twist, and my
+ * secondaries — the two Fixed cards, or the Tactical hand with draw / add VP /
+ * discard for 1CP / new card. Scored and discarded cards stay listed; tap one to undo.
  */
 export function MissionsPanel({
   game,
@@ -118,6 +119,7 @@ export function MissionsPanel({
   myCommandPhase,
   onChange,
   onCp,
+  onVp,
   primary,
 }: {
   game: SavedGame;
@@ -127,6 +129,7 @@ export function MissionsPanel({
   myCommandPhase: boolean;
   onChange: (p: Partial<SavedGame>) => void;
   onCp: (delta: number, why: string) => void;
+  onVp: (kind: 'primary' | 'secondary', vp: number, why: string) => void;
   primary?: string;
 }) {
   const cards = useMissionCards();
@@ -137,14 +140,12 @@ export function MissionsPanel({
   const canDraw = mode === 'tactical' && t && t.drawnFor !== turnKey;
   return (
     <div>
-      <div className="section-label">Primary</div>
-      {primary ? <CardText name={primary} cards={cards} compact /> : <p className="muted small">No primary mission set.</p>}
-      {!cards.get((primary ?? '').toLowerCase()) && primary && <p className="small">{primary}</p>}
+      <div className="section-label">Primary · round {round}</div>
+      {primary ? <ScoreCard name={primary} cards={cards} round={round} onAdd={(vp) => onVp('primary', vp, primary)} addLabel={`Add to round ${round} primary:`} /> : <p className="muted small">No primary mission set.</p>}
       {game.twist && (
         <>
           <div className="section-label">Twist</div>
-          <CardText name={game.twist} cards={cards} compact />
-          {!cards.get(game.twist.toLowerCase()) && <p className="small">{game.twist}</p>}
+          <ScoreCard name={game.twist} cards={cards} round={round} />
         </>
       )}
       <div className="section-label">Secondaries{mode ? ` · ${mode === 'fixed' ? 'Fixed' : 'Tactical'}` : ''}</div>
@@ -161,12 +162,7 @@ export function MissionsPanel({
       )}
       {mode === 'fixed' &&
         (list(game.secondaries?.me).length ? (
-          list(game.secondaries?.me).map((n) => (
-            <div key={n}>
-              <CardText name={n} cards={cards} compact />
-              {!cards.get(n.toLowerCase()) && <p className="small">{n}</p>}
-            </div>
-          ))
+          list(game.secondaries?.me).map((n) => <ScoreCard key={n} name={n} cards={cards} round={round} onAdd={(vp) => onVp('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} />)
         ) : (
           <p className="muted small">No Fixed cards chosen.</p>
         ))}
@@ -186,47 +182,77 @@ export function MissionsPanel({
           )}
           {t.active.length === 0 && <p className="muted small">No active cards.{canDraw ? '' : ' Draw at the start of your next Command phase.'}</p>}
           {t.active.map((n) => (
-            <div key={n} className="tactical-card">
-              <CardText name={n} cards={cards} compact />
-              {!cards.get(n.toLowerCase()) && <div style={{ fontWeight: 600, padding: '6px 0' }}>{n}</div>}
-              <div className="btn-row" style={{ marginTop: 4 }}>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => {
-                    put(scoreTactical(t, n, round));
-                    showToast(`${n} achieved — add its VP in Score`);
-                  }}
-                >
-                  Achieved
-                </button>
-                <button
-                  className="btn btn-sm"
-                  onClick={() => {
-                    put(discardTactical(t, n));
-                    onCp(1, `Discarded ${n}`);
-                  }}
-                >
-                  Discard (+1CP)
-                </button>
-                {!t.newOrdersUsed && (
+            <ScoreCard
+              key={n}
+              name={n}
+              cards={cards}
+              round={round}
+              addLabel="Achieved — add"
+              onAdd={(vp) => {
+                onVp('secondary', vp, n);
+                put(scoreTactical(t, n, round));
+              }}
+              footer={
+                <div className="btn-row" style={{ marginTop: 6 }}>
                   <button
-                    className="btn btn-sm btn-ghost"
+                    className="btn btn-sm"
                     onClick={() => {
-                      const next = drawTactical({ ...discardTactical(t, n), newOrdersUsed: true }, 1);
-                      put(next);
-                      onCp(-1, `New orders: swapped ${n}`);
+                      put(scoreTactical(t, n, round));
+                      showToast(`${n} marked achieved`);
                     }}
                   >
-                    New card (1CP, once)
+                    Achieved (VP added by hand)
                   </button>
-                )}
-              </div>
-            </div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => {
+                      put(discardTactical(t, n, true));
+                      onCp(1, `Discarded ${n}`);
+                    }}
+                  >
+                    Discard (+1CP)
+                  </button>
+                  {!t.newOrdersUsed && (
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => {
+                        put(drawTactical({ ...discardTactical(t, n), newOrdersUsed: true }, 1));
+                        onCp(-1, `New card: swapped ${n}`);
+                      }}
+                    >
+                      New card (1CP, once)
+                    </button>
+                  )}
+                </div>
+              }
+            />
           ))}
-          <p className="small muted">
-            Deck {t.deck.length} · scored {t.scored.length}
-            {t.scored.length ? ` (${t.scored.map((s) => `${s.name} R${s.round}`).join(', ')})` : ''} · discarded {t.discarded.length}
-          </p>
+          {(t.scored.length > 0 || t.discarded.length > 0) && (
+            <>
+              <div className="small muted">Scored ✓ and discarded — tap one to put it back in your hand</div>
+              <div className="done-list">
+                {t.scored.map((s, i) => (
+                  <button key={`s${i}`} onClick={() => (put(restoreTactical(t, s.name)), showToast(`${s.name} back in your hand — take its VP off in Score if needed`))}>
+                    ✓ {s.name} · R{s.round}
+                  </button>
+                ))}
+                {t.discarded.map((d, i) => (
+                  <button
+                    key={`d${i}`}
+                    className="discarded"
+                    onClick={() => {
+                      const gaveCp = (t.discardCp ?? []).includes(d);
+                      put(restoreTactical(t, d));
+                      if (gaveCp) onCp(-1, `Undid discard of ${d}`);
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <p className="small muted">Deck {t.deck.length} cards</p>
         </>
       )}
       <ModeRules mode={mode ?? 'tactical'} />

@@ -2,16 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/data/db';
 import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
-import { loadIndex, rootsFor, saveRoster } from '@/data/gameData';
-import { uid } from '@/data/rosters';
+import { loadIndex, saveRoster } from '@/data/gameData';
 import { decodePayload, payloadToRoster } from '@/data/shareLink';
-import { importUnit, matchConfig, matchFaction, normName, parseListText, type ImportReport } from '@/engine/listText';
-import { fillMinimumModels } from '@/engine/rules/modelTypes';
-import { autoFill } from '@/engine/rules/edit';
-import { configChoices, setBattleSize, setDetachments, setDisposition } from '@/engine/rules/config';
-import { RosterEngine } from '@/engine/rules/rosterEngine';
+import { matchFaction, parseListText, type ImportReport } from '@/engine/listText';
+import { importListText } from '@/data/importList';
 import type { SharePayload } from '@/engine/share';
-import type { Roster, RosterUnit } from '@/engine/types';
 import { Screen } from '@/ui/Screen';
 
 /** Import a list from the official app's text export, or open a share link. */
@@ -66,64 +61,9 @@ export function ImportScreen() {
     setError('');
     try {
       setBusy('Getting the faction data…');
-      const rec = await ensureFaction(faction, setBusy);
-      const catalogueId = rec.catalogueId ?? '';
-      const index = await loadIndex(catalogueId);
-      const roots = rootsFor(index, catalogueId);
-      const f = factions.find((x) => x.path === faction);
-      const now = Date.now();
-      let roster: Roster = {
-        id: uid(),
-        name: parsed.title || `${f?.name ?? 'Imported'} list`,
-        gameSystemId: '',
-        catalogueId,
-        factionName: f?.name ?? parsed.faction ?? '',
-        dataCommit: rec.commit,
-        battleSize: parsed.battleSize ?? 'strikeForce',
-        pointsLimit: 2000,
-        config: [],
-        detachmentIds: [],
-        units: [],
-        createdAt: now,
-        updatedAt: now,
-      };
-      const eng = () => new RosterEngine(index, roster, roots);
-      roster = setBattleSize(eng(), roster, roster.battleSize);
-      const choices = configChoices(eng());
-      const cfg = matchConfig(parsed, { detachments: choices.detachments.filter((d) => !d.hidden), dispositions: choices.dispositions });
-      if (cfg.detachments.length) roster = setDetachments(eng(), roster, cfg.detachments.map((d) => d.key));
-      // No disposition line: take the one the (first) detachment belongs to.
-      const dispName = cfg.disposition?.name ?? choices.detachments.find((d) => d.key === cfg.detachments[0]?.key)?.dispositions[0];
-      const disp = choices.dispositions.find((d) => d.name === dispName);
-      if (disp) roster = setDisposition(eng(), roster, disp.key);
-
-      const rep: ImportReport = { matched: [], unmatched: [] };
-      cfg.detachments.forEach((d) => rep.matched.push(`Detachment: ${d.name}`));
-      if (disp) rep.matched.push(`Force Disposition: ${disp.name}${cfg.disposition ? '' : ' (from the detachment)'}`);
-      if (!cfg.detachments.length) rep.unmatched.push('No detachment found in the header — pick one in the list menu');
-      const fName = normName(factions.find((x) => x.path === faction)?.name ?? '');
-      cfg.unused.filter((u) => normName(u) !== fName && !/space marines|adeptus astartes/i.test(u) && !/\d/.test(u)).forEach((u) => rep.unmatched.push(`Header line not matched: ${u}`));
-      const units: RosterUnit[] = [];
-      const attach: { unit: RosterUnit; to: string }[] = [];
-      for (const pu of parsed.units) {
-        setBusy(`Matching ${pu.name}…`);
-        const engineFor = (us: RosterUnit[]) => new RosterEngine(index, { ...roster, units: us }, roots);
-        let u = importUnit(engineFor, units, pu, rep);
-        if (!u) continue;
-        // Fill in anything the datasheet requires that the text left out (e.g. the Sergeant).
-        const one = (x: RosterUnit) => engineFor([...units, x]);
-        const filled = fillMinimumModels(one, u);
-        filled.added.forEach((a) => rep.unmatched.push(`${pu.name}: added missing ${a} — check its wargear`));
-        u = autoFill(one, filled.unit);
-        units.push(u);
-        const a = pu.lines.find((l) => l.kind === 'attached');
-        if (a) attach.push({ unit: u, to: a.name });
-      }
-      for (const { unit, to } of attach) {
-        const body = units.find((x) => x !== unit && normName(x.name) === normName(to));
-        if (body) unit.leaderOf = body.id;
-      }
-      roster = { ...roster, units };
+      const f = factions.find((x) => x.path === faction)!;
+      const { roster, report: rep } = await importListText(parsed, f, setBusy);
+      const index = await loadIndex(roster.catalogueId);
       const saved = await saveRoster(index, roster);
       setReport({ id: saved.id, report: rep });
     } catch (e) {

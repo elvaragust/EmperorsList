@@ -119,6 +119,14 @@ export function parseListText(text: string): ParsedList {
       continue;
     }
     const bullet = trimmed.match(/^([•◦\-*+▪●○·])\s*(.*)$/);
+    // A list that starts straight with a unit: what looked like the title was the first unit.
+    if (bullet && !cur && out.title && !out.headerLines.length && !out.units.length) {
+      cur = { name: out.title, points: out.points, lines: [] };
+      out.units.push(cur);
+      out.title = undefined;
+      out.points = undefined;
+      inHeader = false;
+    }
     if (bullet && cur) {
       const indent = line.length - line.trimStart().length;
       const depth = bullet[1] === '◦' || bullet[1] === '○' || indent >= 4 ? 2 : 1;

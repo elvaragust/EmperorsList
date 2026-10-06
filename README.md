@@ -55,6 +55,7 @@ Open a unit from the list. Everything is on one page, like the official app:
 - **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
 - **▾ next to a weapon or enhancement** opens what it does: the weapon's profile (range, attacks, BS/WS, S, AP, D and its abilities) or the enhancement's rules text — so you can compare before you pick.
 - When a squad must all carry the same weapon, changing it on one model changes the whole unit.
+- Options that bundle choices (e.g. *Pistol and Melee Weapon*) open their own choices underneath once picked — which pistol, which melee weapon.
 - The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
 
 **Adding units:** in *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
@@ -89,14 +90,17 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 **Play → New game (this phone)** and follow the steps:
 1. Your army
 2. Opponent (name, faction, paste their list if you like)
-3. Mission — your **Force Disposition** (taken from your list; change it here if needed), then your **primary mission**: only your disposition's five cards are offered first — yours is the one under your opponent's symbol on your card. Then deployment, twist, **Attacker or Defender**, and who goes first. 🎲 next to each picks at random (primary only from your disposition); **Randomise all** does primary, deployment and twist at once. Each card's rules text shows under it as soon as you pick it.
+3. Mission — your **Force Disposition** (taken from your list; change it here if needed), then your **primary mission**: only your disposition's five cards are offered — yours is the one under your opponent's symbol on your card. Other dispositions' cards appear only with a twist that swaps or copies missions (*Scrambled Communications*, *Mirrored World*). The deployment shows a rough sketch of both zones; pick *Other* for anything else. Then deployment, twist, **Attacker or Defender**, and who goes first. 🎲 next to each picks at random (primary only from your disposition); **Randomise all** does primary, deployment and twist at once. Each card's rules text shows under it as soon as you pick it.
 4. Secondary missions — choose **Fixed** or **Tactical** for you and your opponent. The rules for each are shown. Fixed: pick 2 of the Fixed-marked cards. Tactical: your deck is shuffled and dealt in the battle.
 5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
 
 **During the battle**
 - **Next** moves through the phases and turns. Both players get 1 CP at the start of every Command phase.
 - **Phase panel:** the stratagems you can use right now (tap the CP button to spend), plus your abilities that mention this phase.
-- **Missions:** your primary, the twist and your secondaries with their rules text. Tactical: **Draw 2** at the start of your Command phase; cards you don't score stay in your hand; **Achieved** scores one (add its VP in Score), **Discard (+1CP)** gives you a CP, and **New card (1CP, once)** swaps one.
+- **Round buttons R1–R5** at the top jump straight to the start of a round.
+- **Phase panel** lists only *your* army's stratagems that can be used in this phase and turn; pinned ones (★) come first.
+- **Missions:** each card shows only the part for the current battle round. Tick each scoring line (or count it with − / + for "for each…" lines; caps are applied), then **Add … VP** puts the total in that round's score. Tactical: **Draw 2** at the start of your Command phase; cards you don't score stay in your hand; **Discard (+1CP)** gives you a CP, **New card (1CP, once)** swaps one. Scored (✓) and discarded (struck through) cards stay listed — tap one to put it back.
+- **Opponent's units:** paste their list at setup (or, in a live game, it's shared automatically) and tap any of their units in **Units** for a read-only datasheet and shots grid.
 - **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row to see each model: **− / +** tracks its wounds and losing the last one removes it; every total updates. Characters, vehicles and small units have a wound tracker at the top.
 - **Score:** primary and secondary VP per round.
 
@@ -111,7 +115,7 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 ### Live across phones (1v1 or 2v2)
 - **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.
 - **Others:** scan the QR with the phone camera, or Play → **Join** and type the code, then pick their army.
-- The host chooses 1v1 or 2v2, sorts players into teams, sets the mission and starts.
+- The host chooses 1v1 or 2v2, sorts players into teams, sets deployment and twist, and starts. Every player picks their own primary mission, Fixed or Tactical secondaries, and either side can record the roll-off as *We attack* / *We defend* (one side attacks, the other defends).
 
 What's shared: whose turn it is and the current phase, everyone's CP, both teams' scores, the log, and how many models each player's units have left.
 

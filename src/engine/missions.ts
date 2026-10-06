@@ -58,6 +58,8 @@ export interface TacticalState {
   active: string[];
   scored: { name: string; round: number }[];
   discarded: string[];
+  /** Discarded cards that gave 1CP (taken back if the discard is undone). */
+  discardCp?: string[];
   /** The once-per-battle "spend 1CP: discard one and draw a new one" has been used. */
   newOrdersUsed?: boolean;
   /** Battle round + turn of the last draw, so it is offered once per Command phase. */
@@ -88,8 +90,19 @@ export function scoreTactical(t: TacticalState, name: string, round: number): Ta
   return { ...t, active: t.active.filter((a) => a !== name), scored: [...t.scored, { name, round }] };
 }
 
-export function discardTactical(t: TacticalState, name: string): TacticalState {
-  return { ...t, active: t.active.filter((a) => a !== name), discarded: [...t.discarded, name] };
+export function discardTactical(t: TacticalState, name: string, forCp = false): TacticalState {
+  return { ...t, active: t.active.filter((a) => a !== name), discarded: [...t.discarded, name], discardCp: forCp ? [...(t.discardCp ?? []), name] : t.discardCp };
+}
+
+/** Undo a discard or a score: the card goes back into the hand. */
+export function restoreTactical(t: TacticalState, name: string): TacticalState {
+  const i = t.discarded.lastIndexOf(name);
+  const discarded = i >= 0 ? t.discarded.filter((_, k) => k !== i) : t.discarded;
+  const j = t.scored.map((s) => s.name).lastIndexOf(name);
+  const scored = i < 0 && j >= 0 ? t.scored.filter((_, k) => k !== j) : t.scored;
+  const cp = t.discardCp ?? [];
+  const c = i >= 0 ? cp.lastIndexOf(name) : -1;
+  return { ...t, discarded, scored, discardCp: c >= 0 ? cp.filter((_, k) => k !== c) : cp, active: [...t.active, name] };
 }
 
 /** Primary missions, with the ones for your Force Disposition first. */
