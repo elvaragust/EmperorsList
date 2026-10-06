@@ -37,5 +37,5 @@ export function payloadToRoster(p: SharePayload): Roster {
 }
 
 export function shareUrl(code: string): string {
-  return `${location.origin}/import#l=${code}`;
+  return `${location.origin}${import.meta.env.BASE_URL}import#l=${code}`;
 }

@@ -238,4 +238,4 @@ export function closeRoom(gameId: string) {
   rooms.get(gameId)?.close();
 }
 
-export const joinUrl = (room: string) => `${location.origin}/play/join#${room}`;
+export const joinUrl = (room: string) => `${location.origin}${import.meta.env.BASE_URL}play/join#${room}`;
