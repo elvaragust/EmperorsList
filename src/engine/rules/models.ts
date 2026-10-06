@@ -129,10 +129,19 @@ export function datasheet(engine: RosterEngine, inst: Inst): Datasheet {
   return {
     name: engine.ev.name(inst),
     stats: [...stats.values()],
-    abilities: [...abilities.values()],
+    abilities: orderAbilities([...abilities.values()]),
     rules: [...rules.values()],
     keywords,
     factionKeywords,
     other: [...other.values()],
   };
+}
+
+/**
+ * Abilities in the official order: the unit's own ones first, then Support,
+ * then Leader and Damaged last, so Support sits just before the last one.
+ */
+export function orderAbilities<T extends { name: string }>(list: T[]): T[] {
+  const rank = (a: T) => (/^(leader|damaged\b)/i.test(a.name) ? 2 : /^support$/i.test(a.name) ? 1 : 0);
+  return list.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a);
 }

@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { buildIndex, type DataIndex } from '@/engine/bsdata/index';
 import type { RawFile } from '@/engine/bsdata/raw';
@@ -107,12 +108,9 @@ export function useAllIndex(): { index?: DataIndex; error?: string } {
   return state;
 }
 
+/** How many data files are cached; changes as downloads finish, so indexes rebuild. */
 function useCount(): number {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    db.dataFiles.count().then(setN);
-  }, []);
-  return n;
+  return useLiveQuery(() => db.dataFiles.count(), []) ?? 0;
 }
 
 /** A rules engine for a roster, rebuilt whenever the roster object changes. */

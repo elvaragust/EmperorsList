@@ -67,6 +67,10 @@ export interface SavedGame {
   notes?: string;
   /** Set for games played live across phones. The shared state comes from the host. */
   live?: { room: string; role: 'host' | 'guest'; myId: string; myName: string; me: LivePlayer; state?: LiveState; unlinked?: boolean };
+  /** Last time anything in the game changed (set automatically on every save). */
+  lastActiveAt?: number;
+  /** Set when the game was ended for inactivity; holds what is needed to resume it. */
+  idle?: { at: number; stage: SavedGame['stage']; unlinked?: boolean };
 }
 
 /** A saved table layout: the user's own photo or drawing. */
@@ -161,3 +165,14 @@ class EmperorsListDB extends Dexie {
 }
 
 export const db = new EmperorsListDB();
+
+// Every change to a game counts as activity, except the inactivity bookkeeping itself.
+const QUIET = new Set(['idle', 'lastActiveAt']);
+db.games.hook('creating', (_key, obj) => {
+  obj.lastActiveAt ??= Date.now();
+});
+db.games.hook('updating', (mods) => {
+  const keys = Object.keys(mods);
+  if (!keys.length || keys.some((k) => QUIET.has(k.split('.')[0]!))) return undefined;
+  return { lastActiveAt: Date.now() };
+});

@@ -15,8 +15,8 @@ import { Screen } from '@/ui/Screen';
 /** War Journal: games in progress and finished games. */
 export function PlayScreen() {
   const games = useLiveQuery(() => db.games.orderBy('startedAt').reverse().toArray(), []);
-  const live = games?.filter((g) => g.stage !== 'done') ?? [];
-  const done = games?.filter((g) => g.stage === 'done') ?? [];
+  const live = games?.filter((g) => g.stage !== 'done' || g.idle) ?? [];
+  const done = games?.filter((g) => g.stage === 'done' && !g.idle) ?? [];
   const record = done.reduce((r, g) => ({ ...r, [g.result ?? 'draw']: (r[g.result ?? 'draw'] ?? 0) + 1 }), {} as Record<string, number>);
   return (
     <Screen title="War Journal">
@@ -44,7 +44,7 @@ export function PlayScreen() {
                   <div style={{ fontWeight: 600 }}>
                     {g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`}
                   </div>
-                  <div className="muted small">{g.live ? `Live · room ${g.live.room} · ` : ''}{g.stage === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${totalScore(g.live.state.vp.A)}–${totalScore(g.live.state.vp.B)}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
+                  <div className="muted small">{g.idle ? 'Ended after 2 hours with no changes · tap to resume · ' : ''}{g.live ? `Live · room ${g.live.room} · ` : ''}{(g.idle?.stage ?? g.stage) === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${totalScore(g.live.state.vp.A)}–${totalScore(g.live.state.vp.B)}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
                 </span>
               </Link>
             ))}

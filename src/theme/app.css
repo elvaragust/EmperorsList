@@ -10,6 +10,8 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* No pull-to-refresh: dragging down at the top of a list must not reload the app mid-game. */
+  overscroll-behavior-y: none;
 }
 body {
   background: var(--bg-deep);
@@ -38,6 +40,7 @@ input {
   flex-direction: column;
 }
 .screen {
+  overscroll-behavior-y: contain;
   flex: 1;
   overflow-y: auto;
   padding: 0 16px 24px;
@@ -441,6 +444,7 @@ textarea.input {
   max-width: 480px;
   max-height: 82vh;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   background: var(--surface);
   border-top: 1px solid var(--line);
   border-radius: 18px 18px 0 0;
@@ -1016,4 +1020,42 @@ textarea.input {
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   background: var(--bg-deep);
   border-top: 1px solid var(--line);
+}
+
+/* Wargear / enhancement rows with a details dropdown */
+.gear-item {
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+.gear-line {
+  display: flex;
+  align-items: stretch;
+}
+.gear-item .gear-row {
+  border-top: 0;
+  flex: 1;
+  min-width: 0;
+}
+.gear-info {
+  flex: none;
+  width: 44px;
+  border: 0;
+  border-left: 1px solid var(--line-soft);
+  background: var(--surface);
+  color: var(--text-muted, inherit);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.gear-info[aria-expanded='true'] {
+  color: var(--accent);
+}
+.gear-detail {
+  padding: 8px 12px 12px;
+  background: var(--raised);
+  font-size: 14px;
+  overflow-x: auto;
+}
+.gear-detail .wtable {
+  width: 100%;
 }

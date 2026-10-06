@@ -8,6 +8,8 @@ import { datasheet, unitModels } from '@/engine/rules/models';
 import { modelTypes, setModelsWithOption, type ModelGroup, type ModelOption, type ModelType } from '@/engine/rules/modelTypes';
 import { RosterEngine, WARLORD_CATEGORY, type OptionView } from '@/engine/rules/rosterEngine';
 import type { RawProfile } from '@/engine/bsdata/raw';
+import type { DataIndex } from '@/engine/bsdata/index';
+import { GearDetails, hasGearInfo } from '@/ui/GearDetails';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Collapse } from '@/ui/Collapse';
@@ -160,14 +162,7 @@ export function UnitScreen() {
                   <span className={`check ${!chosenEnh ? 'on' : ''}`}>{!chosenEnh ? '✓' : ''}</span>
                 </button>
                 {enhancements.map((e) => (
-                  <button key={e.node.key} className="gear-row" role="radio" aria-checked={e.selected > 0} onClick={() => pickEnhancement(e.selected > 0 ? null : e.node.key)}>
-                    <span style={{ flex: 1 }}>
-                      {e.name}
-                      {e.hidden && <div className="small issue-title">Not allowed with the current choices</div>}
-                    </span>
-                    {e.points ? <span className="num muted small">+{e.points} pts</span> : null}
-                    <span className={`check ${e.selected ? 'on' : ''}`}>{e.selected ? '✓' : ''}</span>
-                  </button>
+                  <EnhancementRow key={e.node.key} e={e} index={index} onPick={() => pickEnhancement(e.selected > 0 ? null : e.node.key)} />
                 ))}
               </div>
             </Collapse>
@@ -181,6 +176,7 @@ export function UnitScreen() {
             key={t.key || 'self'}
             t={t}
             single={singleModel}
+            index={index}
             onCount={(n) => commit(setOptionCount(engine, unit, [], t.key, n))}
             onCarry={(optionKey, n, group) => {
               let next = setModelsWithOption(engineFor, unit, t.key, optionKey, n, group);
@@ -307,7 +303,9 @@ function ModelSection({
   single,
   onCount,
   onCarry,
+  index,
 }: {
+  index?: DataIndex;
   t: ModelType;
   single: boolean;
   onCount: (n: number) => void;
@@ -335,13 +333,7 @@ function ModelSection({
             <div className="gear-box">
               <div className="gear-box-head">{t.count > 1 ? `Every ${t.name} carries` : 'Default wargear'}</div>
               {t.fixed.map((f) => (
-                <div key={f.name} className="gear-row" style={{ cursor: 'default' }}>
-                  <span style={{ flex: 1 }}>
-                    {f.count > 1 ? `${f.count}× ` : ''}
-                    {f.name}
-                  </span>
-                  <span className="check on">✓</span>
-                </div>
+                <FixedRow key={f.name} f={f} index={index} />
               ))}
             </div>
           )}
@@ -355,7 +347,7 @@ function ModelSection({
                 </span>
               </div>
               {g.options.map((o) => (
-                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} />
+                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} />
               ))}
             </div>
           ))}
@@ -363,7 +355,7 @@ function ModelSection({
             <div className="gear-box">
               <div className="gear-box-head">Options</div>
               {t.extras.map((o) => (
-                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n)} />
+                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n)} index={index} />
               ))}
             </div>
           )}
@@ -373,29 +365,93 @@ function ModelSection({
   );
 }
 
-function GearRow({ o, count, onSet, radio, lockOn }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean }) {
-  const pts = o.points ? <span className="num muted small">+{o.points}</span> : null;
-  if (count <= 1) {
-    const on = o.carried > 0;
-    return (
-      <button className="gear-row" role={radio ? 'radio' : 'checkbox'} aria-checked={on} onClick={() => (on ? !lockOn && onSet(0) : onSet(1))}>
-        <span style={{ flex: 1 }}>
-          {o.name}
-          {o.hidden && <div className="small issue-title">Not allowed with the current choices</div>}
-        </span>
-        {pts}
-        <span className={`check ${on ? 'on' : ''}`}>{on ? '✓' : ''}</span>
-      </button>
-    );
-  }
+function InfoToggle({ open, onClick, name }: { open: boolean; onClick: () => void; name: string }) {
   return (
-    <div className="gear-row">
-      <span style={{ flex: 1 }}>
-        {o.name}
-        {o.hidden && <div className="small issue-title">Not allowed with the current choices</div>}
-      </span>
-      {pts}
-      <Stepper value={o.carried} min={0} max={count} onChange={onSet} label={o.name} />
+    <button className="gear-info" onClick={onClick} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details for ${name}`}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}>
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
+  );
+}
+
+/** A wargear row: tap to pick it, the chevron opens its weapon profile underneath. */
+function GearRow({ o, count, onSet, radio, lockOn, index }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean; index?: DataIndex }) {
+  const [open, setOpen] = useState(false);
+  const info = index ? hasGearInfo(index, o.node) : false;
+  const pts = o.points ? <span className="num muted small">+{o.points}</span> : null;
+  const label = (
+    <span style={{ flex: 1 }}>
+      {o.name}
+      {o.hidden && <div className="small issue-title">Not allowed with the current choices</div>}
+    </span>
+  );
+  const on = o.carried > 0;
+  return (
+    <div className="gear-item">
+      {count <= 1 ? (
+        <div className="gear-line">
+          <button className="gear-row" role={radio ? 'radio' : 'checkbox'} aria-checked={on} onClick={() => (on ? !lockOn && onSet(0) : onSet(1))}>
+            {label}
+            {pts}
+            <span className={`check ${on ? 'on' : ''}`}>{on ? '✓' : ''}</span>
+          </button>
+          {info && <InfoToggle open={open} onClick={() => setOpen(!open)} name={o.name} />}
+        </div>
+      ) : (
+        <div className="gear-line">
+          <div className="gear-row">
+            {label}
+            {pts}
+            <Stepper value={o.carried} min={0} max={count} onChange={onSet} label={o.name} />
+          </div>
+          {info && <InfoToggle open={open} onClick={() => setOpen(!open)} name={o.name} />}
+        </div>
+      )}
+      {open && index && <GearDetails index={index} node={o.node} />}
+    </div>
+  );
+}
+
+/** Wargear every model carries (can't be changed), with its profile in a dropdown. */
+function FixedRow({ f, index }: { f: ModelType['fixed'][number]; index?: DataIndex }) {
+  const [open, setOpen] = useState(false);
+  const info = index ? hasGearInfo(index, f.node) : false;
+  return (
+    <div className="gear-item">
+      <div className="gear-line">
+        <div className="gear-row" style={{ cursor: info ? 'pointer' : 'default' }} onClick={() => info && setOpen(!open)}>
+          <span style={{ flex: 1 }}>
+            {f.count > 1 ? `${f.count}× ` : ''}
+            {f.name}
+          </span>
+          <span className="check on">✓</span>
+        </div>
+        {info && <InfoToggle open={open} onClick={() => setOpen(!open)} name={f.name} />}
+      </div>
+      {open && index && <GearDetails index={index} node={f.node} />}
+    </div>
+  );
+}
+
+/** An enhancement choice with what it does in a dropdown. */
+function EnhancementRow({ e, onPick, index }: { e: OptionView; onPick: () => void; index?: DataIndex }) {
+  const [open, setOpen] = useState(false);
+  const info = index ? hasGearInfo(index, e.node) : false;
+  return (
+    <div className="gear-item">
+      <div className="gear-line">
+        <button className="gear-row" role="radio" aria-checked={e.selected > 0} onClick={onPick}>
+          <span style={{ flex: 1 }}>
+            {e.name}
+            {e.hidden && <div className="small issue-title">Not allowed with the current choices</div>}
+          </span>
+          {e.points ? <span className="num muted small">+{e.points} pts</span> : null}
+          <span className={`check ${e.selected ? 'on' : ''}`}>{e.selected ? '✓' : ''}</span>
+        </button>
+        {info && <InfoToggle open={open} onClick={() => setOpen(!open)} name={e.name} />}
+      </div>
+      {open && index && <GearDetails index={index} node={e.node} />}
     </div>
   );
 }

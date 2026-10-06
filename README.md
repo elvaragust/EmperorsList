@@ -53,6 +53,7 @@ Open a unit from the list. Everything is on one page, like the official app:
 - **Warlord** switch and **Unit enhancements** (tap to open; pick *None* or tap the chosen one again to remove it).
 - **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many.
 - **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
+- **▾ next to a weapon or enhancement** opens what it does: the weapon's profile (range, attacks, BS/WS, S, AP, D and its abilities) or the enhancement's rules text — so you can compare before you pick.
 - When a squad must all carry the same weapon, changing it on one model changes the whole unit.
 - The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
 
@@ -71,9 +72,11 @@ The number at the top right of a list says what's wrong (too many points, a miss
 ## 4. Reading rules
 
 - **Anything underlined is tappable** — keywords, weapon abilities, rule names and game terms inside rules text (for example *Deep Strike*, *Lethal Hits*, *surge move*). A sheet opens with the definition — including the full Core Rules, which are built into the app.
-- **Reference → search** finds everything; the coloured labels show what kind of rule each result is (Stratagem, Enhancement, Detachment rule…). Filter by kind with the words under the search box.
+- **Reference → search** finds everything; the coloured labels show what kind of rule each result is (Stratagem, Enhancement, Detachment rule…).
+- **Browse by kind:** tap one or more of the words under the search box (*Stratagems*, *Units*, *Abilities*…) to list everything of that kind, grouped by faction. Each faction is a bar you open and close. Tap the word again, or *Clear filters*, to go back. With text in the search box they narrow the results instead.
+- **Factions** are grouped under *Imperium*, *Space Marines*, *Chaos*, *Aeldari* and *Xenos* bars, so only the group you open is shown.
 - **Reference → Core rules** has every Core Rules section (searchable) and the core abilities A–Z.
-- **Faction pages** (Reference → a faction): army rules, every detachment (tap ▸), and all datasheets.
+- **Faction pages** (Reference → a faction): *Army rules*, *Detachments* and *Datasheets*, each closed until you tap it. Inside, every detachment opens on its own (tap ▸). On datasheets, *Support* and *Leader* are listed after the unit's own abilities.
 
 ### Pins ★
 Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it. Pins appear at the top of **Reference**, and during a game your pinned stratagems are listed first and other pins are shown in the phase panel.
@@ -98,6 +101,9 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 - **Log:** everything that happened.
 - **Notes:** tap the Notes bar to open or close your notes; they're kept for the whole game.
 - Pinned stratagems are always listed at the top, whatever the phase. Opening a unit and coming back keeps your place.
+- Dragging down at the top of the screen doesn't reload the app, so you can't lose your place by accident.
+
+**Games that go quiet:** a game with no changes for **2 hours** (from anyone, in a live game) is ended automatically. Nothing is lost: it stays under *In progress* marked *Ended after 2 hours*. Open it and choose **Resume game** to carry on exactly where you were (a live game reconnects; the other phones resume too when they open it), or **Keep it finished** to file it with your results.
 
 ### Live across phones (1v1 or 2v2)
 - **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.

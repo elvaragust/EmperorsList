@@ -27,9 +27,11 @@ import { ToastHost } from '@/ui/Toast';
 import { PinnedScreen } from '@/screens/reference/PinnedScreen';
 import { useEffect } from 'react';
 import { startupSync } from '@/data/bootstrap';
+import { watchIdleGames } from '@/data/idle';
 
 export function App() {
   useEffect(() => startupSync(), []);
+  useEffect(() => watchIdleGames(), []);
   return (
     <RulePopupProvider>
       <div className="shell">
