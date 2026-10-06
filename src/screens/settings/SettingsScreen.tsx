@@ -1,13 +1,28 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState } from 'react';
 import { db } from '@/data/db';
-import { currentSource, DEFAULT_SOURCE, setSource, sourceName, updateAll } from '@/data/dataPacks';
+import { currentSource, DEFAULT_SOURCE, setSource, sourceName } from '@/data/dataPacks';
 import { clearIndexCache } from '@/data/gameData';
 import { downloadText, exportBackup, restoreBackup } from '@/data/backup';
 import { detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
-import { lastRelayUpdate, relayUrl, setRelayUrl, updateFromRelay } from '@/data/relay';
+import { syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
 import { peerServer, setPeerServer } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
+import { setAppearance, useAppearance, type Appearance } from '@/theme/appearance';
+import { THEME_CHOICES } from '@/theme/themes';
+import { RuleLabel } from '@/ui/RuleLabel';
+
+function Choice<K extends keyof Appearance>({ k, options, value }: { k: K; options: [Appearance[K], string][]; value: Appearance[K] }) {
+  return (
+    <div className="filters" style={{ flexWrap: 'wrap' }}>
+      {options.map(([v, label]) => (
+        <button key={String(v)} className={`filter ${value === v ? 'on' : ''}`} onClick={() => setAppearance({ [k]: v } as Partial<Appearance>)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function SettingsScreen() {
   const source = currentSource();
@@ -19,29 +34,21 @@ export function SettingsScreen() {
   const [backupStatus, setBackupStatus] = useState('');
   const [repo, setRepo] = useState(`${source.owner}/${source.repo}@${source.branch}`);
   const wpInput = useRef<HTMLInputElement>(null);
-  const [relay, setRelay] = useState(relayUrl());
+  const sync = useSyncStatus();
+  const look = useAppearance();
   const [peerHost, setPeerHost] = useState(peerServer());
-  const relayUpdated = lastRelayUpdate();
   const updateStrats = async () => {
-    setRelayUrl(relay.trim());
-    try {
-      const r = await updateFromRelay(setWpStatus);
-      setWpStatus(`Updated: ${r.stratagems} stratagems, ${r.total} rules in all.`);
-    } catch (e) {
-      setWpStatus(e instanceof Error ? e.message : 'Update failed');
-    }
+    setWpStatus('Checking…');
+    const r = await syncWahapedia(true);
+    setWpStatus(r ? `Updated: ${r.imported} rules.` : 'No Wahapedia files on this site (they are added when the app is built on GitHub). You can import CSV files by hand below.');
   };
+
   const restoreInput = useRef<HTMLInputElement>(null);
 
   const update = async () => {
-    try {
-      setStatus('Checking for new data…');
-      const s = await updateAll((done, total, path) => setStatus(`Updating ${done + 1}/${total}: ${path}`));
-      clearIndexCache();
-      setStatus(`Up to date · ${s.commit.slice(0, 7)}`);
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Update failed');
-    }
+    setStatus('');
+    await syncAllFactions(true);
+    void syncWahapedia();
   };
 
   const saveRepo = () => {
@@ -86,6 +93,39 @@ export function SettingsScreen() {
 
   return (
     <Screen title="Settings">
+      <div className="section-label">Appearance</div>
+      <div className="card">
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6, padding: 14 }}>
+          <div className="small muted">Colour theme</div>
+          <Choice k="themeMode" value={look.themeMode} options={[['faction', 'Follow the open army'], ['fixed', 'Always one theme']]} />
+          {look.themeMode === 'fixed' && (
+            <select className="input" value={look.fixedTheme} onChange={(e) => setAppearance({ fixedTheme: e.target.value })} aria-label="Theme">
+              {THEME_CHOICES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="small muted" style={{ marginTop: 8 }}>
+            Text size
+          </div>
+          <Choice k="textSize" value={look.textSize} options={[['normal', 'Normal'], ['large', 'Large'], ['xlarge', 'Extra large']]} />
+          <div className="small muted" style={{ marginTop: 8 }}>
+            Title font
+          </div>
+          <Choice k="titleFont" value={look.titleFont} options={[['gothic', 'Gothic'], ['serif', 'Engraved'], ['plain', 'Plain']]} />
+          <div className="small muted" style={{ marginTop: 8 }}>
+            Rule labels <RuleLabel kind="stratagem" />
+          </div>
+          <Choice k="labelStyle" value={look.labelStyle} options={[['dotted', 'Dotted box'], ['bold', 'Bold'], ['underline', 'Underline']]} />
+          <div className="small muted" style={{ marginTop: 8 }}>
+            Layout width (for laptops and tablets)
+          </div>
+          <Choice k="width" value={look.width} options={[['phone', 'Phone column'], ['wide', 'Wide']]} />
+        </div>
+      </div>
+
       <div className="section-label">Data</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
@@ -94,11 +134,13 @@ export function SettingsScreen() {
             {sourceName(source)} · {state ? `version ${state.commit.slice(0, 7)}, checked ${new Date(state.fetchedAt).toLocaleDateString()}` : 'not checked yet'}
           </div>
           <div className="muted small">
-            {files?.length ?? 0} files on this device · {(size / 1e6).toFixed(1)} MB. Factions download when you start a list with them.
+            {files?.length ?? 0} files on this device · {(size / 1e6).toFixed(1)} MB. All factions load automatically and update daily.
           </div>
           <button className="btn" onClick={update}>
             Check for updates
           </button>
+          {sync.running && <div className="small">Loading factions {sync.done}/{sync.total}…</div>}
+          {sync.error && <div className="small issue-title">{sync.error}</div>}
           {status && <div className="small">{status}</div>}
         </div>
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
@@ -120,17 +162,10 @@ export function SettingsScreen() {
       <div className="section-label">Extra rules (Wahapedia)</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
-          <div className="small">
-            The community data has no Stratagems; they come from Wahapedia. With your relay set up (one-time, free — see <code>relay/README.md</code>), tap Update. Or import the CSV files by hand.
-          </div>
-          <label className="field" style={{ margin: 0 }}>
-            <span>Relay URL</span>
-            <input className="input" value={relay} placeholder="https://emperorslist-relay.you.workers.dev" onChange={(e) => setRelay(e.target.value)} inputMode="url" />
-          </label>
-          <button className="btn" onClick={updateStrats} disabled={!relay.trim()}>
-            Update stratagems
+          <div className="small">Stratagems, enhancements and detachment rules from Wahapedia are built into the app and load by themselves. If they're missing (for example when running the app locally), import the CSV files by hand.</div>
+          <button className="btn" onClick={updateStrats}>
+            Update from Wahapedia
           </button>
-          {relayUpdated && <div className="muted small">Last updated {new Date(relayUpdated).toLocaleString()}</div>}
           <div className="muted small">{importedCount ?? 0} imported rules</div>
           <input ref={wpInput} type="file" accept=".csv,text/csv,text/plain" multiple hidden onChange={(e) => importWp(e.target.files)} />
           <div className="btn-row" style={{ margin: 0 }}>

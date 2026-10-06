@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Rebuild daily so the built-in Wahapedia stratagems stay current.
+  schedule:
+    - cron: '17 4 * * *'
 
 permissions:
   contents: read
@@ -32,6 +35,8 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}/
       # GitHub Pages has no SPA fallback: serve the app for unknown paths too.
       - run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      # Wahapedia extras (stratagems etc.), published next to the app. Never fails the build.
+      - run: node scripts/wahapedia.mjs dist/wahapedia || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

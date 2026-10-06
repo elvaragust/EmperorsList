@@ -16,6 +16,7 @@ export interface LivePlayer {
   army: string;
   faction: string;
   detachments: string[];
+  disposition?: string;
 }
 
 export interface UnitSummary {
@@ -43,6 +44,7 @@ export interface LiveState {
   players: LivePlayer[];
   mission?: string;
   deployment?: string;
+  twist?: string;
   firstTurn: Team;
   round: number;
   turn: Team;
@@ -60,7 +62,7 @@ export type LiveAction =
   | { t: 'leave'; id: string }
   | { t: 'setTeam'; id: string; team: Team }
   | { t: 'setMode'; mode: LiveMode }
-  | { t: 'setMission'; mission?: string; deployment?: string }
+  | { t: 'setMission'; mission?: string; deployment?: string; twist?: string }
   | { t: 'setFirst'; team: Team }
   | { t: 'start' }
   | { t: 'next' }
@@ -110,9 +112,17 @@ export const teamNames = (s: LiveState, team: Team) =>
     .map((p) => p.name)
     .join(' & ') || (team === 'A' ? 'Team A' : 'Team B');
 
+/** Acting as LOCAL (an unlinked copy of the game) may change anything. */
+export const LOCAL = '__local__';
+
+/** May `from` advance the turn? The team whose turn it is, or the host. */
+export const canAdvance = (s: LiveState, from: string) => from === LOCAL || from === s.hostId || s.players.find((p) => p.id === from)?.team === s.turn;
+
 export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
-  const by = s.players.find((p) => p.id === from)?.name;
-  const isHost = from === s.hostId;
+  const local = from === LOCAL;
+  const by = local ? undefined : s.players.find((p) => p.id === from)?.name;
+  const isHost = local || from === s.hostId;
+  const myTeam = s.players.find((p) => p.id === from)?.team;
   const log = (st: LiveState, text: string): LiveState => ({ ...st, log: [...st.log, { at: Date.now(), round: st.round, turn: st.turn, phase: st.phase, text, by }] });
   const bump = (st: LiveState): LiveState => ({ ...st, v: s.v + 1 });
 
@@ -138,7 +148,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       return bump({ ...s, mode: a.mode });
     case 'setMission':
       if (!isHost) return s;
-      return bump({ ...s, mission: a.mission ?? s.mission, deployment: a.deployment ?? s.deployment });
+      return bump({ ...s, mission: a.mission ?? s.mission, deployment: a.deployment ?? s.deployment, twist: a.twist ?? s.twist });
     case 'setFirst':
       if (!isHost) return s;
       return bump({ ...s, firstTurn: a.team, turn: s.stage === 'lobby' ? a.team : s.turn });
@@ -148,7 +158,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       return bump(log({ ...s, stage: 'battle', round: 1, turn: s.firstTurn, phase: 'command', cp }, 'Battle started · everyone gains 1 CP'));
     }
     case 'next': {
-      if (s.stage !== 'battle') return s;
+      if (s.stage !== 'battle' || !canAdvance(s, from)) return s;
       const n = nextPhase({ round: s.round, turn: toSide(s.turn, s.firstTurn), phase: s.phase }, 'me');
       if (n.gameOver) return s;
       let next: LiveState = { ...s, round: n.round, turn: toTeam(n.turn, s.firstTurn), phase: n.phase };
@@ -159,16 +169,21 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       return bump(next);
     }
     case 'prev': {
-      if (s.stage !== 'battle') return s;
+      if (s.stage !== 'battle' || !canAdvance(s, from)) return s;
       const p = previousPhase({ round: s.round, turn: toSide(s.turn, s.firstTurn), phase: s.phase }, 'me');
       return bump({ ...s, round: p.round, turn: toTeam(p.turn, s.firstTurn), phase: p.phase });
     }
     case 'phase':
+      if (!canAdvance(s, from)) return s;
       return bump({ ...s, phase: a.phase });
     case 'cp':
+      // Each player changes only their own CP.
+      if (!local && from !== a.id) return s;
       if (!(a.id in s.cp) && !s.players.some((p) => p.id === a.id)) return s;
       return bump({ ...s, cp: { ...s.cp, [a.id]: Math.max(0, a.value) } });
     case 'vp': {
+      // Each team scores itself.
+      if (!local && myTeam !== a.team) return s;
       if (a.round < 0 || a.round >= s.vp[a.team][a.kind].length) return s;
       const score = { ...s.vp[a.team], [a.kind]: s.vp[a.team][a.kind].map((x, i) => (i === a.round ? Math.max(0, a.value) : x)) };
       return bump({ ...s, vp: { ...s.vp, [a.team]: score } });

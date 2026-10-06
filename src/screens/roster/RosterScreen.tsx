@@ -51,7 +51,6 @@ export function RosterScreen() {
   const dp = engine?.detachmentPoints();
   const enh = engine?.enhancements();
   const errors = issues.filter((i) => i.severity === 'error');
-  const casualties = Object.values(roster.tracking ?? {}).reduce((s, l) => s + l.length, 0);
 
   const unitLine = (u: RosterUnit, isLed = false) => {
     const attached = roster.units.filter((x) => x.leaderOf === u.id);
@@ -60,7 +59,6 @@ export function RosterScreen() {
     const warlord = engine?.isWarlord(u.id);
     const enhancement = engine?.enhancementOf(u.id);
     const unitIssues = issues.filter((i) => i.unitId === u.id).length;
-    const dead = roster.tracking?.[u.id]?.length ?? 0;
     return (
       <div key={u.id}>
         <Link className={`unit-row ${isLed ? 'led' : ''}`} to={`/roster/${roster.id}/unit/${u.id}`}>
@@ -73,7 +71,6 @@ export function RosterScreen() {
               {[
                 enhancement ? engine?.ev.name(enhancement) : '',
                 attached.length ? `+ ${attached.map((a) => a.nickname || a.name).join(', ')} · ${combined} pts together` : '',
-                dead ? `${dead} removed` : '',
               ]
                 .filter(Boolean)
                 .join(' · ')}
@@ -198,11 +195,6 @@ export function RosterScreen() {
         <Link className="menu-item" to={`/collection?roster=${roster.id}`}>
           Can I field this from my collection?
         </Link>
-        {casualties > 0 && (
-          <button className="menu-item" onClick={() => (update((r) => ({ ...r, tracking: {} })), setMenu(false))}>
-            Bring back all removed models ({casualties})
-          </button>
-        )}
         <button
           className="menu-item"
           onClick={async () => {

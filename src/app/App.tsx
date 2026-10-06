@@ -22,11 +22,16 @@ import { LayoutsScreen } from '@/screens/play/layouts';
 import { CollectionScreen } from '@/screens/collection/CollectionScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { RulePopupProvider } from '@/ui/RulePopup';
+import { DataBanner } from '@/ui/DataBanner';
+import { useEffect } from 'react';
+import { startupSync } from '@/data/bootstrap';
 
 export function App() {
+  useEffect(() => startupSync(), []);
   return (
     <RulePopupProvider>
       <div className="shell">
+        <DataBanner />
         <Routes>
           <Route path="/" element={<Navigate to="/lists" replace />} />
           <Route path="/lists" element={<ListsScreen />} />

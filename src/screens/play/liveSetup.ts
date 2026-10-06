@@ -21,7 +21,7 @@ export function rememberName(n: string) {
 }
 
 function player(roster: Roster, name: string): LivePlayer {
-  return { id: uid(), name: name || 'Player', team: 'A', army: roster.name, faction: roster.factionName, detachments: roster.detachmentNames ?? [] };
+  return { id: uid(), name: name || 'Player', team: 'A', army: roster.name, faction: roster.factionName, detachments: roster.detachmentNames ?? [], disposition: roster.forceDisposition };
 }
 
 export function newHostedGame(roster: Roster, name: string): SavedGame {

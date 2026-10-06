@@ -1,120 +1,155 @@
-# EmperorsList
+# EmperorsList — user manual
 
-An unofficial, free army builder and game companion for Warhammer 40,000 (11th edition), built as an installable offline web app (PWA).
+A free army builder and game companion for **Warhammer 40,000 (11th edition)**. It works on phones, tablets and computers, and keeps working offline.
 
-The app ships with **no game data**. Each device downloads units, rules and points from a public community repo (BSData `wh40k-11e` by default) and caches them locally.
+**Open it:** https://elvaragust.github.io/EmperorsList/
 
-## Run it
+> Unofficial fan project, not affiliated with Games Workshop. Units, rules and points come from the community **BSData** project; stratagems, enhancements and mission card names from **Wahapedia** ("Powered by Wahapedia").
 
-Requires Node 18.18 or newer.
+---
 
-```bash
-npm install
-npm run dev        # http://localhost:5173, open on your phone via your computer's IP with `npm run dev -- --host`
-npm test           # engine and search tests
-npm run build      # production build with offline service worker, output in dist/
-npm run preview    # serve the production build
-```
+## 1. Install it
 
-To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and use "Add to Home Screen". It then runs full-screen and works offline.
+| Device | How |
+|---|---|
+| iPhone / iPad | Open the link in **Safari** → Share → **Add to Home Screen** |
+| Android | Open the link in **Chrome** → ⋮ menu → **Install app** |
+| Windows / Mac | Open the link in **Chrome or Edge** → install icon in the address bar |
 
-## What works
+It then opens like a normal app, full screen, with its own icon. Updates arrive by themselves the next time you open it.
 
-**Builder (phases 1–2)**
-- Pick any faction from the data repo; it downloads with everything it links to (game system, parent and library catalogues) and is cached for offline use
-- New list wizard: faction → battle size → detachments (Detachment Points shown) → Force Disposition and name
-- Roster grouped by role, points vs limit, DP and Enhancement counts, issues that explain themselves with a fix button
-- Add unit with closest-match search and role filters; units start with the data's default models and wargear
-- Wargear editor driven by the data: unit sizes, choose-one groups, per-option limits, points brackets, "split one off" to give a single model different gear
-- Leaders and Support: attach a character to the units its ability lists; the combined unit shows one weapon grid and the leader's abilities, tagged when they buff the unit
-- Warlord and Enhancements as the data offers them (only the chosen detachment's enhancements show)
-- Copy limits, battle-size limits, Battleline doubling, detachment restrictions, "must be attached" and so on all come from the data's own constraints and modifiers — one generic rules engine, no per-faction code
-- Notice when the game data changed since a list was built
+**First start:** all factions download in the background (a thin bar at the top shows progress). You can start using the app straight away. After that it only fetches what changed, and everything works without internet.
 
-**Reference (phase 3)**
-- One search over rules, units, abilities, enhancements, detachments, keywords and imported stratagems; colour-labelled and closest match first
-- Every keyword and weapon ability in rules text, weapon tables and datasheets is tappable for its definition
-- Faction pages (army rules, detachments with rules/enhancements/stratagems, datasheets) and core rules A–Z
-- Stratagems from Wahapedia: Settings → Extra rules imports the export CSVs (`node scripts/wahapedia.mjs` downloads them). Credited "Powered by Wahapedia"
+---
 
-**War Journal (phase 4)**
-- Setup: army, opponent (name, faction, their pasted list), mission/deployment/first turn, secondaries, pre-battle checklist built from your list (Warlord, unattached leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
-- Battle: round/turn/phase tracker, CP for both players (+1 each Command phase), VP grid per round, stratagems for the current phase and turn with a spend button, your abilities that mention the phase, per-unit casualty grid, log and notes
-- Result screen with win/loss/draw record
+## 2. The five tabs
 
-**Extras (phase 5)**
-- Import the official app's text export (matches units, models, wargear, Warlord, Enhancements, detachments; reports anything it couldn't match)
-- Export in the same text layout, share link and QR code (ids and counts only), printable datacards
-- Collection: owned/built/painted per datasheet, and "can I field this list?"
-- Backup and restore everything to a file
-- Themes for every faction (follow the open list)
+| Tab | What it's for |
+|---|---|
+| **Lists** | Your armies — as many as you like, in folders |
+| **Reference** | Search every rule, unit, stratagem, enhancement and keyword; your pins |
+| **Play** | Track a game on one phone, or play live across several phones (1v1 or 2v2) |
+| **Collection** | What you own, have built and painted, and whether you can field a list |
+| **Settings** | Appearance, data updates, backup |
 
-**Live games**
-- Play → Host live game shows a room code and QR; other phones scan it (or Play → Join and type the code)
-- 1v1 or 2v2 (two per team). Turn, phase, CP per player, VP per team and a shared log sync between phones; each player's units-left are shown to the others
-- Phones talk directly (WebRTC). The free public PeerJS server only introduces them; nothing is stored on a server. If a phone drops or reloads it reconnects. The host's phone is the referee, so it must stay open
-- Optional own PeerJS server in Settings → Live games
+---
 
-**Stratagems in one tap**
-- Deploy the tiny relay in `relay/` to a free Cloudflare account once (see `relay/README.md`), paste its URL in Settings → Extra rules, then tap Update stratagems
+## 3. Building a list
 
-**Table layouts**
-- Play → Table layouts: save photos or screenshots of terrain/deployment layouts and pick them when setting up a game
+1. **Lists → New list.**
+2. **Faction** — pick your army.
+3. **Battle size** — Incursion (1,000), Strike Force (2,000), Onslaught (3,000) or your own points.
+4. **Detachments** — tap **▸** to read a detachment's rules, enhancements and stratagems *before* choosing it; tick the box to choose it. The Detachment Point budget is shown at the top.
+5. **Force Disposition** and a name → **Create list**.
 
-## Hosting on GitHub Pages
+### Adding units
+- **Add unit** opens the unit list. Search by name (closest match first) or filter by role.
+- **Tap a unit** to read it first (stats, models, abilities) and add it from there, or press **+** to add it straight away.
+- New units start with their standard models and wargear.
 
-`.github/workflows/pages.yml` builds and publishes the app on every push to `main`.
-One-time setup: on GitHub open the repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-The app is then at `https://<user>.github.io/<repo>/` — open it on your phone and use "Add to Home Screen".
-Locally the app runs at `/`; the workflow sets `BASE_PATH` to `/<repo>/` for Pages.
+### Changing a unit
+Open a unit from the list:
+- **Unit** — what models it has and what each carries.
+- **Wargear** — change unit size, swap weapons, take upgrades. Choose-one options work like radio buttons. *Split one off* gives a single model different gear.
+- **Datasheet** — stats, weapons, abilities and keywords.
+- **⋯ menu** — nickname, duplicate, remove.
 
-## Real-data tests
+**Warlord:** open a Character → Wargear → tick **Warlord**. **Enhancements** for your chosen detachment appear in the same place.
 
-Game data is never committed. To run the engine against real data:
+### Leaders
+Open a Character → **Attach to a unit…** and pick from the units its Leader ability allows. The unit then shows as a **Combined** unit, with the leader's abilities listed and the ones that buff the unit marked.
 
-```bash
-node scripts/fetch-data.mjs                     # Black Templars + linked files into ../data-cache
-node scripts/fetch-data.mjs "Necrons" "Orks"    # more factions
-npm test                                        # the real-data suite runs when the files exist
-```
+### Issues
+The number at the top right of a list says what's wrong (too many points, a missing Warlord, too many copies of a unit, an option that isn't allowed…). Tap it to see each problem, the reason and a button to fix it.
 
-## Known gaps
+---
 
-- Modifiers that change other entries' profiles (New Recruit "affects", mostly Crusade upgrades) are not applied yet
-- Mission cards are typed in by hand (not in BSData or Wahapedia's export)
-- QR scanning is not built in; use the phone camera on a shared QR, or paste the link
-- The rule-label style is still the placeholder (`LABEL_VARIANT` in `src/ui/RuleLabel.tsx`) until one of the 8 options is picked
+## 4. Reading rules
 
-## Layout
+- **Anything underlined is tappable** — keywords, weapon abilities, rule names and game terms inside rules text (for example *Deep Strike*, *Lethal Hits*, *surge move*). A sheet opens with the definition. Core rules that aren't in the data link to the Core Rules online.
+- **Reference → search** finds everything; the coloured labels show what kind of rule each result is (Stratagem, Enhancement, Detachment rule…). Filter by kind with the words under the search box.
+- **Faction pages** (Reference → a faction): army rules, every detachment (tap ▸), and all datasheets.
 
-```
-src/
-  engine/      Pure TypeScript rules engine. No React, no browser APIs. Fully unit-tested.
-    bsdata/    Raw BSData shapes, index/link resolution, XML -> JSON normaliser
-    rules/     The generic BattleScribe engine:
-      nodes.ts        options with entryLinks merged onto their targets
-      instance.ts     a roster as an instance tree (roster → force → units → models → wargear)
-      evaluate.ts     conditions, repeats and modifiers (hidden, costs, limits, names, categories)
-      rosterEngine.ts points, limits, option views, leaders, validation issues
-      edit.ts         defaults, set counts, split models (immutable updates)
-      config.ts       battle size, detachments, Force Disposition
-      models.ts       model loadouts for the grid, datasheet parts
-      glossary.ts     definitions for tapped keywords
-    weaponGrid.ts   The models × weapons grid and totals
-    listText.ts     Official-app text export/import
-    share.ts        Compact share payload
-    wahapedia.ts    Wahapedia CSV import
-    game.ts         War Journal turn order and scoring
-    types.ts        App model: rosters store ids and counts only
-  data/        IndexedDB (Dexie): rosters, games, collection, cached data files; GitHub data download
-  search/      MiniSearch index with exact > starts-with > word > fuzzy > text ranking
-  theme/       Design tokens (CSS variables) and faction themes
-  ui/          Shared components (tab bar, screen frame, rule label)
-  screens/     One folder per tab
-```
+### Pins ★
+Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it. Pins appear at the top of **Reference**, and during a game your pinned stratagems are listed first and other pins are shown in the phase panel.
 
-See `docs/ARCHITECTURE.md` for the design rules every change should follow.
+---
 
-## Legal
+## 5. Playing a game
 
-EmperorsList is a fan project, not affiliated with or endorsed by Games Workshop. Warhammer 40,000 and related names are trademarks of Games Workshop Limited. Do not commit game data, rules text, art or logos to this repo.
+### On one phone
+**Play → New game (this phone)** and follow the steps:
+1. Your army
+2. Opponent (name, faction, paste their list if you like)
+3. Mission — primary mission (yours listed first for your Force Disposition), deployment, twist, who goes first
+4. Secondary missions — tap to choose
+5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
+
+**During the battle**
+- **Next** moves through the phases and turns. Both players get 1 CP at the start of every Command phase.
+- **Phase panel:** the stratagems you can use right now (tap the CP button to spend), plus your abilities that mention this phase.
+- **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row and remove a model; every total updates.
+- **Score:** primary and secondary VP per round.
+- **Log:** everything that happened, plus your notes.
+
+### Live across phones (1v1 or 2v2)
+- **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.
+- **Others:** scan the QR with the phone camera, or Play → **Join** and type the code, then pick their army.
+- The host chooses 1v1 or 2v2, sorts players into teams, sets the mission and starts.
+
+What's shared: whose turn it is and the current phase, everyone's CP, both teams' scores, the log, and how many models each player's units have left.
+
+- **Look around freely** — the phase words under the header only change *your* screen (the current phase has a •). Only the team whose turn it is (or the host) moves the game on.
+- **You can only change your own CP and your own team's score.** You see theirs update as they type.
+- **Turn off live changes** (⋯ menu): unlinks your phone. You keep everyone's army and score as they were and can change anything yourself. *Reconnect* joins again.
+- Phones connect directly to each other; nothing is stored online. Everyone needs internet during the game, and the host's game must stay open.
+
+### Table layouts
+**Play → Table layouts** stores photos or screenshots of terrain layouts. Pick one as the deployment when setting up a game.
+
+---
+
+## 6. Sharing and importing lists
+
+From a list's **⋯ menu → Export**:
+- **Text** in the same layout as the official Warhammer app (copy or download).
+- **Share link** and **QR code** — opens the list in EmperorsList on another device.
+- **Print datacards** — one card per unit; print or save as PDF.
+
+**Import:** Lists → ⇣ → paste a list exported from the official app. Units, models, wargear, Warlord, enhancements and detachments are matched by name; anything that couldn't be matched is listed so you can fix it by hand.
+
+---
+
+## 7. Collection
+
+Pick a faction and enter how many models you own, have built and have painted. From a list's ⋯ menu, **Can I field this?** compares the list with your collection.
+
+---
+
+## 8. Settings
+
+- **Appearance** — follow each army's colours or always use one theme; text size; title font; rule label style; wide layout for laptops.
+- **Data** — check for updates (also happens daily by itself); use a different data source.
+- **Extra rules** — refresh stratagems from Wahapedia, or import Wahapedia CSV files by hand.
+- **Live games** — optional own connection server.
+- **Backup** — save all lists, games, collection, pins and layouts to a file, and restore them on another device.
+
+**Your data stays on your device.** Each device has its own lists; move them with a share link or a backup file.
+
+---
+
+## 9. Questions
+
+**Is it free?** Yes, no accounts and no ads.
+
+**Does it work offline?** Yes, after the first start. Live games need internet.
+
+**Why is a unit or rule missing or wrong?** The data comes from the community; it may not be updated yet. Settings → Data → Check for updates.
+
+**Why aren't the mission card rules shown?** Only the card names are included; tap *Read the cards on Wahapedia* during setup for the full text.
+
+**Can I use it on my PC?** Yes — open the link in a browser, or install it from Chrome/Edge. Turn on *Wide* layout in Settings → Appearance.
+
+---
+
+For developers: see [docs/DEVELOPING.md](docs/DEVELOPING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

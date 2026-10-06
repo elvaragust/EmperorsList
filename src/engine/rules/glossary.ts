@@ -70,7 +70,11 @@ export function lookupRule(index: DataIndex, term: string): RuleDef | undefined 
   const base = baseRuleName(term);
   const rule = g.rules.get(exact) ?? g.rules.get(base);
   if (rule) return { ...rule, kind: rule.kind === 'core' && isWeaponAbility(base) ? 'weaponAbility' : rule.kind };
-  return g.keywords.get(exact) ?? g.keywords.get(base);
+  const kw = g.keywords.get(exact) ?? g.keywords.get(base);
+  if (kw) return kw;
+  const core = CORE_TERMS.find((t) => t.toLowerCase() === exact);
+  if (core) return { name: core, text: '', kind: 'core', source: 'Core rules' };
+  return undefined;
 }
 
 export function allRules(index: DataIndex): RuleDef[] {
@@ -82,3 +86,49 @@ const WEAPON_ABILITIES = new Set([
   'lance', 'lethal hits', 'melta', 'one shot', 'pistol', 'precision', 'psychic', 'rapid fire', 'sustained hits', 'torrent', 'twin-linked', 'cleave', 'close-quarters',
 ]);
 export const isWeaponAbility = (base: string) => WEAPON_ABILITIES.has(base);
+
+/**
+ * Core-rule terms that show up in ability text but whose rules live in the
+ * Core Book, not the community data. They are still made tappable; the popup
+ * then points to the core rules.
+ */
+export const CORE_TERMS = [
+  'Advance', 'Advanced', 'Fall Back', 'Fell Back', 'Normal move', 'Surge move', 'Remain Stationary', 'Remained Stationary',
+  'Battle-shock', 'Battle-shocked', 'Battle-shock test', 'Engagement Range', 'Objective Control', 'objective marker',
+  'Strategic Reserves', 'Reinforcements', 'Pile in', 'Consolidate', 'Fights First', 'mortal wound', 'mortal wounds',
+  'invulnerable save', 'Critical Hit', 'Critical Wound', 'Benefit of Cover', 'Attached unit', 'Bodyguard', 'Embark', 'Disembark',
+  'Desperate Escape', 'Fire Overwatch', 'Overwatch', 'Heroic Intervention', 'Command phase', 'Movement phase', 'Shooting phase',
+  'Charge phase', 'Fight phase', 'Hit roll', 'Wound roll', 'saving throw', 'Damage characteristic', 'Leadership test', 'Out of Action',
+];
+
+export interface TermMatcher {
+  re: RegExp | null;
+  canonical: Map<string, string>;
+}
+
+const matcherCache = new WeakMap<DataIndex, TermMatcher>();
+
+/** One regex that finds every rule name or keyword the app can explain, longest first. */
+export function termMatcher(index: DataIndex): TermMatcher {
+  const hit = matcherCache.get(index);
+  if (hit) return hit;
+  const g = glossary(index);
+  const names = new Map<string, string>();
+  const add = (n: string) => {
+    const clean = n.replace(/\s+/g, ' ').trim();
+    if (clean.length < 4 || /^\d/.test(clean)) return;
+    if (!names.has(clean.toLowerCase())) names.set(clean.toLowerCase(), clean);
+  };
+  for (const r of g.rules.values()) if (r.kind === 'core' || r.kind === 'weaponAbility' || r.kind === 'army') add(r.name.replace(/\s+\d.*$/, ''));
+  CORE_TERMS.forEach(add);
+  const list = [...names.values()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const m: TermMatcher = { re: list.length ? new RegExp(`\\b(${list.join('|')})\\b`, 'gi') : null, canonical: names };
+  matcherCache.set(index, m);
+  return m;
+}
+
+export function isCoreTerm(term: string): boolean {
+  return CORE_TERMS.some((t) => t.toLowerCase() === term.toLowerCase());
+}
+
+export const CORE_RULES_URL = 'https://wahapedia.ru/wh40k11ed/the-rules/core-rules/';

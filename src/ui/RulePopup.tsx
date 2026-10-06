@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { DataIndex } from '@/engine/bsdata/index';
-import { lookupRule, type RuleDef } from '@/engine/rules/glossary';
+import { CORE_RULES_URL, lookupRule, type RuleDef } from '@/engine/rules/glossary';
 import { RuleLabel } from './RuleLabel';
 import { Sheet } from './Sheet';
 import { RulesText } from './RulesText';
+import { PinButton, pinId } from './PinButton';
 
 interface PopupState {
   def?: RuleDef;
@@ -39,10 +40,22 @@ export function RulePopupProvider({ children }: { children: ReactNode }) {
           <>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
               <RuleLabel kind={def.kind} />
-              {def.source && <span className="muted small">{def.source}</span>}
+              {def.source && <span className="muted small" style={{ flex: 1 }}>{def.source}</span>}
+              <PinButton pin={{ id: pinId(def.kind, def.name), kind: def.kind, name: def.name, text: def.text, source: def.source }} />
             </div>
             {state?.extra}
-            {def.text ? <RulesText text={def.text} index={state?.index} /> : <p className="muted">This keyword has no rules text of its own in the data.</p>}
+            {def.text ? (
+              <RulesText text={def.text} index={state?.index} />
+            ) : def.kind === 'core' ? (
+              <p className="muted">
+                This is a core rule. Its full text is in the Core Rules, not in the downloaded data.{' '}
+                <a href={CORE_RULES_URL} target="_blank" rel="noreferrer" className="tag">
+                  READ THE CORE RULES ↗
+                </a>
+              </p>
+            ) : (
+              <p className="muted">This keyword has no rules text of its own in the data.</p>
+            )}
           </>
         ) : (
           <p className="muted">No definition for this in the downloaded data. It may be a unit keyword, or a rule only found in the core rules book.</p>

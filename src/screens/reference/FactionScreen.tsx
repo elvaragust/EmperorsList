@@ -1,16 +1,14 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { db } from '@/data/db';
 import { rootsFor, useIndex } from '@/data/gameData';
 import { catalogueChain } from '@/engine/bsdata/index';
-import { configChoices } from '@/engine/rules/config';
+import { configChoices, enhancementsByDetachment } from '@/engine/rules/config';
 import { ruleText } from '@/engine/rules/nodes';
-import { ENH, RosterEngine } from '@/engine/rules/rosterEngine';
-import { stratagemsFor } from '@/engine/wahapedia';
+import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { blankRoster } from '@/search/buildDocs';
 import { useFactionTheme } from '@/theme/themes';
 import { RuleLabel } from '@/ui/RuleLabel';
+import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RulesText } from '@/ui/RulesText';
 import { Screen } from '@/ui/Screen';
 
@@ -18,7 +16,6 @@ import { Screen } from '@/ui/Screen';
 export function FactionScreen() {
   const { catalogueId = '' } = useParams();
   const { index, error } = useIndex(catalogueId);
-  const imported = useLiveQuery(() => db.imported.toArray(), []);
   const [open, setOpen] = useState<string | null>(null);
   const cat = index?.catalogues.get(catalogueId);
   useFactionTheme(cat?.name);
@@ -46,27 +43,7 @@ export function FactionScreen() {
       return linkedArmy.has(r.id) || (own.has(r.id) && n > 0) || (n >= 3 && n >= maxN * 0.3);
     });
     const detachments = configChoices(engine).detachments.filter((d) => !d.hidden);
-    const enhancementsByDet = new Map<string, { name: string; text: string; pts?: number }[]>();
-    const parentOf = new Map<string, (typeof index.entries extends Map<string, infer V> ? V : never)>();
-    for (const g of index.entries.values()) if (!g.type) g.selectionEntries?.forEach((x) => parentOf.set(x.id, g));
-    for (const e of index.entries.values()) {
-      if (!e.costs?.some((c) => c.typeId === ENH && c.value > 0)) continue;
-      // Enhancement visibility is keyed on the detachment id in its hidden modifiers.
-      const json = JSON.stringify(e.modifiers ?? []);
-      const parentGroup = parentOf.get(e.id);
-      const groupJson = JSON.stringify(parentGroup?.modifiers ?? []);
-      for (const d of detachments) {
-        if (json.includes(d.key) || groupJson.includes(d.key) || parentGroup?.name === `${d.name} Enhancements`) {
-          const list = enhancementsByDet.get(d.key) ?? [];
-          list.push({
-            name: e.name,
-            text: e.profiles?.map((p) => p.characteristics?.map((c) => c.$text ?? '').join('\n')).join('\n') ?? '',
-            pts: e.costs.find((c) => c.typeId === '51b2-306e-1021-d207')?.value,
-          });
-          enhancementsByDet.set(d.key, list);
-        }
-      }
-    }
+    const enhancementsByDet = enhancementsByDetachment(index, detachments);
     return { engine, armyRules, detachments, enhancementsByDet, units };
   }, [index, catalogueId]);
 
@@ -95,47 +72,11 @@ export function FactionScreen() {
         </>
       )}
       <div className="section-label">Detachments</div>
-      {data.detachments.map((d) => {
-        const strats = imported ? stratagemsFor(imported, [d.name], []).filter((s) => s.detachment) : [];
-        const enh = data.enhancementsByDet.get(d.key) ?? [];
-        return (
-          <div className="card" key={d.key} style={{ marginBottom: 6 }}>
-            <button className="choice" onClick={() => setOpen(open === d.key ? null : d.key)} aria-expanded={open === d.key}>
-              <span style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{d.name}</div>
-                <div className="muted small">
-                  {d.dp} DP{d.dispositions.length ? ` · ${d.dispositions.join(', ')}` : ''}
-                </div>
-              </span>
-              <RuleLabel kind="detachment" />
-            </button>
-            {open === d.key && (
-              <div style={{ padding: '0 14px 12px' }}>
-                {d.rules.map((r) => (
-                  <div key={r.name}>
-                    <strong>{r.name}</strong>
-                    <RulesText text={r.text} index={index} />
-                  </div>
-                ))}
-                {enh.length > 0 && <div className="section-label">Enhancements</div>}
-                {enh.map((e) => (
-                  <div key={e.name} style={{ marginBottom: 8 }}>
-                    <strong>{e.name}</strong> {e.pts ? <span className="muted small">{e.pts} pts</span> : null}
-                    <RulesText text={e.text} index={index} />
-                  </div>
-                ))}
-                {strats.length > 0 && <div className="section-label">Stratagems · Wahapedia</div>}
-                {strats.map((s) => (
-                  <div key={s.id} style={{ marginBottom: 8 }}>
-                    <strong>{s.name}</strong> <span className="muted small">{[s.cp ? `${s.cp}CP` : '', s.type, s.phase].filter(Boolean).join(' · ')}</span>
-                    <RulesText text={s.text} index={index} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      <div className="card" style={{ overflow: 'hidden' }}>
+        {data.detachments.map((d) => (
+          <DetachmentCard key={d.key} d={d} enhancements={data.enhancementsByDet.get(d.key) ?? []} index={index} />
+        ))}
+      </div>
       <div className="section-label">Datasheets · {data.units.length}</div>
       <div className="card">
         {data.units.map((u) => (

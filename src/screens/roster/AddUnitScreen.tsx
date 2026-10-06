@@ -4,6 +4,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { newUnit } from '@/engine/rules/edit';
+import { datasheet, unitModels } from '@/engine/rules/models';
+import { RosterEngine } from '@/engine/rules/rosterEngine';
+import { Sheet } from '@/ui/Sheet';
+import { Composition } from '@/ui/Composition';
+import { AbilityList, StatLine } from '@/ui/DatasheetView';
+import { PinButton, pinId } from '@/ui/PinButton';
+import { Term } from '@/ui/RulesText';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 
@@ -27,6 +34,14 @@ export function AddUnitScreen() {
   useFactionTheme(roster?.factionName);
   const [q, setQ] = useState('');
   const [role, setRole] = useState<(typeof ROLES)[number]>('All');
+  const [preview, setPreview] = useState<string | null>(null);
+  const previewData = useMemo(() => {
+    if (!engine || !roster || !preview) return undefined;
+    const unit = newUnit(engine, preview);
+    const e2 = new RosterEngine(engine.index, { ...roster, units: [...roster.units, unit] }, [...engine.roots.values()]);
+    const inst = e2.unitInst(unit.id)!;
+    return { name: e2.unitName(unit.id), points: e2.unitPoints(unit.id), sheet: datasheet(e2, inst), models: unitModels(e2, unit.id) };
+  }, [engine, roster, preview]);
 
   const choices = useMemo(() => engine?.unitChoices() ?? [], [engine]);
   const list = useMemo(() => {
@@ -65,20 +80,55 @@ export function AddUnitScreen() {
         {list.map((c) => {
           const n = inList(c.root.key);
           return (
-            <button key={c.root.key} className="choice" onClick={() => add(c.root.key)}>
-              <span style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{c.name}</div>
-                <div className="muted small">
-                  {c.cat}
-                  {n ? ` · ${n} in list` : ''}
-                </div>
-              </span>
-              <span className="num muted">{c.points}</span>
-            </button>
+            <div key={c.root.key} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
+              <button className="choice" style={{ borderTop: 0, flex: 1 }} onClick={() => setPreview(c.root.key)}>
+                <span style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600 }}>{c.name}</div>
+                  <div className="muted small">
+                    {c.cat}
+                    {n ? ` · ${n} in list` : ''}
+                  </div>
+                </span>
+                <span className="num muted">{c.points}</span>
+              </button>
+              <button className="icon-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)} style={{ color: 'var(--accent)', fontSize: 24 }}>
+                +
+              </button>
+            </div>
           );
         })}
       </div>
       {engine && list.length === 0 && <p className="muted">No units match.</p>}
+      <p className="small muted">Tap a unit to read it first, or + to add it straight away.</p>
+      <Sheet open={Boolean(preview)} onClose={() => setPreview(null)} title={previewData?.name}>
+        {previewData && preview && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="num">{previewData.points} pts</span>
+              <span className="muted small" style={{ flex: 1 }}>
+                default loadout
+              </span>
+              <PinButton pin={{ id: pinId('datasheet', previewData.name), kind: 'datasheet', name: previewData.name, route: `/reference/unit/${roster?.catalogueId}/${preview}`, source: `${previewData.points} pts` }} />
+            </div>
+            <button className="btn btn-primary btn-block" style={{ margin: '10px 0' }} onClick={() => add(preview)}>
+              Add to list
+            </button>
+            {previewData.sheet.stats.map((p) => (
+              <StatLine key={p.id + p.name} profile={p} />
+            ))}
+            <div className="section-label">Models</div>
+            <Composition models={previewData.models} />
+            {previewData.sheet.abilities.length > 0 && <div className="section-label">Abilities</div>}
+            <AbilityList abilities={previewData.sheet.abilities} index={engine?.index} />
+            <div className="section-label">Keywords</div>
+            <div className="kw-list">
+              {previewData.sheet.keywords.map((k) => (
+                <Term key={k} term={k} index={engine?.index} upper />
+              ))}
+            </div>
+          </>
+        )}
+      </Sheet>
     </Screen>
   );
 }

@@ -1,0 +1,131 @@
+import { useSyncExternalStore } from 'react';
+import { importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
+import { db } from './db';
+import { currentSource, fetchDataFile, sourceState } from './dataPacks';
+import { clearIndexCache } from './gameData';
+
+/**
+ * Startup sync: every faction from the data repo is downloaded in the
+ * background (once, then only changed files), and the Wahapedia extras that
+ * ship with the site are imported. The app works while this runs.
+ */
+export interface SyncStatus {
+  running: boolean;
+  done: number;
+  total: number;
+  current?: string;
+  error?: string;
+  finishedAt?: number;
+}
+
+let status: SyncStatus = { running: false, done: 0, total: 0 };
+const listeners = new Set<() => void>();
+const set = (s: Partial<SyncStatus>) => {
+  status = { ...status, ...s };
+  listeners.forEach((l) => l());
+};
+export const useSyncStatus = () =>
+  useSyncExternalStore(
+    (l) => (listeners.add(l), () => listeners.delete(l)),
+    () => status,
+  );
+
+const CHECK_KEY = 'emperorslist.lastDataCheck';
+const DAY = 24 * 60 * 60 * 1000;
+
+function lastCheck(): number {
+  try {
+    return Number(localStorage.getItem(CHECK_KEY) ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** Download every data file that is missing or out of date. */
+export async function syncAllFactions(force = false): Promise<void> {
+  if (status.running) return;
+  set({ running: true, done: 0, total: 0, error: undefined, current: 'Checking for game data…' });
+  try {
+    const refresh = force || Date.now() - lastCheck() > DAY;
+    const state = await sourceState(refresh);
+    try {
+      localStorage.setItem(CHECK_KEY, String(Date.now()));
+    } catch {
+      /* ignore */
+    }
+    const cached = new Map((await db.dataFiles.toArray()).map((f) => [f.path, f.commit]));
+    const todo = state.files.filter((p) => cached.get(p) !== state.commit);
+    set({ total: todo.length });
+    const src = currentSource();
+    let i = 0;
+    const worker = async () => {
+      while (i < todo.length) {
+        const path = todo[i++]!;
+        set({ current: path.replace(/\.(json|cat|gst)$/, '') });
+        await fetchDataFile(src, state.commit, path);
+        set({ done: status.done + 1 });
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    if (todo.length) clearIndexCache();
+    set({ running: false, current: undefined, finishedAt: Date.now() });
+  } catch (e) {
+    set({ running: false, current: undefined, error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+const WP_KEY = 'emperorslist.wahapediaStamp';
+const WP_FILES: [keyof WahapediaFiles, string][] = [
+  ['factions', 'Factions.csv'],
+  ['stratagems', 'Stratagems.csv'],
+  ['enhancements', 'Enhancements.csv'],
+  ['detachmentAbilities', 'Detachment_abilities.csv'],
+];
+
+/**
+ * Wahapedia's export is fetched when the site is built (browsers aren't
+ * allowed to download it directly) and published next to the app. Import it
+ * whenever the site has a newer copy.
+ */
+export async function syncWahapedia(force = false): Promise<{ imported: number } | undefined> {
+  const base = `${import.meta.env.BASE_URL}wahapedia/`;
+  try {
+    const stampRes = await fetch(`${base}Last_update.csv`, { cache: 'no-cache' });
+    if (!stampRes.ok) return undefined;
+    const stamp = (await stampRes.text()).trim();
+    let prev = '';
+    try {
+      prev = localStorage.getItem(WP_KEY) ?? '';
+    } catch {
+      /* ignore */
+    }
+    if (!force && stamp === prev && (await db.imported.count()) > 0) return undefined;
+    const parts: WahapediaFiles = {};
+    for (const [key, file] of WP_FILES) {
+      const res = await fetch(base + file, { cache: 'no-cache' });
+      if (res.ok) parts[key] = await res.text();
+    }
+    const rules = importWahapedia(parts);
+    if (!rules.length) return undefined;
+    await db.transaction('rw', db.imported, async () => {
+      await db.imported.clear();
+      await db.imported.bulkPut(rules);
+    });
+    try {
+      localStorage.setItem(WP_KEY, stamp);
+    } catch {
+      /* ignore */
+    }
+    return { imported: rules.length };
+  } catch {
+    return undefined;
+  }
+}
+
+let started = false;
+export function startupSync() {
+  if (started) return;
+  started = true;
+  void syncAllFactions();
+  void syncWahapedia();
+}

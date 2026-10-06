@@ -45,6 +45,7 @@ export interface SavedGame {
   opponentList?: string;
   mission?: string;
   deployment?: string;
+  twist?: string;
   secondaries?: { me: string; them: string };
   checklist?: Record<string, boolean>;
   firstTurn?: 'me' | 'them';
@@ -65,7 +66,7 @@ export interface SavedGame {
   result?: 'win' | 'loss' | 'draw';
   notes?: string;
   /** Set for games played live across phones. The shared state comes from the host. */
-  live?: { room: string; role: 'host' | 'guest'; myId: string; myName: string; me: LivePlayer; state?: LiveState };
+  live?: { room: string; role: 'host' | 'guest'; myId: string; myName: string; me: LivePlayer; state?: LiveState; unlinked?: boolean };
 }
 
 /** A saved table layout: the user's own photo or drawing. */
@@ -75,6 +76,18 @@ export interface Layout {
   /** data: URL of a downscaled image */
   image: string;
   notes?: string;
+  createdAt: number;
+}
+
+/** Something the user pinned to keep at hand: a unit, stratagem, enhancement, detachment or rule. */
+export interface Pin {
+  id: string;
+  kind: import('@/engine/types').RuleKind;
+  name: string;
+  text?: string;
+  source?: string;
+  /** Screen to open for units and factions; others open as a popup. */
+  route?: string;
   createdAt: number;
 }
 
@@ -95,6 +108,7 @@ class EmperorsListDB extends Dexie {
   dataSources!: Table<DataSourceState, string>;
   imported!: Table<ImportedRule, string>;
   layouts!: Table<Layout, string>;
+  pins!: Table<Pin, string>;
 
   constructor() {
     super('emperorslist');
@@ -132,6 +146,16 @@ class EmperorsListDB extends Dexie {
       dataSources: 'source',
       imported: 'id, kind, faction',
       layouts: 'id, name, createdAt',
+    });
+    this.version(4).stores({
+      rosters: 'id, name, folder, catalogueId, updatedAt',
+      games: 'id, rosterId, startedAt',
+      collection: 'entryId, name, catalogueId',
+      dataFiles: 'path, source, catalogueId',
+      dataSources: 'source',
+      imported: 'id, kind, faction',
+      layouts: 'id, name, createdAt',
+      pins: 'id, kind, createdAt',
     });
   }
 }

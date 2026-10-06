@@ -16,7 +16,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { saveGame, withLog } from './games';
 import { LiveGame } from './LiveGame';
-import { LayoutPicker, LayoutPreview } from './layouts';
+import { MissionFields, SecondaryPicker } from './MissionFields';
 
 const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'];
 
@@ -39,7 +39,6 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
     listFactions().then(setFactions, () => setFactions([]));
   }, []);
   const step = game.setupStep;
-  const [layoutOpen, setLayoutOpen] = useState(false);
   const set = (patch: Partial<SavedGame>) => saveGame({ ...game, ...patch });
 
   const checklist = useMemo(() => {
@@ -99,19 +98,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
       {step === 2 && (
         <>
-          <label className="field">
-            <span>Mission</span>
-            <input className="input" defaultValue={game.mission ?? ''} placeholder="Primary mission name" onBlur={(e) => set({ mission: e.target.value })} />
-          </label>
-          <label className="field">
-            <span>Deployment / layout</span>
-            <input key={game.deployment ?? ''} className="input" defaultValue={game.deployment ?? ''} placeholder="Deployment map" onBlur={(e) => set({ deployment: e.target.value })} />
-          </label>
-          <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
-            Pick a saved layout
-          </button>
-          <LayoutPreview name={game.deployment} />
-          <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} onPick={(name) => set({ deployment: name })} />
+          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} />
           <div className="section-label">Who goes first?</div>
           <div className="card">
             {(['me', 'them'] as const).map((s) => (
@@ -121,20 +108,28 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
               </button>
             ))}
           </div>
-          <p className="small muted">Mission cards are not in the data; type the names so they show in your log.</p>
         </>
       )}
 
       {step === 3 && (
         <>
-          <label className="field">
-            <span>My secondaries (Fixed or Tactical, and which)</span>
-            <textarea className="input" style={{ minHeight: 80 }} defaultValue={game.secondaries?.me ?? ''} onBlur={(e) => set({ secondaries: { me: e.target.value, them: game.secondaries?.them ?? '' } })} />
-          </label>
-          <label className="field">
-            <span>Their secondaries</span>
-            <textarea className="input" style={{ minHeight: 80 }} defaultValue={game.secondaries?.them ?? ''} onBlur={(e) => set({ secondaries: { me: game.secondaries?.me ?? '', them: e.target.value } })} />
-          </label>
+          <div className="section-label">My secondaries</div>
+          <SecondaryPicker value={game.secondaries?.me ?? ''} onChange={(v) => set({ secondaries: { me: v, them: game.secondaries?.them ?? '' } })} />
+          <textarea
+            className="input"
+            style={{ minHeight: 60 }}
+            value={game.secondaries?.me ?? ''}
+            placeholder="Fixed or Tactical, and which"
+            onChange={(e) => set({ secondaries: { me: e.target.value, them: game.secondaries?.them ?? '' } })}
+          />
+          <div className="section-label">Their secondaries</div>
+          <SecondaryPicker value={game.secondaries?.them ?? ''} onChange={(v) => set({ secondaries: { me: game.secondaries?.me ?? '', them: v } })} />
+          <textarea
+            className="input"
+            style={{ minHeight: 60 }}
+            value={game.secondaries?.them ?? ''}
+            onChange={(e) => set({ secondaries: { me: game.secondaries?.me ?? '', them: e.target.value } })}
+          />
         </>
       )}
 
@@ -427,13 +422,19 @@ function nextLabel(game: SavedGame, first: 'me' | 'them', who: (s: 'me' | 'them'
   return PHASE_NAMES[n.phase];
 }
 
-export function ScoreRow({ label, values, onChange }: { label: string; values: number[]; onChange: (round: number, v: number) => void }) {
+export function ScoreRow({ label, values, onChange, readOnly }: { label: string; values: number[]; onChange: (round: number, v: number) => void; readOnly?: boolean }) {
   return (
     <>
       <span className="small">{label}</span>
-      {values.map((v, i) => (
-        <input key={i} type="number" inputMode="numeric" min={0} value={v || ''} placeholder="0" onChange={(e) => onChange(i, Math.max(0, Number(e.target.value) || 0))} aria-label={`${label} round ${i + 1}`} />
-      ))}
+      {values.map((v, i) =>
+        readOnly ? (
+          <span key={i} className="num" style={{ padding: '8px 0' }}>
+            {v || '–'}
+          </span>
+        ) : (
+          <input key={i} type="number" inputMode="numeric" min={0} value={v || ''} placeholder="0" onChange={(e) => onChange(i, Math.max(0, Number(e.target.value) || 0))} aria-label={`${label} round ${i + 1}`} />
+        ),
+      )}
       <span className="num small">{values.reduce((a, b) => a + b, 0)}</span>
     </>
   );

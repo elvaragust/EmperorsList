@@ -9,6 +9,7 @@ import { createSearch } from '@/search/searchIndex';
 import { RuleLabel } from '@/ui/RuleLabel';
 import { useRulePopup } from '@/ui/RulePopup';
 import { Screen } from '@/ui/Screen';
+import { PinButton } from '@/ui/PinButton';
 
 const KINDS: { kind: RuleKind; label: string }[] = [
   { kind: 'stratagem', label: 'Stratagems' },
@@ -28,6 +29,7 @@ export function ReferenceScreen() {
   const { index, error } = useAllIndex();
   const imported = useLiveQuery(() => db.imported.toArray(), []);
   const files = useLiveQuery(() => db.dataFiles.toArray(), []);
+  const pins = useLiveQuery(() => db.pins.orderBy('createdAt').reverse().toArray(), []);
   const [q, setQ] = useState('');
   const [kinds, setKinds] = useState<RuleKind[]>([]);
 
@@ -88,6 +90,29 @@ export function ReferenceScreen() {
         </div>
       ) : (
         <>
+          {pins && pins.length > 0 && (
+            <>
+              <div className="section-label">Pinned</div>
+              <div className="card">
+                {pins.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
+                    <button
+                      className="choice"
+                      style={{ borderTop: 0, flex: 1 }}
+                      onClick={() => (p.route ? navigate(p.route) : popup.openDef({ name: p.name, text: p.text ?? '', kind: p.kind, source: p.source ?? '' }, index))}
+                    >
+                      <span style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600 }}>{p.name}</div>
+                        {p.source && <div className="muted small">{p.source}</div>}
+                      </span>
+                      <RuleLabel kind={p.kind} />
+                    </button>
+                    <PinButton small pin={p} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="section-label">Browse</div>
           <div className="card">
             <Link className="choice" to="/reference/core">
@@ -103,7 +128,7 @@ export function ReferenceScreen() {
           </div>
           {imported && imported.length === 0 && (
             <p className="muted small" style={{ marginTop: 14 }}>
-              Stratagems are not in the community data. Get them from Wahapedia in Settings → Extra rules (one tap once the relay is set up).
+              Stratagems come from Wahapedia and load automatically on the hosted app. Running locally? Import the CSV files in Settings → Extra rules.
             </p>
           )}
           {imported && imported.length > 0 && <p className="credit">Stratagems powered by Wahapedia ({imported.length} imported).</p>}

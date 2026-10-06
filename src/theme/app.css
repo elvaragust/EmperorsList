@@ -707,3 +707,57 @@ textarea.input {
     border-color: #999 !important;
   }
 }
+
+.data-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.data-banner.error {
+  color: var(--danger);
+}
+.data-banner-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.pin-btn {
+  color: var(--text-muted);
+  flex: none;
+}
+.pin-btn[aria-pressed='true'] {
+  color: var(--accent);
+}
+.kw-soft {
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---------- Appearance settings ---------- */
+[data-text='large'] .shell {
+  zoom: 1.12;
+}
+[data-text='xlarge'] .shell {
+  zoom: 1.25;
+}
+[data-title-font='serif'] {
+  --font-title: 'Cinzel', serif;
+}
+[data-title-font='plain'] {
+  --font-title: 'EB Garamond', Georgia, serif;
+}
+[data-width='wide'] .shell {
+  max-width: 820px;
+}
+[data-width='wide'] .sheet {
+  max-width: 820px;
+}
