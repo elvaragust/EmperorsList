@@ -4,17 +4,16 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
-import { abilityInPhase, nextPhase, PHASE_NAMES, PHASES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
+import { nextPhase, PHASE_NAMES, PHASES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
-import { stratagemFits, stratagemsFor } from '@/engine/wahapedia';
 import { useFactionTheme } from '@/theme/themes';
-import { RuleLabel } from '@/ui/RuleLabel';
-import { useRulePopup } from '@/ui/RulePopup';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { saveGame, withLog } from './games';
+import { useSessionState } from '@/ui/useSessionState';
+import { NotesPanel, PhasePanel } from './panels';
 import { LiveGame } from './LiveGame';
 import { MissionFields, SecondaryPicker } from './MissionFields';
 
@@ -144,7 +143,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         </div>
       )}
 
-      <div className="btn-row">
+      <div className="sticky-bar">
         {step > 1 && (
           <button className="btn" onClick={() => set({ setupStep: step - 1 })}>
             Back
@@ -172,11 +171,9 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
   );
 }
 
-function Battle({ game, engine, index }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
+function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
   const navigate = useNavigate();
-  const popup = useRulePopup();
-  const imported = useLiveQuery(() => db.imported.toArray(), []);
-  const [tab, setTab] = useState<'phase' | 'units' | 'score' | 'log'>('phase');
+  const [tab, setTab] = useSessionState<'phase' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [ending, setEnding] = useState(false);
   const [note, setNote] = useState('');
   const first = game.firstTurn ?? 'me';
@@ -193,35 +190,6 @@ function Battle({ game, engine, index }: { game: SavedGame; engine?: RosterEngin
   const back = () => {
     const p = previousPhase(game, first);
     void save({ ...game, ...p });
-  };
-
-  const strats = useMemo(() => {
-    if (!imported || !engine) return [];
-    const hints = [engine.roster.factionName, ...[...(engine.index.catalogues.values())].map((c) => c.name.split(' - ').pop() ?? '')];
-    return stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints).filter((s) => stratagemFits(s, game.phase, game.turn));
-  }, [imported, engine, game.phase, game.turn]);
-
-  const abilities = useMemo(() => {
-    if (!engine) return [];
-    const out: { unit: string; name: string; text: string }[] = [];
-    for (const u of engine.roster.units) {
-      const inst = engine.unitInst(u.id);
-      if (!inst) continue;
-      for (const a of datasheet(engine, inst).abilities) {
-        const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
-        if (abilityInPhase(text, game.phase)) out.push({ unit: u.nickname || u.name, name: a.name, text });
-      }
-    }
-    return out;
-  }, [engine, game.phase]);
-
-  const spendStrat = (s: (typeof strats)[number]) => {
-    const cost = Number(s.cp ?? 0) || 0;
-    const side = 'me' as const; // the stratagems listed are your army's
-    const again = game.used.some((u) => u.id === s.id && u.round === game.round && u.phase === game.phase && u.turn === game.turn);
-    let g: SavedGame = { ...game, cp: { ...game.cp, [side]: Math.max(0, game.cp[side] - cost) }, used: [...game.used, { round: game.round, turn: game.turn, phase: game.phase, id: s.id, name: s.name }] };
-    g = withLog(g, `Used ${s.name} (${cost} CP)${again ? ' — already used this phase!' : ''}`, 'stratagem');
-    void save(g);
   };
 
   const setVp = (side: 'me' | 'them', kind: 'primary' | 'secondary', round: number, v: number) => {
@@ -289,6 +257,8 @@ function Battle({ game, engine, index }: { game: SavedGame; engine?: RosterEngin
         </button>
       </div>
 
+      <NotesPanel gameId={game.id} notes={game.notes} />
+
       <div className="seg" role="tablist">
         {(['phase', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
@@ -298,38 +268,17 @@ function Battle({ game, engine, index }: { game: SavedGame; engine?: RosterEngin
       </div>
 
       {tab === 'phase' && (
-        <>
-          <div className="section-label">Stratagems</div>
-          {imported && imported.length === 0 && <p className="small muted">Import stratagems in Settings → Extra rules to see them here.</p>}
-          <div className="card">
-            {strats.map((s) => (
-              <div key={s.id} className="row">
-                <button className="kw" style={{ flex: 1, textAlign: 'left', textDecoration: 'none' }} onClick={() => popup.openDef({ name: s.name, text: s.text, kind: 'stratagem', source: `${s.cp ?? '?'} CP · ${s.detachment ?? s.faction} · Wahapedia` }, index)}>
-                  <div style={{ fontWeight: 600 }}>{s.name}</div>
-                  <div className="muted small">{[s.detachment ?? 'Core', s.turn].filter(Boolean).join(' · ')}</div>
-                </button>
-                <button className="btn btn-sm" onClick={() => spendStrat(s)}>
-                  {s.cp ?? '?'} CP
-                </button>
-              </div>
-            ))}
-            {imported && imported.length > 0 && strats.length === 0 && <div className="row muted small">None for this phase.</div>}
-          </div>
-          <div className="section-label">Your abilities this phase</div>
-          <div className="card">
-            {abilities.map((a, i) => (
-              <button key={i} className="choice" onClick={() => popup.openDef({ name: a.name, text: a.text, kind: 'ability', source: a.unit }, index)}>
-                <span style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{a.name}</div>
-                  <div className="muted small">{a.unit}</div>
-                </span>
-                <RuleLabel kind="ability" />
-              </button>
-            ))}
-            {abilities.length === 0 && <div className="row muted small">Nothing mentions this phase.</div>}
-          </div>
-          {imported && imported.length > 0 && <p className="credit">Stratagems powered by Wahapedia.</p>}
-        </>
+        <PhasePanel
+          engine={engine}
+          phase={game.phase}
+          myTurn={game.turn === 'me'}
+          onSpend={(st, cost) => {
+            const again = game.used.some((u) => u.id === st.id && u.round === game.round && u.phase === game.phase && u.turn === game.turn);
+            let g: SavedGame = { ...game, cp: { ...game.cp, me: Math.max(0, game.cp.me - cost) }, used: [...game.used, { round: game.round, turn: game.turn, phase: game.phase, id: st.id, name: st.name }] };
+            g = withLog(g, `Used ${st.name} (${cost} CP)${again ? ' — already used this phase!' : ''}`, 'stratagem');
+            void save(g);
+          }}
+        />
       )}
 
       {tab === 'units' && (

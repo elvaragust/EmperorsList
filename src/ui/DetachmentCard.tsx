@@ -7,6 +7,7 @@ import { stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
 import { PinButton, pinId } from './PinButton';
 import { RuleLabel } from './RuleLabel';
 import { RulesText } from './RulesText';
+import { Collapse } from './Collapse';
 
 /**
  * A detachment you can open and read before choosing it: rules, enhancements
@@ -28,7 +29,7 @@ export function DetachmentCard({
   note?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const imported = useLiveQuery<ImportedRule[]>(() => (open ? db.imported.toArray() : Promise.resolve([])), [open]);
+  const imported = useLiveQuery<ImportedRule[]>(() => (open ? db.imported.where('kind').equals('stratagem').toArray() : Promise.resolve([])), [open]);
   const strats = imported ? stratagemsFor(imported, [d.name], []).filter((s) => s.detachment) : [];
   return (
     <div style={{ borderTop: '1px solid var(--line-soft)' }}>
@@ -64,37 +65,51 @@ export function DetachmentCard({
         </button>
       </div>
       {open && (
-        <div style={{ padding: '0 14px 12px' }} className="small">
-          {d.rules.map((r) => (
-            <div key={r.name}>
-              <strong>{r.name}</strong>
-              <RulesText text={r.text} index={index} />
-            </div>
-          ))}
-          {enhancements.length > 0 && <div className="section-label">Enhancements</div>}
-          {enhancements.map((e) => (
-            <div key={e.id} style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <strong style={{ flex: 1 }}>
-                  {e.name} {e.pts ? <span className="muted small">{e.pts} pts</span> : null}
-                </strong>
-                <PinButton small pin={{ id: pinId('enhancement', e.name), kind: 'enhancement', name: e.name, text: e.text, source: `${d.name}${e.pts ? ` · ${e.pts} pts` : ''}` }} />
+        <div style={{ padding: '0 14px 8px' }} className="small">
+          <Collapse tone="plain" title={`Rules (${d.rules.length})`} defaultOpen>
+            {d.rules.map((r) => (
+              <div key={r.name} style={{ marginBottom: 8 }}>
+                <strong>{r.name}</strong>
+                <RulesText text={r.text} index={index} />
               </div>
-              <RulesText text={e.text} index={index} />
-            </div>
-          ))}
-          {strats.length > 0 && <div className="section-label">Stratagems · Wahapedia</div>}
-          {strats.map((s) => (
-            <div key={s.id} style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <strong style={{ flex: 1 }}>
-                  {s.name} <span className="muted small">{[s.cp ? `${s.cp}CP` : '', s.type, s.phase].filter(Boolean).join(' · ')}</span>
-                </strong>
-                <PinButton small pin={{ id: pinId('stratagem', s.name), kind: 'stratagem', name: s.name, text: s.text, source: `${s.cp ?? '?'} CP · ${d.name}` }} />
-              </div>
-              <RulesText text={s.text} index={index} />
-            </div>
-          ))}
+            ))}
+          </Collapse>
+          {enhancements.length > 0 && (
+            <Collapse tone="plain" title={`Enhancements (${enhancements.length})`}>
+              {enhancements.map((e) => (
+                <Collapse
+                  key={e.id}
+                  tone="plain"
+                  title={
+                    <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text)', fontSize: 14 }}>
+                      {e.name} {e.pts ? <span className="muted">· {e.pts} pts</span> : null}
+                    </span>
+                  }
+                  right={<PinButton small pin={{ id: pinId('enhancement', e.name), kind: 'enhancement', name: e.name, text: e.text, source: `${d.name}${e.pts ? ` · ${e.pts} pts` : ''}` }} />}
+                >
+                  <RulesText text={e.text} index={index} />
+                </Collapse>
+              ))}
+            </Collapse>
+          )}
+          {strats.length > 0 && (
+            <Collapse tone="plain" title={`Stratagems (${strats.length}) · Wahapedia`}>
+              {strats.map((st) => (
+                <Collapse
+                  key={st.id}
+                  tone="plain"
+                  title={
+                    <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text)', fontSize: 14 }}>
+                      {st.name} <span className="muted">· {st.cp ?? '0'} CP{st.phase ? ` · ${st.phase}` : ''}</span>
+                    </span>
+                  }
+                  right={<PinButton small pin={{ id: pinId('stratagem', st.name), kind: 'stratagem', name: st.name, text: st.text, source: `${st.cp ?? '0'} CP · ${d.name}` }} />}
+                >
+                  <RulesText text={st.text} index={index} />
+                </Collapse>
+              ))}
+            </Collapse>
+          )}
         </div>
       )}
     </div>

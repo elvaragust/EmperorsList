@@ -1,5 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Collapse } from '@/ui/Collapse';
+import { PinButton, pinId } from '@/ui/PinButton';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { abilityInPhase, type Phase } from '@/engine/game';
@@ -18,6 +20,11 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
   const pinnedNames = useMemo(() => new Set((pins ?? []).filter((p) => p.kind === 'stratagem').map((p) => p.name.toLowerCase())), [pins]);
   const otherPins = (pins ?? []).filter((p) => p.kind !== 'stratagem' && p.kind !== 'datasheet');
   const index = engine?.index;
+  const allMine = useMemo(() => {
+    if (!imported || !engine) return [];
+    const hints = [engine.roster.factionName, ...[...engine.index.catalogues.values()].map((c) => c.name.split(' - ').pop() ?? '')];
+    return stratagemsFor(imported, engine.roster.detachmentNames ?? [], hints);
+  }, [imported, engine]);
   const strats = useMemo(() => {
     if (!imported || !engine) return [];
     const hints = [engine.roster.factionName, ...[...engine.index.catalogues.values()].map((c) => c.name.split(' - ').pop() ?? '')];
@@ -37,29 +44,39 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
     }
     return out;
   }, [engine, phase]);
+  const cpOf = (s: ImportedRule) => Number.parseInt(s.cp ?? '0', 10) || 0;
+  const pinnedNow = allMine.filter((s) => pinnedNames.has(s.name.toLowerCase()) && !strats.includes(s));
+  const row = (s: ImportedRule, offPhase = false) => (
+    <div key={s.id} className="row">
+      <button
+        className="kw"
+        style={{ flex: 1, textAlign: 'left', textDecoration: 'none' }}
+        onClick={() => popup.openDef({ name: s.name, text: s.text, kind: 'stratagem', source: `${cpOf(s)} CP · ${s.detachment ?? s.faction} · Wahapedia` }, index)}
+      >
+        <div style={{ fontWeight: 600, opacity: offPhase ? 0.7 : 1 }}>
+          {pinnedNames.has(s.name.toLowerCase()) && <span className="tag">★ </span>}
+          {s.name}
+        </div>
+        <div className="muted small">{[s.detachment ?? 'Core', offPhase ? s.phase : s.turn].filter(Boolean).join(' · ')}</div>
+      </button>
+      <PinButton small pin={{ id: pinId('stratagem', s.name), kind: 'stratagem', name: s.name, text: s.text, source: `${cpOf(s)} CP · ${s.detachment ?? s.faction}` }} />
+      <button className="btn btn-sm" onClick={() => onSpend(s, cpOf(s))}>
+        {cpOf(s)} CP
+      </button>
+    </div>
+  );
   return (
     <>
+      {pinnedNow.length > 0 && (
+        <>
+          <div className="section-label">Pinned stratagems</div>
+          <div className="card">{pinnedNow.map((s) => row(s, true))}</div>
+        </>
+      )}
       <div className="section-label">Your stratagems</div>
       {imported && imported.length === 0 && <p className="small muted">Get stratagems in Settings → Extra rules to see them here.</p>}
       <div className="card">
-        {strats.map((s) => (
-          <div key={s.id} className="row">
-            <button
-              className="kw"
-              style={{ flex: 1, textAlign: 'left', textDecoration: 'none' }}
-              onClick={() => popup.openDef({ name: s.name, text: s.text, kind: 'stratagem', source: `${s.cp ?? '?'} CP · ${s.detachment ?? s.faction} · Wahapedia` }, index)}
-            >
-              <div style={{ fontWeight: 600 }}>
-                {pinnedNames.has(s.name.toLowerCase()) && <span className="tag">★ </span>}
-                {s.name}
-              </div>
-              <div className="muted small">{[s.detachment ?? 'Core', s.turn].filter(Boolean).join(' · ')}</div>
-            </button>
-            <button className="btn btn-sm" onClick={() => onSpend(s, Number(s.cp ?? 0) || 0)}>
-              {s.cp ?? '?'} CP
-            </button>
-          </div>
-        ))}
+        {strats.map((s) => row(s))}
         {imported && imported.length > 0 && strats.length === 0 && <div className="row muted small">None for this phase.</div>}
       </div>
       <div className="section-label">Your abilities this phase</div>
@@ -152,5 +169,24 @@ export function SummaryList({ units }: { units: UnitSummary[] }) {
       ))}
       {units.length === 0 && <div className="row muted small">No casualty info shared yet.</div>}
     </div>
+  );
+}
+
+/** Your own notes for the whole game: tap to open or close; saved as you type. */
+export function NotesPanel({ gameId, notes }: { gameId: string; notes?: string }) {
+  const [text, setText] = useState(notes ?? '');
+  useEffect(() => setText(notes ?? ''), [notes]);
+  return (
+    <Collapse title={`Notes${notes ? ' ·' : ''}`} defaultOpen={false} right={notes ? <span className="small muted" style={{ textTransform: 'none', letterSpacing: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notes.split('\n')[0]}</span> : undefined}>
+      <textarea
+        className="input"
+        style={{ minHeight: 120 }}
+        value={text}
+        placeholder="Plans, reminders, what your opponent has in reserve…"
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => db.games.update(gameId, { notes: text })}
+        aria-label="Game notes"
+      />
+    </Collapse>
   );
 }

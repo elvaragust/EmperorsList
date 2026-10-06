@@ -271,3 +271,42 @@ describe.skipIf(!have)('squads that must share a weapon', () => {
     expect(e.issues().filter((i) => i.unitId === after.id)).toEqual([]);
   });
 });
+
+describe.skipIf(!have)('model kinds and per-model wargear counts', () => {
+  it('lists Crusader Squad model kinds and lets 1 Initiate... style counts change', async () => {
+    const { modelTypes, setModelsWithOption } = await import('../rules/modelTypes');
+    const index = load();
+    const sm = [...index.catalogues.values()].find((c) => /Space Marines/.test(c.name))!;
+    const roots = rootOptions(index, sm.id);
+    let roster = blank(sm.id);
+    roster = setBattleSize(new RosterEngine(index, roster, roots), roster, 'strikeForce');
+    const e0 = new RosterEngine(index, roster, roots);
+    const engineFor = (u: ReturnType<typeof newUnit>) => new RosterEngine(index, { ...roster, units: [u] }, roots);
+    // Find a unit where several identical models share a choose-one wargear group.
+    let unit = newUnit(e0, roots.find((r) => r.node.name === 'Intercessor Squad')!.key);
+    for (const c of e0.unitChoices()) {
+      const u = newUnit(e0, c.root.key);
+      const t = modelTypes(engineFor(u), u.id);
+      if (t.some((x) => x.count > 1 && x.groups.some((g) => g.chooseOne && g.options.length > 1))) {
+        unit = u;
+        console.log('using', c.name);
+        break;
+      }
+    }
+    const types = modelTypes(engineFor(unit), unit.id);
+    console.log(JSON.stringify(types.map((t) => ({ n: t.name, c: t.count, fixed: t.fixed.map((f) => f.name), extras: t.extras.map((e) => `${e.name}:${e.carried}`), groups: t.groups.map((g) => `${g.name}[${g.chooseOne ? '1' : 'n'}]: ${g.options.map((o) => `${o.name}=${o.carried}`).join(', ')}`) })), null, 1));
+    const body = types.find((t) => t.count > 1 && t.groups.some((g) => g.chooseOne && g.options.length > 1))!;
+    const g = body.groups.find((x) => x.chooseOne && x.options.length > 1);
+    expect(g).toBeTruthy();
+    if (g) {
+      const other = g.options.find((o) => o.carried === 0)!;
+      const u2 = setModelsWithOption(engineFor, unit, body.key, other.key, 1, g);
+      const t2 = modelTypes(engineFor(u2), unit.id).find((t) => t.key === body.key)!;
+      const g2 = t2.groups.find((x) => x.key === g.key)!;
+      expect(g2.options.find((o) => o.key === other.key)!.carried).toBe(1);
+      expect(g2.options.reduce((n, o) => n + o.carried, 0)).toBe(t2.count);
+      const back = setModelsWithOption(engineFor, u2, body.key, other.key, 0, g2);
+      expect(back.selections.filter((s) => s.entryId === body.key).length).toBe(1);
+    }
+  });
+});

@@ -104,7 +104,7 @@ export function importWahapedia(files: WahapediaFiles): ImportedRule[] {
         factionId: r.faction_id ?? '',
         name: titleCase(r.name),
         detachment: r.detachment || undefined,
-        cp: r.cp_cost || undefined,
+        cp: (r.cp_cost ?? '').match(/\d+/)?.[0] ?? '0',
         type: r.type || undefined,
         turn: r.turn || undefined,
         phase: r.phase || undefined,

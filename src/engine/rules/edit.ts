@@ -131,12 +131,12 @@ export function updateChildren(unit: RosterUnit, path: SelPath, fn: (children: S
   return { ...unit, selections: rec(unit.selections, 0) };
 }
 
-const same = (a: Selection, b: Selection): boolean =>
-  a.entryId === b.entryId &&
-  a.children.length === b.children.length &&
-  a.children.every((c, i) => c.count === b.children[i]!.count && same(c, b.children[i]!));
+const sortSel = (list: Selection[]): Selection[] =>
+  [...list].map((s) => ({ ...s, children: sortSel(s.children) })).sort((a, b) => a.entryId.localeCompare(b.entryId) || a.count - b.count);
 
-/** Merge sibling selections that are identical (same option, same wargear). */
+const same = (a: Selection, b: Selection): boolean => JSON.stringify(sortSel([{ ...a, count: 1 }])) === JSON.stringify(sortSel([{ ...b, count: 1 }]));
+
+/** Merge sibling selections that are identical (same option, same wargear), keeping their order. */
 export function mergeIdentical(list: Selection[]): Selection[] {
   const out: Selection[] = [];
   for (const s of list) {
