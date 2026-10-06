@@ -6,11 +6,11 @@
  * Respect Wahapedia's terms; the files are for your own device.
  *
  *   node scripts/wahapedia.mjs [baseUrl]
- * baseUrl defaults to https://wahapedia.ru/wh40k10ed/ — change it when an 11th edition export exists.
+ * baseUrl defaults to the 11th edition export, https://wahapedia.ru/wh40k11ed/
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 
-const base = process.argv[2] ?? 'https://wahapedia.ru/wh40k10ed/';
+const base = process.argv[2] ?? 'https://wahapedia.ru/wh40k11ed/';
 const files = ['Factions.csv', 'Stratagems.csv', 'Enhancements.csv', 'Detachment_abilities.csv'];
 mkdirSync('wahapedia', { recursive: true });
 for (const f of files) {
