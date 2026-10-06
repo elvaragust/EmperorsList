@@ -1,6 +1,8 @@
 import Dexie, { type Table } from 'dexie';
 import type { Roster } from '@/engine/types';
 import type { ImportedRule } from '@/engine/wahapedia';
+import type { Phase } from '@/engine/game';
+import type { LivePlayer, LiveState } from '@/engine/live';
 
 /** A downloaded game-data file, cached on this device only. Never uploaded anywhere. */
 export interface CachedDataFile {
@@ -22,7 +24,6 @@ export interface DataSourceState {
   files: string[];
 }
 
-import type { Phase } from '@/engine/game';
 export type { Phase };
 
 export interface GameLogEntry {
@@ -63,6 +64,18 @@ export interface SavedGame {
   log: GameLogEntry[];
   result?: 'win' | 'loss' | 'draw';
   notes?: string;
+  /** Set for games played live across phones. The shared state comes from the host. */
+  live?: { room: string; role: 'host' | 'guest'; myId: string; myName: string; me: LivePlayer; state?: LiveState };
+}
+
+/** A saved table layout: the user's own photo or drawing. */
+export interface Layout {
+  id: string;
+  name: string;
+  /** data: URL of a downscaled image */
+  image: string;
+  notes?: string;
+  createdAt: number;
 }
 
 export interface CollectionItem {
@@ -81,6 +94,7 @@ class EmperorsListDB extends Dexie {
   dataFiles!: Table<CachedDataFile, string>;
   dataSources!: Table<DataSourceState, string>;
   imported!: Table<ImportedRule, string>;
+  layouts!: Table<Layout, string>;
 
   constructor() {
     super('emperorslist');
@@ -110,6 +124,15 @@ class EmperorsListDB extends Dexie {
             r.units ??= [];
           });
       });
+    this.version(3).stores({
+      rosters: 'id, name, folder, catalogueId, updatedAt',
+      games: 'id, rosterId, startedAt',
+      collection: 'entryId, name, catalogueId',
+      dataFiles: 'path, source, catalogueId',
+      dataSources: 'source',
+      imported: 'id, kind, faction',
+      layouts: 'id, name, createdAt',
+    });
   }
 }
 

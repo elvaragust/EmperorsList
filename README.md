@@ -49,6 +49,18 @@ To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and u
 - Backup and restore everything to a file
 - Themes for every faction (follow the open list)
 
+**Live games**
+- Play → Host live game shows a room code and QR; other phones scan it (or Play → Join and type the code)
+- 1v1 or 2v2 (two per team). Turn, phase, CP per player, VP per team and a shared log sync between phones; each player's units-left are shown to the others
+- Phones talk directly (WebRTC). The free public PeerJS server only introduces them; nothing is stored on a server. If a phone drops or reloads it reconnects. The host's phone is the referee, so it must stay open
+- Optional own PeerJS server in Settings → Live games
+
+**Stratagems in one tap**
+- Deploy the tiny relay in `relay/` to a free Cloudflare account once (see `relay/README.md`), paste its URL in Settings → Extra rules, then tap Update stratagems
+
+**Table layouts**
+- Play → Table layouts: save photos or screenshots of terrain/deployment layouts and pick them when setting up a game
+
 ## Real-data tests
 
 Game data is never committed. To run the engine against real data:
@@ -62,7 +74,7 @@ npm test                                        # the real-data suite runs when 
 ## Known gaps
 
 - Modifiers that change other entries' profiles (New Recruit "affects", mostly Crusade upgrades) are not applied yet
-- Mission cards are typed in by hand (not in the data)
+- Mission cards are typed in by hand (not in BSData or Wahapedia's export)
 - QR scanning is not built in; use the phone camera on a shared QR, or paste the link
 - The rule-label style is still the placeholder (`LABEL_VARIANT` in `src/ui/RuleLabel.tsx`) until one of the 8 options is picked
 

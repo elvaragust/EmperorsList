@@ -103,7 +103,7 @@ export function ReferenceScreen() {
           </div>
           {imported && imported.length === 0 && (
             <p className="muted small" style={{ marginTop: 14 }}>
-              Stratagems are not in the community data. Import them from Wahapedia in Settings → Extra rules.
+              Stratagems are not in the community data. Get them from Wahapedia in Settings → Extra rules (one tap once the relay is set up).
             </p>
           )}
           {imported && imported.length > 0 && <p className="credit">Stratagems powered by Wahapedia ({imported.length} imported).</p>}

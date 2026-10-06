@@ -2,6 +2,14 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { totalScore } from '@/engine/game';
+import { teamNames } from '@/engine/live';
+import type { SavedGame } from '@/data/db';
+
+function liveTitle(g: SavedGame): string {
+  const st = g.live?.state;
+  if (!st) return `${g.rosterName} · joining room ${g.live?.room}`;
+  return `${teamNames(st, 'A')} vs ${teamNames(st, 'B')}`;
+}
 import { Screen } from '@/ui/Screen';
 
 /** War Journal: games in progress and finished games. */
@@ -13,8 +21,19 @@ export function PlayScreen() {
   return (
     <Screen title="War Journal">
       <Link className="btn btn-primary btn-block" to="/play/new">
-        New game
+        New game (this phone)
       </Link>
+      <div className="btn-row">
+        <Link className="btn" style={{ flex: 1 }} to="/play/new?live=1">
+          Host live game
+        </Link>
+        <Link className="btn" style={{ flex: 1 }} to="/play/join">
+          Join
+        </Link>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        Live games sync turn, phase, CP and score between phones — 1v1 or 2v2. <Link to="/play/layouts" className="tag">TABLE LAYOUTS</Link>
+      </p>
       {live.length > 0 && (
         <>
           <div className="section-label">In progress</div>
@@ -23,9 +42,9 @@ export function PlayScreen() {
               <Link key={g.id} className="unit-row" to={`/play/${g.id}`}>
                 <span style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>
-                    {g.rosterName} vs {g.opponentName || 'opponent'}
+                    {g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`}
                   </div>
-                  <div className="muted small">{g.stage === 'setup' ? `Setting up · step ${g.setupStep}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
+                  <div className="muted small">{g.live ? `Live · room ${g.live.room} · ` : ''}{g.stage === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${totalScore(g.live.state.vp.A)}–${totalScore(g.live.state.vp.B)}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
                 </span>
               </Link>
             ))}
@@ -42,7 +61,7 @@ export function PlayScreen() {
               <Link key={g.id} className="unit-row" to={`/play/${g.id}`}>
                 <span style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>
-                    {g.rosterName} vs {g.opponentName || 'opponent'}
+                    {g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`}
                   </div>
                   <div className="muted small">
                     {new Date(g.startedAt).toLocaleDateString()} · {totalScore(g.vp.me)}–{totalScore(g.vp.them)} · {g.mission || 'no mission set'}

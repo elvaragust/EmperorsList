@@ -5,6 +5,8 @@ import { currentSource, DEFAULT_SOURCE, setSource, sourceName, updateAll } from 
 import { clearIndexCache } from '@/data/gameData';
 import { downloadText, exportBackup, restoreBackup } from '@/data/backup';
 import { detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
+import { lastRelayUpdate, relayUrl, setRelayUrl, updateFromRelay } from '@/data/relay';
+import { peerServer, setPeerServer } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
 
 export function SettingsScreen() {
@@ -17,6 +19,18 @@ export function SettingsScreen() {
   const [backupStatus, setBackupStatus] = useState('');
   const [repo, setRepo] = useState(`${source.owner}/${source.repo}@${source.branch}`);
   const wpInput = useRef<HTMLInputElement>(null);
+  const [relay, setRelay] = useState(relayUrl());
+  const [peerHost, setPeerHost] = useState(peerServer());
+  const relayUpdated = lastRelayUpdate();
+  const updateStrats = async () => {
+    setRelayUrl(relay.trim());
+    try {
+      const r = await updateFromRelay(setWpStatus);
+      setWpStatus(`Updated: ${r.stratagems} stratagems, ${r.total} rules in all.`);
+    } catch (e) {
+      setWpStatus(e instanceof Error ? e.message : 'Update failed');
+    }
+  };
   const restoreInput = useRef<HTMLInputElement>(null);
 
   const update = async () => {
@@ -107,9 +121,16 @@ export function SettingsScreen() {
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
           <div className="small">
-            The community data has no Stratagems. Download <b>Stratagems.csv</b> and <b>Factions.csv</b> (optionally Enhancements.csv and Detachment_abilities.csv) from Wahapedia's export page, or run{' '}
-            <code>node scripts/wahapedia.mjs</code>, then pick the files here. They stay on this device.
+            The community data has no Stratagems; they come from Wahapedia. With your relay set up (one-time, free — see <code>relay/README.md</code>), tap Update. Or import the CSV files by hand.
           </div>
+          <label className="field" style={{ margin: 0 }}>
+            <span>Relay URL</span>
+            <input className="input" value={relay} placeholder="https://emperorslist-relay.you.workers.dev" onChange={(e) => setRelay(e.target.value)} inputMode="url" />
+          </label>
+          <button className="btn" onClick={updateStrats} disabled={!relay.trim()}>
+            Update stratagems
+          </button>
+          {relayUpdated && <div className="muted small">Last updated {new Date(relayUpdated).toLocaleString()}</div>}
           <div className="muted small">{importedCount ?? 0} imported rules</div>
           <input ref={wpInput} type="file" accept=".csv,text/csv,text/plain" multiple hidden onChange={(e) => importWp(e.target.files)} />
           <div className="btn-row" style={{ margin: 0 }}>
@@ -124,6 +145,19 @@ export function SettingsScreen() {
           </div>
           {wpStatus && <div className="small">{wpStatus}</div>}
           <div className="credit">Powered by Wahapedia (wahapedia.ru).</div>
+        </div>
+      </div>
+
+      <div className="section-label">Live games</div>
+      <div className="card">
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
+          <div className="small">
+            Phones in a live game talk to each other directly. A free public PeerJS server only introduces them. If it's ever down, you can run your own and enter it here (every player needs the same setting).
+          </div>
+          <label className="field" style={{ margin: 0 }}>
+            <span>Own PeerJS server (optional)</span>
+            <input className="input" value={peerHost} placeholder="Public server" onChange={(e) => setPeerHost(e.target.value)} onBlur={() => setPeerServer(peerHost)} inputMode="url" />
+          </label>
         </div>
       </div>
 
