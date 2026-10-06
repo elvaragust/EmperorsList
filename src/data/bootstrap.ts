@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
+import { coreSectionsToRules, importWahapedia, type CoreSection, type WahapediaFiles } from '@/engine/wahapedia';
+import { setCoreSections } from '@/engine/rules/glossary';
 import { db } from './db';
 import { currentSource, fetchDataFile, sourceState } from './dataPacks';
 import { clearIndexCache } from './gameData';
@@ -99,13 +100,23 @@ export async function syncWahapedia(force = false): Promise<{ imported: number }
     } catch {
       /* ignore */
     }
-    if (!force && stamp === prev && (await db.imported.count()) > 0) return undefined;
+    const haveCore = (await db.imported.where('kind').equals('coreRule').count()) > 0;
+    if (!force && stamp === prev && (await db.imported.count()) > 0 && haveCore) return undefined;
     const parts: WahapediaFiles = {};
     for (const [key, file] of WP_FILES) {
       const res = await fetch(base + file, { cache: 'no-cache' });
       if (res.ok) parts[key] = await res.text();
     }
     const rules = importWahapedia(parts);
+    try {
+      const core = await fetch(`${base}core-rules.json`, { cache: 'no-cache' });
+      if (core.ok) {
+        const body = (await core.json()) as { sections?: CoreSection[] };
+        rules.push(...coreSectionsToRules(body.sections ?? []));
+      }
+    } catch {
+      /* no core rules on this site */
+    }
     if (!rules.length) return undefined;
     await db.transaction('rw', db.imported, async () => {
       await db.imported.clear();
@@ -116,16 +127,24 @@ export async function syncWahapedia(force = false): Promise<{ imported: number }
     } catch {
       /* ignore */
     }
+    await loadCoreRules();
     return { imported: rules.length };
   } catch {
     return undefined;
   }
 }
 
+/** Make the stored Core Rules available to rule popups and tappable words. */
+export async function loadCoreRules() {
+  const rows = await db.imported.where('kind').equals('coreRule').toArray();
+  setCoreSections(rows.map((r) => ({ num: r.detachment ?? '', title: r.name, text: r.text })).sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true })));
+}
+
 let started = false;
 export function startupSync() {
   if (started) return;
   started = true;
+  void loadCoreRules();
   void syncAllFactions();
   void syncWahapedia();
 }

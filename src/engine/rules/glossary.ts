@@ -70,7 +70,10 @@ export function lookupRule(index: DataIndex, term: string): RuleDef | undefined 
   const base = baseRuleName(term);
   const rule = g.rules.get(exact) ?? g.rules.get(base);
   if (rule) return { ...rule, kind: rule.kind === 'core' && isWeaponAbility(base) ? 'weaponAbility' : rule.kind };
+  const section = findCoreSection(term);
   const kw = g.keywords.get(exact) ?? g.keywords.get(base);
+  if (kw && (kw.text || !section)) return kw;
+  if (section) return { name: section.title, text: section.text, kind: 'core', source: `Core Rules ${section.num}` };
   if (kw) return kw;
   const core = CORE_TERMS.find((t) => t.toLowerCase() === exact);
   if (core) return { name: core, text: '', kind: 'core', source: 'Core rules' };
@@ -106,12 +109,36 @@ export interface TermMatcher {
   canonical: Map<string, string>;
 }
 
-const matcherCache = new WeakMap<DataIndex, TermMatcher>();
+const matcherCache = new WeakMap<DataIndex, { v: number; m: TermMatcher }>();
+
+/** Core Rules sections loaded on this device (from the site build). Set by the data layer. */
+let coreSections: { num: string; title: string; text: string }[] = [];
+let coreVersion = 0;
+const GENERIC = new Set(['books', 'introduction', 'basic rules', 'armies', 'dice', 'datasheets', 'terrain', 'objectives', 'stratagems', 'actions', 'aircraft', 'transports', 'moving', 'reference', 'muster armies', 'other concepts', 'core abilities', 'other rules and abilities']);
+const stem = (s: string) => s.toLowerCase().replace(/[^a-z ]/g, '').replace(/\b(\w{3,})s\b/g, '$1').replace(/\s+/g, ' ').trim();
+
+export function setCoreSections(list: { num: string; title: string; text: string }[]) {
+  coreSections = list;
+  coreVersion++;
+}
+
+/** The Core Rules section for a term ("surge move" -> "Surge Moves 21.02"). */
+export function findCoreSection(term: string): { num: string; title: string; text: string } | undefined {
+  if (!coreSections.length) return undefined;
+  const t = stem(term);
+  if (!t) return undefined;
+  const withText = coreSections.filter((s) => s.text);
+  return (
+    withText.find((s) => stem(s.title) === t) ??
+    withText.find((s) => stem(s.title).startsWith(t) || t.startsWith(stem(s.title))) ??
+    withText.find((s) => s.num.includes('.') && stem(s.title).includes(t))
+  );
+}
 
 /** One regex that finds every rule name or keyword the app can explain, longest first. */
 export function termMatcher(index: DataIndex): TermMatcher {
   const hit = matcherCache.get(index);
-  if (hit) return hit;
+  if (hit && hit.v === coreVersion) return hit.m;
   const g = glossary(index);
   const names = new Map<string, string>();
   const add = (n: string) => {
@@ -121,9 +148,10 @@ export function termMatcher(index: DataIndex): TermMatcher {
   };
   for (const r of g.rules.values()) if (r.kind === 'core' || r.kind === 'weaponAbility' || r.kind === 'army') add(r.name.replace(/\s+\d.*$/, ''));
   CORE_TERMS.forEach(add);
+  coreSections.filter((c) => c.num.includes('.') && c.text && !GENERIC.has(c.title.toLowerCase())).forEach((c) => add(c.title));
   const list = [...names.values()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const m: TermMatcher = { re: list.length ? new RegExp(`\\b(${list.join('|')})\\b`, 'gi') : null, canonical: names };
-  matcherCache.set(index, m);
+  matcherCache.set(index, { v: coreVersion, m });
   return m;
 }
 

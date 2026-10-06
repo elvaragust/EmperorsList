@@ -11,6 +11,7 @@ import { useRoom } from '@/sync/useRoom';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
+import { showToast } from '@/ui/Toast';
 import { ScoreRow } from './GameScreen';
 import { PhasePanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
@@ -225,13 +226,28 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const mine = (id: string) => unlinked || id === myId;
 
   const unlink = async () => {
-    closeRoom(game.id);
-    await db.games.update(game.id, { live: { ...game.live!, unlinked: true } });
     setMenu(false);
+    // Mark it unlinked first so nothing reopens the connection, then hang up.
+    await db.games.update(game.id, { live: { ...game.live!, unlinked: true } });
+    closeRoom(game.id);
+    showToast('Live changes off — this game is now only on your phone');
+  };
+  const endHere = async () => {
+    setMenu(false);
+    const done = reduce(state, { t: 'end' }, LOCAL);
+    const winner = done.winner;
+    await db.games.update(game.id, {
+      live: { ...game.live!, unlinked: true, state: done },
+      stage: 'done',
+      finishedAt: Date.now(),
+      result: winner === 'draw' ? 'draw' : winner === myTeam ? 'win' : 'loss',
+    });
+    closeRoom(game.id);
   };
   const relink = async () => {
-    await db.games.update(game.id, { live: { ...game.live!, unlinked: false } });
     setMenu(false);
+    await db.games.update(game.id, { live: { ...game.live!, unlinked: false } });
+    showToast('Reconnecting to the live game…');
   };
 
   return (
@@ -387,9 +403,16 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       )}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title="Game">
-        {isHost && (
+        {isHost ? (
           <button className="menu-item" onClick={() => (setMenu(false), setEnding(true))}>
             End the game{unlinked ? '' : ' for everyone'}
+          </button>
+        ) : (
+          <button className="menu-item" onClick={endHere}>
+            <span>
+              End the game on my phone
+              <div className="muted small">Saves the result here and stops following the host. The others carry on.</div>
+            </span>
           </button>
         )}
         {!unlinked ? (

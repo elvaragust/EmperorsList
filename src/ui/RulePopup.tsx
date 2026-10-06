@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { DataIndex } from '@/engine/bsdata/index';
-import { CORE_RULES_URL, lookupRule, type RuleDef } from '@/engine/rules/glossary';
+import { lookupRule, type RuleDef } from '@/engine/rules/glossary';
 import { RuleLabel } from './RuleLabel';
 import { Sheet } from './Sheet';
 import { RulesText } from './RulesText';
@@ -47,12 +47,7 @@ export function RulePopupProvider({ children }: { children: ReactNode }) {
             {def.text ? (
               <RulesText text={def.text} index={state?.index} />
             ) : def.kind === 'core' ? (
-              <p className="muted">
-                This is a core rule. Its full text is in the Core Rules, not in the downloaded data.{' '}
-                <a href={CORE_RULES_URL} target="_blank" rel="noreferrer" className="tag">
-                  READ THE CORE RULES ↗
-                </a>
-              </p>
+              <p className="muted">This core rule hasn't loaded on this device yet. It appears here once the app has downloaded the Core Rules (Settings → Extra rules → Update).</p>
             ) : (
               <p className="muted">This keyword has no rules text of its own in the data.</p>
             )}
