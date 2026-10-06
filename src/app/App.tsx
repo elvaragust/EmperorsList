@@ -17,6 +17,8 @@ import { PlayScreen } from '@/screens/play/PlayScreen';
 import { NewGameScreen } from '@/screens/play/NewGameScreen';
 import { GameScreen } from '@/screens/play/GameScreen';
 import { GameUnitScreen } from '@/screens/play/GameUnitScreen';
+import { JoinScreen } from '@/screens/play/JoinScreen';
+import { LayoutsScreen } from '@/screens/play/layouts';
 import { CollectionScreen } from '@/screens/collection/CollectionScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { RulePopupProvider } from '@/ui/RulePopup';
@@ -42,6 +44,8 @@ export function App() {
           <Route path="/reference/unit/:catalogueId/:key" element={<RefUnitScreen />} />
           <Route path="/play" element={<PlayScreen />} />
           <Route path="/play/new" element={<NewGameScreen />} />
+          <Route path="/play/join" element={<JoinScreen />} />
+          <Route path="/play/layouts" element={<LayoutsScreen />} />
           <Route path="/play/:gameId" element={<GameScreen />} />
           <Route path="/play/:gameId/unit/:unitId" element={<GameUnitScreen />} />
           <Route path="/collection" element={<CollectionScreen />} />

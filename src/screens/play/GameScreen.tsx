@@ -15,6 +15,8 @@ import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { saveGame, withLog } from './games';
+import { LiveGame } from './LiveGame';
+import { LayoutPicker, LayoutPreview } from './layouts';
 
 const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'];
 
@@ -25,6 +27,7 @@ export function GameScreen() {
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
   if (!game) return <Screen title="Game" back>{null}</Screen>;
+  if (game.live) return <LiveGame game={game} engine={engine} />;
   if (game.stage === 'setup') return <Setup game={game} engine={engine} />;
   if (game.stage === 'battle') return <Battle game={game} engine={engine} index={index} />;
   return <Result game={game} />;
@@ -36,6 +39,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
     listFactions().then(setFactions, () => setFactions([]));
   }, []);
   const step = game.setupStep;
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const set = (patch: Partial<SavedGame>) => saveGame({ ...game, ...patch });
 
   const checklist = useMemo(() => {
@@ -100,9 +104,14 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
             <input className="input" defaultValue={game.mission ?? ''} placeholder="Primary mission name" onBlur={(e) => set({ mission: e.target.value })} />
           </label>
           <label className="field">
-            <span>Deployment</span>
-            <input className="input" defaultValue={game.deployment ?? ''} placeholder="Deployment map" onBlur={(e) => set({ deployment: e.target.value })} />
+            <span>Deployment / layout</span>
+            <input key={game.deployment ?? ''} className="input" defaultValue={game.deployment ?? ''} placeholder="Deployment map" onBlur={(e) => set({ deployment: e.target.value })} />
           </label>
+          <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
+            Pick a saved layout
+          </button>
+          <LayoutPreview name={game.deployment} />
+          <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} onPick={(name) => set({ deployment: name })} />
           <div className="section-label">Who goes first?</div>
           <div className="card">
             {(['me', 'them'] as const).map((s) => (
@@ -418,7 +427,7 @@ function nextLabel(game: SavedGame, first: 'me' | 'them', who: (s: 'me' | 'them'
   return PHASE_NAMES[n.phase];
 }
 
-function ScoreRow({ label, values, onChange }: { label: string; values: number[]; onChange: (round: number, v: number) => void }) {
+export function ScoreRow({ label, values, onChange }: { label: string; values: number[]; onChange: (round: number, v: number) => void }) {
   return (
     <>
       <span className="small">{label}</span>
