@@ -8,6 +8,7 @@ import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
+import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 
 const ROLE_ORDER = ['Characters', 'Battleline', 'Dedicated Transports', 'Other datasheets'];
@@ -31,7 +32,7 @@ export function RosterScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const issues = useMemo(() => engine?.issues() ?? [], [engine]);
-  const fileCommit = useLiveQuery(() => (roster ? db.dataFiles.where('catalogueId').equals(roster.catalogueId).first() : undefined), [roster?.catalogueId])?.commit;
+  const fileCommit = useLiveQuery(() => (roster ? db.dataMeta.where('catalogueId').equals(roster.catalogueId).first() : undefined), [roster?.catalogueId])?.commit;
   const sections = useMemo(() => {
     if (!roster) return [];
     const led = new Set(roster.units.filter((u) => u.leaderOf && roster.units.some((b) => b.id === u.leaderOf)).map((u) => u.id));
@@ -43,7 +44,7 @@ export function RosterScreen() {
     return ROLE_ORDER.filter((r) => m.has(r)).map((r) => [r, m.get(r)!] as const);
   }, [roster, engine]);
 
-  if (!roster) return <Screen title="Roster" back>{null}</Screen>;
+  if (!roster) return <Screen title="Roster" back><Loading what="the list" /></Screen>;
 
   const update = (fn: (r: Roster) => Roster) => saveRoster(index, fn(roster));
   const total = engine?.totalPoints() ?? roster.units.reduce((s, u) => s + u.points, 0);

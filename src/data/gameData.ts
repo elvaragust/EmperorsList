@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useSyncStatus } from './bootstrap';
 import { useEffect, useMemo, useState } from 'react';
 import { buildIndex, type DataIndex } from '@/engine/bsdata/index';
 import type { RawFile } from '@/engine/bsdata/raw';
@@ -25,7 +26,8 @@ export async function loadIndex(catalogueId: string): Promise<DataIndex> {
   if (!p) {
     p = (async () => {
       const files: RawFile[] = [];
-      const gst = await db.dataFiles.filter((f) => Boolean(f.gameSystem)).first();
+      const gstMeta = (await db.dataMeta.toArray()).find((m) => m.gameSystem);
+      const gst = gstMeta ? await db.dataFiles.get(gstMeta.path) : undefined;
       if (gst) files.push(parseDataFile(gst.json));
       const seen = new Set<string>();
       const queue = [catalogueId];
@@ -33,7 +35,8 @@ export async function loadIndex(catalogueId: string): Promise<DataIndex> {
         const id = queue.shift()!;
         if (seen.has(id)) continue;
         seen.add(id);
-        const rec = await db.dataFiles.where('catalogueId').equals(id).first();
+        const m = await db.dataMeta.where('catalogueId').equals(id).first();
+        const rec = m ? await db.dataFiles.get(m.path) : undefined;
         if (!rec) continue;
         const file = parseDataFile(rec.json);
         files.push(file);
@@ -108,9 +111,19 @@ export function useAllIndex(): { index?: DataIndex; error?: string } {
   return state;
 }
 
-/** How many data files are cached; changes as downloads finish, so indexes rebuild. */
-function useCount(): number {
-  return useLiveQuery(() => db.dataFiles.count(), []) ?? 0;
+/**
+ * Changes when the cached data changes: the file count at first, then once
+ * whenever a background download finishes (not after every file, which would
+ * rebuild the whole index dozens of times on a phone).
+ */
+function useCount(): string {
+  const st = useSyncStatus();
+  const n = useLiveQuery(() => db.dataMeta.count(), []) ?? 0;
+  const [first, setFirst] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (first === undefined && n > 0) setFirst(n);
+  }, [n, first]);
+  return `${first ?? 0}|${st.running ? 'busy' : st.finishedAt ?? 0}`;
 }
 
 /** A rules engine for a roster, rebuilt whenever the roster object changes. */

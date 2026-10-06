@@ -29,7 +29,7 @@ export function ReferenceScreen() {
   const popup = useRulePopup();
   const { index, error } = useAllIndex();
   const imported = useLiveQuery(() => db.imported.toArray(), []);
-  const files = useLiveQuery(() => db.dataFiles.toArray(), []);
+  const files = useLiveQuery(() => db.dataMeta.toArray(), []);
   const pins = useLiveQuery(() => db.pins.orderBy('createdAt').reverse().toArray(), []);
   const [q, setQ] = useState('');
   const [kinds, setKinds] = useState<RuleKind[]>([]);

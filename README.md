@@ -150,12 +150,16 @@ Pick a faction and enter how many models you own, have built and have painted. F
 ## 8. Settings
 
 - **Appearance** — follow each army's colours or always use one theme; text size; title font; rule label style; wide layout for laptops.
-- **Data** — check for updates (also happens daily by itself); use a different data source.
+- **Your data on this device** — how many lists, games and pins are stored, how much space is used, and whether the browser has agreed to keep it.
+- **Data** — check for updates (also happens daily by itself; only files that changed are downloaded); use a different data source.
 - **Extra rules** — refresh stratagems and Core Rules from Wahapedia, or import Wahapedia CSV files / a saved Core Rules page by hand.
 - **Live games** — optional own connection server.
 - **Backup** — save all lists, games, collection, pins and layouts to a file, and restore them on another device.
 
-**Your data stays on your device.** Each device has its own lists; move them with a share link or a backup file.
+**Where your data is kept.** Lists, games, pins, collection, layouts and the downloaded game data are stored in the browser's own database (IndexedDB) for this site, on this phone only — nothing is uploaded, there are no accounts. That means:
+- Each browser has its own copy: Chrome and Samsung Internet on the same phone don't share lists, and the hosted app and a local copy on your PC don't either. The installed app (Add to Home screen) shares Chrome's data.
+- Clearing the browser's site data, or uninstalling it, deletes everything. A browser can also clear it by itself when the phone is low on space — the app asks the browser to keep it (Settings → *Your data on this device* shows whether it agreed).
+- **Keep a backup** (Settings → Backup) now and then; it restores everything on any device.
 
 ---
 

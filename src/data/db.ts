@@ -22,6 +22,24 @@ export interface DataSourceState {
   commit: string;
   fetchedAt: number;
   files: string[];
+  /** Git blob id per file: a file is downloaded again only when this changes. */
+  shas?: Record<string, string>;
+}
+
+/**
+ * What is known about a cached data file without its (large) contents, so
+ * lists of files, update checks and lookups never load megabytes of JSON.
+ */
+export interface DataMeta {
+  path: string;
+  source: string;
+  commit: string;
+  sha?: string;
+  fetchedAt: number;
+  catalogueId?: string;
+  name?: string;
+  library?: boolean;
+  gameSystem?: boolean;
 }
 
 export type { Phase };
@@ -126,6 +144,7 @@ class EmperorsListDB extends Dexie {
   imported!: Table<ImportedRule, string>;
   layouts!: Table<Layout, string>;
   pins!: Table<Pin, string>;
+  dataMeta!: Table<DataMeta, string>;
 
   constructor() {
     super('emperorslist');
@@ -174,10 +193,42 @@ class EmperorsListDB extends Dexie {
       layouts: 'id, name, createdAt',
       pins: 'id, kind, createdAt',
     });
+    this.version(5)
+      .stores({
+        rosters: 'id, name, folder, catalogueId, updatedAt',
+        games: 'id, rosterId, startedAt',
+        collection: 'entryId, name, catalogueId',
+        dataFiles: 'path, source, catalogueId',
+        dataSources: 'source',
+        imported: 'id, kind, faction',
+        layouts: 'id, name, createdAt',
+        pins: 'id, kind, createdAt',
+        dataMeta: 'path, catalogueId',
+      })
+      .upgrade(async (tx) => {
+        // One-time: note what is already cached (one file at a time, to keep memory low).
+        const meta = tx.table('dataMeta');
+        await tx.table('dataFiles').each((f: CachedDataFile) =>
+          meta.put({ path: f.path, source: f.source, commit: f.commit, fetchedAt: f.fetchedAt, catalogueId: f.catalogueId, name: f.name, library: f.library, gameSystem: f.gameSystem } satisfies DataMeta),
+        );
+      });
   }
 }
 
 export const db = new EmperorsListDB();
+
+/** Metadata only (no file contents) — cheap to list and watch. */
+export const metaOf = (f: CachedDataFile, sha?: string): DataMeta => ({
+  path: f.path,
+  source: f.source,
+  commit: f.commit,
+  sha,
+  fetchedAt: f.fetchedAt,
+  catalogueId: f.catalogueId,
+  name: f.name,
+  library: f.library,
+  gameSystem: f.gameSystem,
+});
 
 // Every change to a game counts as activity, except the inactivity bookkeeping itself.
 const QUIET = new Set(['idle', 'lastActiveAt']);

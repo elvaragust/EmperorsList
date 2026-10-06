@@ -9,6 +9,7 @@ import { datasheet, unitModels } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
+import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
@@ -27,11 +28,14 @@ const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'
 
 export function GameScreen() {
   const { gameId = '' } = useParams();
-  const game = useLiveQuery(() => db.games.get(gameId), [gameId]);
+  // null = looked and it isn't there; undefined = still reading.
+  const found = useLiveQuery(() => db.games.get(gameId).then((g) => g ?? null), [gameId]);
+  const game = found ?? undefined;
   const roster = useLiveQuery(() => (game ? db.rosters.get(game.rosterId) : undefined), [game?.rosterId]);
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
-  if (!game) return <Screen title="Game" back>{null}</Screen>;
+  if (found === null) return <Screen title="Game" back><p className="muted">This game isn't on this device (it may have been deleted, or the browser cleared the app's data).</p></Screen>;
+  if (!game) return <Screen title="Game" back><Loading what="the game" /></Screen>;
   if (game.idle) return <IdleEnded game={game} />;
   if (game.live) return <LiveGame game={game} engine={engine} />;
   if (game.stage === 'setup') return <Setup game={game} engine={engine} />;

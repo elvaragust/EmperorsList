@@ -9,6 +9,8 @@ import { parseCoreRules } from '@/engine/coreRules';
 import { loadCoreRules, syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
 import { peerServer, setPeerServer } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
+import { showToast } from '@/ui/Toast';
+import { keepStorage, useStorageInfo } from '@/data/storage';
 import { setAppearance, useAppearance, type Appearance } from '@/theme/appearance';
 import { THEME_CHOICES } from '@/theme/themes';
 import { RuleLabel } from '@/ui/RuleLabel';
@@ -28,7 +30,7 @@ function Choice<K extends keyof Appearance>({ k, options, value }: { k: K; optio
 export function SettingsScreen() {
   const source = currentSource();
   const state = useLiveQuery(() => db.dataSources.get(sourceName(source)), []);
-  const files = useLiveQuery(() => db.dataFiles.toArray(), []);
+  const files = useLiveQuery(() => db.dataMeta.toArray(), []);
   const importedCount = useLiveQuery(() => db.imported.count(), []);
   const [status, setStatus] = useState('');
   const [wpStatus, setWpStatus] = useState('');
@@ -103,7 +105,7 @@ export function SettingsScreen() {
     }
   };
 
-  const size = files?.reduce((s, f) => s + JSON.stringify(f.json).length, 0) ?? 0;
+  const store = useStorageInfo();
 
   return (
     <Screen title="Settings">
@@ -140,6 +142,24 @@ export function SettingsScreen() {
         </div>
       </div>
 
+      <div className="section-label">Your data on this device</div>
+      <div className="card">
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6, padding: 14 }}>
+          <div className="small">
+            {store ? `${store.lists} lists · ${store.games} games · ${store.pins} pins` : 'Counting…'}
+            {store?.usage ? ` · ${(store.usage / 1e6).toFixed(0)} MB used` : ''}
+          </div>
+          <div className="small muted">
+            Everything is stored only in this browser on this phone (nothing is uploaded). {store?.persisted ? 'The browser has agreed to keep it.' : 'The browser may clear it when the phone runs low on space — installing the app (Add to Home screen) and keeping a backup protects it.'}
+          </div>
+          {store && !store.persisted && (
+            <button className="btn btn-sm" onClick={async () => showToast((await keepStorage()) ? 'Storage will be kept' : 'The browser declined — install the app and keep a backup')}>
+              Ask the browser to keep my data
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="section-label">Data</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
@@ -148,7 +168,7 @@ export function SettingsScreen() {
             {sourceName(source)} · {state ? `version ${state.commit.slice(0, 7)}, checked ${new Date(state.fetchedAt).toLocaleDateString()}` : 'not checked yet'}
           </div>
           <div className="muted small">
-            {files?.length ?? 0} files on this device · {(size / 1e6).toFixed(1)} MB. All factions load automatically and update daily.
+            {files?.length ?? 0} files on this device. All factions load automatically; after that only changed files are downloaded.
           </div>
           <button className="btn" onClick={update}>
             Check for updates
