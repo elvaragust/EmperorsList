@@ -11,6 +11,7 @@ function liveTitle(g: SavedGame): string {
   return `${teamNames(st, 'A')} vs ${teamNames(st, 'B')}`;
 }
 import { Screen } from '@/ui/Screen';
+import { Loading } from '@/ui/Loading';
 
 /** War Journal: games in progress and finished games. */
 export function PlayScreen() {
@@ -73,6 +74,7 @@ export function PlayScreen() {
           </div>
         </>
       )}
+      {!games && <Loading what="your games" />}
       {games && games.length === 0 && <p className="muted" style={{ marginTop: 16 }}>No games yet. Start one from here or from a list's menu.</p>}
     </Screen>
   );

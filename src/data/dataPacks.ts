@@ -1,6 +1,6 @@
 import { normalizeXml } from '@/engine/bsdata/normalizeXml';
 import type { RawCatalogue, RawFile } from '@/engine/bsdata/raw';
-import { db, type CachedDataFile, type DataSourceState } from './db';
+import { db, metaOf, type CachedDataFile, type DataSourceState } from './db';
 
 /**
  * Game data is downloaded on the user's own device from a public GitHub repo
@@ -48,13 +48,13 @@ export async function latestCommit(s: SourceConfig = currentSource()): Promise<s
 }
 
 /** Data files at a commit: the game system plus every catalogue (.json, or .gst/.cat in older repos). */
-export async function listDataFiles(s: SourceConfig, commit: string): Promise<string[]> {
+export async function listDataFiles(s: SourceConfig, commit: string): Promise<{ path: string; sha?: string }[]> {
   const res = await fetch(api(s, `git/trees/${commit}`));
   if (!res.ok) throw new Error(`Could not list files (${res.status})`);
-  const body = (await res.json()) as { tree: { path: string; type: string }[] };
+  const body = (await res.json()) as { tree: { path: string; type: string; sha?: string }[] };
   return body.tree
     .filter((t) => t.type === 'blob' && /\.(json|gst|cat)$/i.test(t.path) && !/package|tsconfig|\.github/i.test(t.path))
-    .map((t) => t.path);
+    .map((t) => ({ path: t.path, sha: t.sha }));
 }
 
 export function parseDataFile(json: unknown): RawFile {
@@ -63,7 +63,7 @@ export function parseDataFile(json: unknown): RawFile {
 }
 
 /** Download one file into the device cache. */
-export async function fetchDataFile(s: SourceConfig, commit: string, path: string): Promise<CachedDataFile> {
+export async function fetchDataFile(s: SourceConfig, commit: string, path: string, sha?: string): Promise<CachedDataFile> {
   const res = await fetch(raw(s, commit, path));
   if (!res.ok) throw new Error(`Could not download ${path} (${res.status})`);
   const json = path.endsWith('.json') ? await res.json() : await res.text();
@@ -80,7 +80,10 @@ export async function fetchDataFile(s: SourceConfig, commit: string, path: strin
     library: Boolean(cat?.library),
     gameSystem: Boolean(file.gameSystem),
   };
-  await db.dataFiles.put(rec);
+  await db.transaction('rw', db.dataFiles, db.dataMeta, async () => {
+    await db.dataFiles.put(rec);
+    await db.dataMeta.put(metaOf(rec, sha ?? (await db.dataSources.get(sourceName(s)))?.shas?.[path]));
+  });
   return rec;
 }
 
@@ -93,8 +96,10 @@ export async function sourceState(refresh = false, s: SourceConfig = currentSour
   try {
     const commit = await latestCommit(s);
     if (cached && cached.commit === commit) return cached;
-    const files = await listDataFiles(s, commit);
-    const state: DataSourceState = { source: sourceName(s), commit, fetchedAt: Date.now(), files };
+    const listed = await listDataFiles(s, commit);
+    const shas: Record<string, string> = {};
+    listed.forEach((f) => f.sha && (shas[f.path] = f.sha));
+    const state: DataSourceState = { source: sourceName(s), commit, fetchedAt: Date.now(), files: listed.map((f) => f.path), shas };
     await db.dataSources.put(state);
     return state;
   } catch (e) {
@@ -115,7 +120,7 @@ export interface FactionFile {
 /** Pickable factions: every catalogue file except libraries and the game system. */
 export async function listFactions(refresh = false): Promise<FactionFile[]> {
   const state = await sourceState(refresh);
-  const cached = new Set((await db.dataFiles.toCollection().primaryKeys()) as string[]);
+  const cached = new Set((await db.dataMeta.toCollection().primaryKeys()) as string[]);
   return state.files
     .filter((p) => !isGameSystemPath(p) && !/library/i.test(p))
     .map((path) => {
@@ -153,7 +158,8 @@ export async function ensureFaction(path: string, onProgress?: (msg: string) => 
     for (const link of cat?.catalogueLinks ?? []) {
       if (seen.has(link.targetId)) continue;
       seen.add(link.targetId);
-      const known = await db.dataFiles.where('catalogueId').equals(link.targetId).first();
+      const knownMeta = await db.dataMeta.where('catalogueId').equals(link.targetId).first();
+      const known = knownMeta ? await db.dataFiles.get(knownMeta.path) : undefined;
       if (known) {
         queue.push(known);
         continue;
@@ -167,7 +173,7 @@ export async function ensureFaction(path: string, onProgress?: (msg: string) => 
       if (!found) {
         // Fall back to scanning: download candidates until the id turns up.
         for (const p of files) {
-          if (isGameSystemPath(p) || (await db.dataFiles.get(p))) continue;
+          if (isGameSystemPath(p) || (await db.dataMeta.get(p))) continue;
           const f = await get(p);
           if (f.catalogueId === link.targetId) {
             found = f;
@@ -190,11 +196,13 @@ function guessPath(files: string[], name: string): string | undefined {
 /** Re-download every cached file at the latest commit. */
 export async function updateAll(onProgress?: (done: number, total: number, path: string) => void, s: SourceConfig = currentSource()): Promise<DataSourceState> {
   const state = await sourceState(true, s);
-  const cached = await db.dataFiles.toArray();
+  const cached = await db.dataMeta.toArray();
   let done = 0;
   for (const f of cached) {
     onProgress?.(done, cached.length, f.path);
-    if (f.commit !== state.commit && state.files.includes(f.path)) await fetchDataFile(s, state.commit, f.path);
+    const sha = state.shas?.[f.path];
+    const stale = sha ? f.sha !== sha : f.commit !== state.commit;
+    if (stale && state.files.includes(f.path)) await fetchDataFile(s, state.commit, f.path, sha);
     done += 1;
   }
   return state;

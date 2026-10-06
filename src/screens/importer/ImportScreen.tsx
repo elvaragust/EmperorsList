@@ -41,7 +41,7 @@ export function ImportScreen() {
     setError('');
     try {
       setBusy('Getting the faction data…');
-      if (!(await db.dataFiles.where('catalogueId').equals(payload.c).first())) {
+      if (!(await db.dataMeta.where('catalogueId').equals(payload.c).first())) {
         if (!payload.f) throw new Error('This link does not say which faction file to download.');
         await ensureFaction(payload.f, setBusy);
       }

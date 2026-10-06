@@ -54,8 +54,19 @@ export async function syncAllFactions(force = false): Promise<void> {
     } catch {
       /* ignore */
     }
-    const cached = new Map((await db.dataFiles.toArray()).map((f) => [f.path, f.commit]));
-    const todo = state.files.filter((p) => cached.get(p) !== state.commit);
+    // Only metadata is read here — never the files themselves (tens of MB on a phone).
+    const cached = new Map((await db.dataMeta.toArray()).map((f) => [f.path, f]));
+    const shas = state.shas ?? {};
+    // A new commit usually changes one or two files: compare each file's own id, not the commit.
+    const todo = state.files.filter((p) => {
+      const m = cached.get(p);
+      if (!m) return true;
+      // Files cached before ids were kept: up to date if they're from this commit.
+      return shas[p] && m.sha ? m.sha !== shas[p] : m.commit !== state.commit;
+    });
+    // Unchanged files: just note the new commit (no download).
+    const same = [...cached.values()].filter((m) => !todo.includes(m.path) && shas[m.path] && (m.commit !== state.commit || !m.sha));
+    if (same.length) await db.dataMeta.bulkPut(same.map((m) => ({ ...m, commit: state.commit, sha: shas[m.path] })));
     set({ total: todo.length });
     const src = currentSource();
     let i = 0;
@@ -63,11 +74,13 @@ export async function syncAllFactions(force = false): Promise<void> {
       while (i < todo.length) {
         const path = todo[i++]!;
         set({ current: path.replace(/\.(json|cat|gst)$/, '') });
-        await fetchDataFile(src, state.commit, path);
+        await fetchDataFile(src, state.commit, path, shas[path]);
         set({ done: status.done + 1 });
+        // Let the page breathe between big writes so taps still work during the download.
+        await new Promise((r) => setTimeout(r, 50));
       }
     };
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    await Promise.all([worker(), worker()]);
     if (todo.length) clearIndexCache();
     set({ running: false, current: undefined, finishedAt: Date.now() });
   } catch (e) {

@@ -13,7 +13,7 @@ async function pipe(bytes: Uint8Array, stream: CompressionStream | Decompression
 
 /** "z" prefix = deflate-raw compressed, "j" = plain JSON (older browsers). */
 export async function encodeRoster(roster: Roster): Promise<string> {
-  const file = await db.dataFiles.where('catalogueId').equals(roster.catalogueId).first();
+  const file = await db.dataMeta.where('catalogueId').equals(roster.catalogueId).first();
   const json = new TextEncoder().encode(JSON.stringify(toPayload(roster, file?.path)));
   if (typeof CompressionStream !== 'undefined') {
     try {

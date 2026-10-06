@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
 import { Screen } from '@/ui/Screen';
+import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 import type { Roster } from '@/engine/types';
 
@@ -33,6 +34,7 @@ export function ListsScreen() {
       {rosters && rosters.length > 3 && (
         <input className="input" placeholder="Search lists" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Search lists" style={{ marginBottom: 8 }} />
       )}
+      {!rosters && <Loading what="your lists" />}
       {rosters && rosters.length === 0 && <p className="muted">No lists yet. Create as many as you like.</p>}
       {folders.map(([folder, list]) => (
         <div key={folder || 'none'}>

@@ -61,7 +61,7 @@ export function NewListScreen() {
     try {
       setBusy(`Getting ${f.name}…`);
       const rec = await ensureFaction(f.path, setBusy);
-      const gst = await db.dataFiles.filter((x) => Boolean(x.gameSystem)).first();
+      const gst = (await db.dataMeta.toArray()).find((x) => Boolean(x.gameSystem));
       const name = f.name;
       setRoster({ ...blankRoster(rec.catalogueId ?? '', name, gst?.catalogueId ?? ''), dataCommit: rec.commit, name: `${name} list` });
       setStep(1);

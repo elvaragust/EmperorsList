@@ -29,10 +29,15 @@ import { PinnedScreen } from '@/screens/reference/PinnedScreen';
 import { useEffect } from 'react';
 import { startupSync } from '@/data/bootstrap';
 import { watchIdleGames } from '@/data/idle';
+import { keepStorage, watchStorageErrors } from '@/data/storage';
 
 export function App() {
   useEffect(() => startupSync(), []);
   useEffect(() => watchIdleGames(), []);
+  useEffect(() => {
+    void keepStorage();
+    return watchStorageErrors();
+  }, []);
   return (
     <RulePopupProvider>
       <div className="shell">

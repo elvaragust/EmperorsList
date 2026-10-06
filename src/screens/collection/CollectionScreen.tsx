@@ -16,7 +16,7 @@ import { Stepper } from '@/ui/Stepper';
 export function CollectionScreen() {
   const [params] = useSearchParams();
   const rosterId = params.get('roster') ?? '';
-  const files = useLiveQuery(() => db.dataFiles.toArray(), []);
+  const files = useLiveQuery(() => db.dataMeta.toArray(), []);
   const items = useLiveQuery(() => db.collection.toArray(), []);
   const roster = useLiveQuery(() => (rosterId ? db.rosters.get(rosterId) : undefined), [rosterId]);
   const factions = (files ?? []).filter((f) => !f.library && !f.gameSystem && f.catalogueId);
