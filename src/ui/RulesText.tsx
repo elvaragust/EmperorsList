@@ -44,7 +44,7 @@ export function RulesText({ text, index, inline }: { text: string; index?: DataI
       const kw = m[1] ?? m[2];
       const bold = m[3];
       const ability = m[4];
-      const term = (kw ?? bold ?? ability ?? '').trim();
+      const term = (kw ?? bold ?? ability ?? '').replace(/\*\*|\^\^/g, '').trim();
       const known = index ? Boolean(lookupRule(index, term)) : false;
       const cls = kw || ability ? 'kw-upper' : undefined;
       const label = ability ? `[${term}]` : term;
@@ -55,7 +55,7 @@ export function RulesText({ text, index, inline }: { text: string; index?: DataI
           </button>,
         );
       } else if (bold) {
-        out.push(<strong key={`${pi}-${k++}`}>{bold}</strong>);
+        out.push(<strong key={`${pi}-${k++}`}>{term}</strong>);
       } else {
         out.push(
           <span key={`${pi}-${k++}`} className={cls}>

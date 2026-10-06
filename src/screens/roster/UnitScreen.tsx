@@ -3,18 +3,15 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
-import { instAt, removeAt, setOptionCount, splitOne, type SelPath } from '@/engine/rules/edit';
 import { datasheet, unitModels } from '@/engine/rules/models';
-import { childNodes } from '@/engine/rules/nodes';
-import type { OptionView, RosterEngine } from '@/engine/rules/rosterEngine';
 import type { RawProfile } from '@/engine/bsdata/raw';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { AbilityList, DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
-import { Stepper } from '@/ui/Stepper';
 import { Composition } from '@/ui/Composition';
+import { WargearEditor } from './WargearEditor';
 import { combinedModels, leaderBuffTag } from './combined';
 
 type Tab = 'models' | 'wargear' | 'datasheet';
@@ -141,7 +138,7 @@ export function UnitScreen() {
         </>
       )}
 
-      {tab === 'wargear' && engine && <OptionEditor engine={engine} unit={unit} path={[]} onChange={saveUnit} />}
+      {tab === 'wargear' && engine && <WargearEditor engine={engine} unit={unit} onChange={saveUnit} />}
 
       {tab === 'datasheet' && sheet && ownModels && <DatasheetView sheet={sheet} weapons={[...ownModels.weapons.values()]} index={index} />}
 
@@ -199,142 +196,5 @@ export function UnitScreen() {
         </button>
       </Sheet>
     </Screen>
-  );
-}
-
-/** Wargear and model choices for one selection, recursively. */
-function OptionEditor({ engine, unit, path, onChange, depth = 0 }: { engine: RosterEngine; unit: RosterUnit; path: SelPath; onChange: (u: RosterUnit) => void; depth?: number }) {
-  const inst = instAt(engine, unit.id, path);
-  const [open, setOpen] = useState<Record<number, boolean>>({});
-  if (!inst) return null;
-  const views = engine.optionsUnder(inst);
-  const set = (key: string, n: number) => onChange(setOptionCount(engine, unit, path, key, n));
-
-  const hasOptions = (i: number) => {
-    const child = inst.children.find((c) => c.sel === inst.sel?.children[i]);
-    if (!child?.node) return false;
-    return childNodes(engine.index, child.node).length > 0 && engine.optionsUnder(child).some((v) => !v.hidden && (v.kind === 'group' || v.max !== v.min || v.selected !== v.min));
-  };
-
-  const selectionDetails = (v: OptionView) =>
-    v.indices.map((i) => {
-      const sel = inst.sel?.children[i];
-      if (!sel) return null;
-      const expandable = hasOptions(i);
-      if (!expandable && sel.count < 2) return null;
-      return (
-        <div key={i} style={{ paddingLeft: 14, borderLeft: '2px solid var(--line)', margin: '4px 0 8px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="btn btn-sm btn-ghost" onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))} aria-expanded={Boolean(open[i])}>
-              {open[i] ? '▾' : '▸'} {sel.count > 1 ? `${sel.count}× ` : ''}
-              {v.name} options
-            </button>
-            {sel.count > 1 && (
-              <button className="btn btn-sm btn-ghost" onClick={() => onChange(splitOne(unit, [...path, i]))} title="Split one model off to give it different wargear">
-                Split one off
-              </button>
-            )}
-            {v.indices.length > 1 && v.selected > v.min && (
-              <button className="btn btn-sm btn-ghost btn-danger" onClick={() => onChange(removeAt(unit, [...path, i]))}>
-                Remove
-              </button>
-            )}
-          </div>
-          {open[i] && expandable && <OptionEditor engine={engine} unit={unit} path={[...path, i]} onChange={onChange} depth={depth + 1} />}
-        </div>
-      );
-    });
-
-  const entryRow = (v: OptionView, radioGroup?: OptionView) => {
-    if (v.hidden && v.selected === 0) return null;
-    const fixed = v.min === v.max && v.selected === v.min && v.max !== -1;
-    const single = v.max === 1;
-    const checked = v.selected > 0;
-    const pts = v.points ? <span className="num muted small">{v.points > 0 ? `+${v.points}` : v.points}</span> : null;
-    let control;
-    if (radioGroup) {
-      control = (
-        <button className="choice" role="radio" aria-checked={checked} onClick={() => !checked && set(v.node.key, 1)}>
-          <span className="mark" />
-          <span style={{ flex: 1 }}>{v.name}</span>
-          {pts}
-        </button>
-      );
-    } else if (fixed) {
-      control = (
-        <div className="choice" style={{ cursor: 'default' }}>
-          <span style={{ flex: 1 }}>
-            {v.selected > 1 ? `${v.selected}× ` : ''}
-            {v.name}
-          </span>
-          {pts}
-        </div>
-      );
-    } else if (single) {
-      control = (
-        <button className="choice" role="checkbox" aria-checked={checked} onClick={() => set(v.node.key, checked ? 0 : 1)} disabled={checked && v.min >= 1}>
-          <span className="mark square" />
-          <span style={{ flex: 1 }}>{v.name}</span>
-          {pts}
-        </button>
-      );
-    } else {
-      control = (
-        <div className="choice" style={{ cursor: 'default' }}>
-          <span style={{ flex: 1 }}>
-            {v.name}
-            {v.max > 0 && <div className="muted small">up to {v.max}</div>}
-          </span>
-          {pts}
-          <Stepper value={v.selected} min={v.min} max={v.max} onChange={(n) => set(v.node.key, n)} label={v.name} />
-        </div>
-      );
-    }
-    return (
-      <div key={v.node.key}>
-        {control}
-        {v.hidden && <div className="small issue-title" style={{ padding: '0 14px 8px' }}>Not allowed with the current choices</div>}
-        {selectionDetails(v)}
-      </div>
-    );
-  };
-
-  const renderViews = (list: OptionView[], nested: boolean) =>
-    list.map((v) => {
-      if (v.kind === 'entry') return entryRow(v);
-      if (v.hidden && v.selected === 0) return null;
-      const entries = v.children.filter((c) => c.kind === 'entry');
-      const chooseOne = v.max === 1 && entries.length === v.children.length && entries.length > 1;
-      const range = v.max === v.min && v.max > 0 ? `${v.max}` : v.max > 0 ? `${v.min}–${v.max}` : v.min > 0 ? `${v.min}+` : '';
-      const bad = (v.max >= 0 && v.selected > v.max) || v.selected < v.min;
-      return (
-        <div key={v.node.key} style={nested ? { marginLeft: 8 } : undefined}>
-          <div className="section-label" style={{ display: 'flex', gap: 8 }}>
-            <span>{v.name}</span>
-            {range && (
-              <span style={{ color: bad ? 'var(--danger)' : undefined }}>
-                {chooseOne ? 'choose 1' : `${v.selected} of ${range}`}
-              </span>
-            )}
-          </div>
-          <div className="card">{chooseOne ? entries.map((e) => entryRow(e, v)) : renderViews(v.children, true)}</div>
-        </div>
-      );
-    });
-
-  const topEntries = views.filter((v) => v.kind === 'entry' && !(v.hidden && v.selected === 0));
-  return (
-    <div>
-      {topEntries.length > 0 && (
-        <>
-          {depth === 0 && <div className="section-label">Options</div>}
-          <div className="card">{topEntries.map((v) => entryRow(v))}</div>
-        </>
-      )}
-      {renderViews(
-        views.filter((v) => v.kind === 'group'),
-        false,
-      )}
-    </div>
   );
 }
