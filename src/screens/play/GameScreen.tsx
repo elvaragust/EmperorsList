@@ -15,6 +15,7 @@ import { saveGame, withLog } from './games';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel, PhasePanel } from './panels';
 import { LiveGame } from './LiveGame';
+import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields, SecondaryPicker } from './MissionFields';
 
 const SETUP_TITLES = ['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle'];
@@ -26,10 +27,36 @@ export function GameScreen() {
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
   if (!game) return <Screen title="Game" back>{null}</Screen>;
+  if (game.idle) return <IdleEnded game={game} />;
   if (game.live) return <LiveGame game={game} engine={engine} />;
   if (game.stage === 'setup') return <Setup game={game} engine={engine} />;
   if (game.stage === 'battle') return <Battle game={game} engine={engine} index={index} />;
   return <Result game={game} />;
+}
+
+/** The game was ended after two quiet hours: pick it back up, or keep it as finished. */
+function IdleEnded({ game }: { game: SavedGame }) {
+  const hours = Math.max(2, Math.floor((game.idle!.at - lastActive(game)) / 3_600_000));
+  const st = game.live?.state;
+  const where = game.idle!.stage === 'setup' ? 'during setup' : `in round ${st?.round ?? game.round}`;
+  return (
+    <Screen title="Game ended" back>
+      <div className="card" style={{ padding: 16 }}>
+        <p style={{ marginTop: 0 }}>
+          <strong>This game was ended automatically</strong> after {hours === 2 ? 'two hours' : `${hours} hours`} with no changes, {where}.
+        </p>
+        <p className="muted small">
+          Last change {new Date(lastActive(game)).toLocaleString()}. Nothing is lost{game.live ? ' — resuming reconnects to the live game' : ''}.
+        </p>
+        <button className="btn btn-primary btn-block" onClick={() => void resumeGame(game)}>
+          Resume game
+        </button>
+        <button className="btn btn-block" style={{ marginTop: 8 }} onClick={() => void keepEnded(game)}>
+          Keep it finished
+        </button>
+      </div>
+    </Screen>
+  );
 }
 
 function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {

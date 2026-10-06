@@ -1,5 +1,6 @@
 import { autoFill, instAt, mergeIdentical, setOptionCount, type SelPath } from './edit';
 import type { Inst } from './instance';
+import type { OptNode } from './nodes';
 import type { OptionView, RosterEngine } from './rosterEngine';
 import type { RosterUnit, Selection } from '../types';
 
@@ -15,6 +16,8 @@ export interface ModelOption {
   /** Models of this kind that carry it. */
   carried: number;
   hidden: boolean;
+  /** The data entry, for showing the weapon's profile. */
+  node: OptNode;
 }
 
 export interface ModelGroup {
@@ -39,7 +42,7 @@ export interface ModelType {
   max: number;
   points: number;
   /** Wargear every model of this kind always carries. */
-  fixed: { name: string; count: number }[];
+  fixed: { name: string; count: number; node: OptNode }[];
   /** Single options with no group (toggle per model, e.g. "Hand flamer"). */
   extras: ModelOption[];
   groups: ModelGroup[];
@@ -54,7 +57,7 @@ function optionsOf(engine: RosterEngine, insts: Inst[]): Pick<ModelType, 'fixed'
   const fixed: ModelType['fixed'] = [];
   const extras: ModelOption[] = [];
   const groups: ModelGroup[] = [];
-  const opt = (v: OptionView): ModelOption => ({ key: v.node.key, name: v.name, points: v.points, carried: carried(v.node.key), hidden: v.hidden });
+  const opt = (v: OptionView): ModelOption => ({ key: v.node.key, name: v.name, points: v.points, carried: carried(v.node.key), hidden: v.hidden, node: v.node });
   const visitGroup = (g: OptionView, prefix: string) => {
     if (g.hidden && !g.selected) return;
     const entries = g.children.filter((c) => c.kind === 'entry');
@@ -78,7 +81,7 @@ function optionsOf(engine: RosterEngine, insts: Inst[]): Pick<ModelType, 'fixed'
       if (v.hidden && !v.selected) continue;
       if (v.name === 'Warlord' || v.node.categoryIds.includes('5c0e-4c31-d51b-e470')) continue;
       const c = carried(v.node.key);
-      if (v.min === v.max && v.max >= 1 && c === total) fixed.push({ name: v.name, count: v.min });
+      if (v.min === v.max && v.max >= 1 && c === total) fixed.push({ name: v.name, count: v.min, node: v.node });
       else extras.push(opt(v));
     }
   }

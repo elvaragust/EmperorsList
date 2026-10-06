@@ -11,6 +11,7 @@ import { RuleLabel } from '@/ui/RuleLabel';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RulesText } from '@/ui/RulesText';
 import { Screen } from '@/ui/Screen';
+import { Collapse } from '@/ui/Collapse';
 
 /** A faction at a glance: army rules, detachments (rules, enhancements, stratagems) and datasheets. */
 export function FactionScreen() {
@@ -54,11 +55,10 @@ export function FactionScreen() {
   return (
     <Screen title={title} back>
       {data.armyRules.length > 0 && (
-        <>
-          <div className="section-label">Army rules</div>
+        <Collapse title={`Army rules · ${data.armyRules.length}`}>
           {data.armyRules.map((r) => (
             <div className="card" key={r.id} style={{ marginBottom: 6 }}>
-              <button className="choice" onClick={() => setOpen(open === r.id ? null : r.id)}>
+              <button className="choice" onClick={() => setOpen(open === r.id ? null : r.id)} aria-expanded={open === r.id}>
                 <span style={{ flex: 1, fontWeight: 600 }}>{r.name}</span>
                 <RuleLabel kind="army" />
               </button>
@@ -69,23 +69,25 @@ export function FactionScreen() {
               )}
             </div>
           ))}
-        </>
+        </Collapse>
       )}
-      <div className="section-label">Detachments</div>
-      <div className="card" style={{ overflow: 'hidden' }}>
-        {data.detachments.map((d) => (
-          <DetachmentCard key={d.key} d={d} enhancements={data.enhancementsByDet.get(d.key) ?? []} index={index} />
-        ))}
-      </div>
-      <div className="section-label">Datasheets · {data.units.length}</div>
-      <div className="card">
-        {data.units.map((u) => (
-          <Link key={u.root.key} className="choice" to={`/reference/unit/${catalogueId}/${u.root.key}`}>
-            <span style={{ flex: 1 }}>{u.name}</span>
-            <span className="num muted">{u.points}</span>
-          </Link>
-        ))}
-      </div>
+      <Collapse title={`Detachments · ${data.detachments.length}`}>
+        <div className="card" style={{ overflow: 'hidden' }}>
+          {data.detachments.map((d) => (
+            <DetachmentCard key={d.key} d={d} enhancements={data.enhancementsByDet.get(d.key) ?? []} index={index} />
+          ))}
+        </div>
+      </Collapse>
+      <Collapse title={`Datasheets · ${data.units.length}`}>
+        <div className="card">
+          {data.units.map((u) => (
+            <Link key={u.root.key} className="choice" to={`/reference/unit/${catalogueId}/${u.root.key}`}>
+              <span style={{ flex: 1 }}>{u.name}</span>
+              <span className="num muted">{u.points}</span>
+            </Link>
+          ))}
+        </div>
+      </Collapse>
     </Screen>
   );
 }

@@ -12,6 +12,8 @@ export interface RefDoc extends SearchDoc {
   route?: string;
   catalogueId?: string;
   extra?: string;
+  /** Heading it is listed under when browsing by kind (usually the faction). */
+  group?: string;
 }
 
 export function blankRoster(catalogueId: string): Roster {
@@ -51,7 +53,7 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
     if (!text || r.hidden) continue;
     const origin = index.origin.get(r.id);
     const core = origin === gst;
-    add({ id: `rule:${r.id}`, kind: core ? (isWeaponAbility(baseRuleName(r.name)) ? 'weaponAbility' : 'core') : 'army', name: r.name, text, source: core ? 'Core rules' : catName(origin) });
+    add({ id: `rule:${r.id}`, kind: core ? (isWeaponAbility(baseRuleName(r.name)) ? 'weaponAbility' : 'core') : 'army', name: r.name, text, source: core ? 'Core rules' : catName(origin), group: core ? 'Core rules' : catName(origin) });
   }
 
   for (const cat of index.catalogues.values()) {
@@ -62,12 +64,12 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
     // Detachments and their rules
     for (const d of configChoices(engine).detachments) {
       if (d.hidden) continue;
-      for (const r of d.rules) add({ id: `det:${d.key}:${r.name}`, kind: 'detachment', name: r.name === d.name ? d.name : `${d.name}: ${r.name}`, text: r.text, source: `${fname} · ${d.dp} DP`, catalogueId: cat.id });
+      for (const r of d.rules) add({ id: `det:${d.key}:${r.name}`, kind: 'detachment', name: r.name === d.name ? d.name : `${d.name}: ${r.name}`, text: r.text, source: `${fname} · ${d.dp} DP`, catalogueId: cat.id, group: fname });
     }
     // Units
     for (const u of engine.unitChoices()) {
       const abilities = u.root.node.profiles.filter((p) => p.typeName === 'Abilities').map((p) => p.name);
-      add({ id: `unit:${cat.id}:${u.root.key}`, kind: 'datasheet', name: u.name, text: abilities.join(', '), source: `${fname} · ${u.points} pts`, route: `/reference/unit/${cat.id}/${u.root.key}`, catalogueId: cat.id });
+      add({ id: `unit:${cat.id}:${u.root.key}`, kind: 'datasheet', name: u.name, text: abilities.join(', '), source: `${fname} · ${u.points} pts`, route: `/reference/unit/${cat.id}/${u.root.key}`, catalogueId: cat.id, group: fname });
     }
   }
 
@@ -77,7 +79,7 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
     if (!e.costs?.some((c) => c.typeId === ENH && c.value > 0)) continue;
     const text = e.profiles?.map((p) => p.characteristics?.map((c) => c.$text ?? '').join('\n')).join('\n') ?? '';
     const pts = e.costs.find((c) => c.typeId === '51b2-306e-1021-d207')?.value;
-    add({ id: `enh:${e.id}`, kind: 'enhancement', name: e.name, text, source: `${catName(index.origin.get(e.id))}${pts ? ` · ${pts} pts` : ''}` });
+    add({ id: `enh:${e.id}`, kind: 'enhancement', name: e.name, text, source: `${catName(index.origin.get(e.id))}${pts ? ` · ${pts} pts` : ''}`, group: catName(index.origin.get(e.id)) });
   }
 
   // Unit abilities
@@ -85,23 +87,23 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
     if (p.typeName !== 'Abilities' || p.hidden) continue;
     const text = p.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
     if (!text) continue;
-    add({ id: `ab:${p.id}`, kind: 'ability', name: p.name, text, source: catName(index.origin.get(p.id)) });
+    add({ id: `ab:${p.id}`, kind: 'ability', name: p.name, text, source: catName(index.origin.get(p.id)), group: catName(index.origin.get(p.id)) });
   }
 
   // Keywords
   for (const c of index.categories.values()) {
     if (/^(Allies:|Configuration|Reference|Crusade)/.test(c.name)) continue;
-    add({ id: `kw:${c.id}`, kind: 'keyword', name: c.name.replace(/^Faction: /, ''), text: c.rules?.map(ruleText).join('\n') ?? '', source: c.name.startsWith('Faction: ') ? 'Faction keyword' : 'Keyword' });
+    add({ id: `kw:${c.id}`, kind: 'keyword', name: c.name.replace(/^Faction: /, ''), text: c.rules?.map(ruleText).join('\n') ?? '', source: c.name.startsWith('Faction: ') ? 'Faction keyword' : 'Keyword', group: c.name.startsWith('Faction: ') ? 'Faction keywords' : 'Keywords' });
   }
 
   for (const r of imported) {
     if (r.kind === 'coreRule') {
-      add({ id: r.id, kind: 'core', name: r.name, text: r.text, source: `Core Rules ${r.detachment ?? ''} · Wahapedia` });
+      add({ id: r.id, kind: 'core', name: r.name, text: r.text, source: `Core Rules ${r.detachment ?? ''} · Wahapedia`, group: 'Core Rules (Wahapedia)' });
       continue;
     }
     const kind = r.kind === 'stratagem' ? 'stratagem' : r.kind === 'enhancement' ? 'enhancement' : 'detachment';
     const bits = [r.cp ? `${r.cp}CP` : '', r.detachment ?? r.faction, r.phase ?? ''].filter(Boolean);
-    add({ id: r.id, kind, name: r.name, text: r.text, source: `${bits.join(' · ')} · Wahapedia`, extra: [r.type, r.turn, r.phase].filter(Boolean).join(' · ') });
+    add({ id: r.id, kind, name: r.name, text: r.text, source: `${bits.join(' · ')} · Wahapedia`, extra: [r.type, r.turn, r.phase].filter(Boolean).join(' · '), group: r.factionId ? r.faction : 'Core' });
   }
   return docs;
 }
