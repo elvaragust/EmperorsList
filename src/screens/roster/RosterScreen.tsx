@@ -5,20 +5,15 @@ import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
+import { ROLES, roleOfCategory, unitRole, type Role } from '@/engine/rules/roles';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 
-const ROLE_ORDER = ['Characters', 'Battleline', 'Dedicated Transports', 'Other datasheets'];
-const roleOf = (engine: RosterEngine | undefined, u: RosterUnit): string => {
-  const name = engine?.index.categories.get(u.primaryCategory)?.name ?? '';
-  if (/character|epic hero/i.test(name)) return 'Characters';
-  if (/battleline/i.test(name)) return 'Battleline';
-  if (/dedicated transport/i.test(name)) return 'Dedicated Transports';
-  return 'Other datasheets';
-};
+const roleOf = (engine: RosterEngine | undefined, u: RosterUnit): Role =>
+  engine ? unitRole(engine, u.id, u.primaryCategory) : roleOfCategory('');
 
 export function RosterScreen() {
   const { id = '' } = useParams();
@@ -41,7 +36,8 @@ export function RosterScreen() {
       const role = roleOf(engine, u);
       m.set(role, [...(m.get(role) ?? []), u]);
     });
-    return ROLE_ORDER.filter((r) => m.has(r)).map((r) => [r, m.get(r)!] as const);
+    // Every section is shown (like the official app), each with its own +.
+    return ROLES.map((r) => [r, m.get(r) ?? []] as const);
   }, [roster, engine]);
 
   if (!roster) return <Screen title="Roster" back><Loading what="the list" /></Screen>;
@@ -153,15 +149,21 @@ export function RosterScreen() {
         </>
       )}
 
-      {roster.units.length === 0 && <p className="muted" style={{ marginTop: 24 }}>No units yet.</p>}
-      {sections.map(([role, list]) => (
-        <div key={role}>
-          <div className="section-label">
-            {role} · {list.length}
+      {sections.map(([role, list]) => {
+        const pts = list.reduce((s, u) => s + (engine?.unitPoints(u.id) ?? u.points) + roster.units.filter((a) => a.leaderOf === u.id).reduce((t, a) => t + (engine?.unitPoints(a.id) ?? a.points), 0), 0);
+        return (
+          <div key={role}>
+            <div className="role-head">
+              <span style={{ flex: 1 }}>{role}</span>
+              {list.length > 0 && <span className="num small">{pts.toLocaleString('en')} pts</span>}
+              <Link className="role-add" to={`/roster/${roster.id}/add?role=${encodeURIComponent(role)}`} aria-label={`Add ${role.toLowerCase()}`}>
+                +
+              </Link>
+            </div>
+            {list.length > 0 && <div className="card">{list.map((u) => unitLine(u))}</div>}
           </div>
-          <div className="card">{list.map((u) => unitLine(u))}</div>
-        </div>
-      ))}
+        );
+      })}
       <div style={{ marginTop: 16 }}>
         <Link className="btn btn-primary btn-block" to={`/roster/${roster.id}/add`}>
           Add unit

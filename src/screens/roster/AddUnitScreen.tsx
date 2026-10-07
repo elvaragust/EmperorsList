@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { newUnit } from '@/engine/rules/edit';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
+import { choiceRole, ROLES } from '@/engine/rules/roles';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
 import { AbilityList, StatLine } from '@/ui/DatasheetView';
@@ -15,7 +16,8 @@ import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 
-const ROLES = ['All', 'Characters', 'Battleline', 'Transports', 'Other'] as const;
+const FILTERS = ['All', ...ROLES] as const;
+const SHORT: Record<string, string> = { 'Dedicated Transports': 'Transports' };
 
 function rank(name: string, q: string): number {
   const n = name.toLowerCase();
@@ -34,7 +36,8 @@ export function AddUnitScreen() {
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(roster?.factionName);
   const [q, setQ] = useState('');
-  const [role, setRole] = useState<(typeof ROLES)[number]>('All');
+  const [params] = useSearchParams();
+  const [role, setRole] = useState<(typeof FILTERS)[number]>(() => (FILTERS as readonly string[]).includes(params.get('role') ?? '') ? (params.get('role') as (typeof FILTERS)[number]) : 'All');
   const [preview, setPreview] = useState<string | null>(null);
   const previewData = useMemo(() => {
     if (!engine || !roster || !preview) return undefined;
@@ -50,7 +53,7 @@ export function AddUnitScreen() {
     return choices
       .map((c) => {
         const cat = engine?.index.categories.get(c.category ?? '')?.name ?? '';
-        const r = /character|epic/i.test(cat) ? 'Characters' : /battleline/i.test(cat) ? 'Battleline' : /transport/i.test(cat) ? 'Transports' : 'Other';
+        const r = engine ? choiceRole(engine, c.root.node, c.category) : 'Other datasheets';
         return { ...c, role: r, cat, score: rank(c.name, query) };
       })
       .filter((c) => c.score >= 0 && (role === 'All' || c.role === role))
@@ -72,9 +75,9 @@ export function AddUnitScreen() {
     <Screen title="Add unit" back>
       <input className="input" placeholder="Search units" value={q} onChange={(e) => setQ(e.target.value)} autoFocus aria-label="Search units" />
       <div className="filters" role="tablist">
-        {ROLES.map((r) => (
+        {FILTERS.map((r) => (
           <button key={r} className={`filter ${role === r ? 'on' : ''}`} onClick={() => setRole(r)} role="tab" aria-selected={role === r}>
-            {r}
+            {SHORT[r] ?? r}
           </button>
         ))}
       </div>
@@ -88,7 +91,7 @@ export function AddUnitScreen() {
                 <span style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{c.name}</div>
                   <div className="muted small">
-                    {c.cat}
+                    {c.role === 'Allied units' ? `Allied · ${c.cat}` : c.cat}
                     {n ? ` · ${n} in list` : ''}
                   </div>
                 </span>
