@@ -136,7 +136,7 @@ export function AddUnitScreen() {
 
   return (
     <Screen title="Add unit" back>
-      <input className="input" placeholder="Search units" value={q} onChange={(e) => setQ(e.target.value)} autoFocus aria-label="Search units" />
+      <input className="input" placeholder="Search units" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search units" />
       <div className="filters" role="tablist">
         {FILTERS.map((r) => (
           <button key={r} className={`filter ${role === r ? 'on' : ''}`} onClick={() => setRole(r)} role="tab" aria-selected={role === r}>
