@@ -390,6 +390,8 @@ export class RosterEngine {
         for (const { group, path } of groupsUnder(this.index, parent.node)) {
           const v = virtualChild(parent, group, path.slice(0, -1));
           if (ev.hidden(v)) continue;
+          // A group inside a hidden group doesn't apply (e.g. Crusade-only choices when Crusade is off).
+          if (path.slice(0, -1).some((g, k) => ev.hidden(virtualChild(parent, g, path.slice(0, k))))) continue;
           for (const c of group.constraints) {
             if (!isSelLimit(c)) continue;
             this.checkOne(c, v, parent, group, push, unitIdOf(parent));

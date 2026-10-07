@@ -1291,3 +1291,22 @@ textarea.input {
 .gear-nested .choice {
   background: transparent;
 }
+
+/* Pick-one choices that aren't wargear (cults, marks…) */
+.pick-card {
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+.pick-card.missing {
+  border-color: var(--danger);
+}
+.pick-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.danger-tag {
+  background: var(--danger);
+  color: #1a0000;
+}
