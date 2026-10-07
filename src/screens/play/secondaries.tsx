@@ -1,5 +1,5 @@
 import type { SavedGame } from '@/data/db';
-import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, shuffled, type TacticalState } from '@/engine/missions';
+import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, type TacticalState } from '@/engine/missions';
 import { showToast } from '@/ui/Toast';
 import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
 
@@ -28,7 +28,7 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others.
       </li>
       <li>
-        <strong>Once per battle:</strong> spend 1CP to discard one card and draw a new one (<em>Redraw (1CP)</em>). When a card can't be achieved, or its <em>When drawn</em> rule allows it, shuffle it back and draw another (<em>Redraw (free)</em>).
+        <strong>Once per battle:</strong> spend 1CP to discard one card and draw a new one (<em>Redraw</em>).
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
@@ -207,18 +207,6 @@ export function MissionsPanel({
                     Discard
                   </button>
                   <button
-                    className="btn btn-sm"
-                    title="When a card can't be achieved or its WHEN DRAWN rule lets you: shuffle it back and draw another, free"
-                    onClick={() => {
-                      const back = { ...t, active: t.active.filter((a) => a !== n), deck: shuffled([...t.deck, n]) };
-                      const next = drawTactical(back, 1);
-                      put(next);
-                      showToast(`Shuffled ${n} back · drew ${next.active.find((x) => !t.active.includes(x)) ?? 'nothing'}`);
-                    }}
-                  >
-                    Redraw (free)
-                  </button>
-                  <button
                     className="btn btn-sm btn-ghost"
                     disabled={t.newOrdersUsed}
                     title="Once per battle: spend 1CP to discard this card and draw a new one"
@@ -228,7 +216,7 @@ export function MissionsPanel({
                       onCp(-1, `Redraw: swapped ${n}`);
                     }}
                   >
-                    {t.newOrdersUsed ? 'Redraw (1CP) used' : 'Redraw (1CP)'}
+                    {t.newOrdersUsed ? 'Redraw used' : 'Redraw (1CP)'}
                   </button>
                 </div>
               }
