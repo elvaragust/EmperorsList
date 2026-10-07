@@ -76,6 +76,8 @@ export function buildIndex(files: RawFile[]): DataIndex {
     cat.sharedInfoGroups?.forEach((e) => addEntry(e, cat.id));
     cat.sharedProfiles?.forEach((p) => addProfile(p, cat.id));
     cat.sharedRules?.forEach((r) => addRule(r, cat.id));
+    // Army rules can also sit in a catalogue's own rules list (e.g. Oath of Moment, Templar Vows).
+    (cat as { rules?: RawRule[] }).rules?.forEach((r) => addRule(r, cat.id));
     cat.categoryEntries?.forEach((c) => {
       if (!index.categories.has(c.id) || c.rules?.length || c.infoLinks?.length) index.categories.set(c.id, c);
       c.rules?.forEach((r) => addRule(r, cat.id));

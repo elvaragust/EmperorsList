@@ -54,6 +54,8 @@ export function parseCard(text: string): ParsedCard {
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (!line) continue;
+    // Card-type labels that slipped into older imports ("Secondary MissionSecondary Missions: Attacker…").
+    if (/^(?:(?:primary|secondary) missions?(?::\s*(?:attacker|defender|fixed|tactical))?\s*)+$/i.test(plain(line))) continue;
     if (ROUND_HEAD.test(plain(line))) {
       cur = { title: plain(line), ...roundsOf(plain(line)), lines: [], items: [] };
       out.sections.push(cur);

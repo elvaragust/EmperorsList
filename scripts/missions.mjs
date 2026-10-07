@@ -54,7 +54,8 @@ export function parseMissionDeck(html, names = deckNames()) {
   const PREFIX = /^(primary mission|secondary mission|twist|deployment|mission|force disposition)\s*:\s*/i;
   const clean = (l) => (isHead(l) ? l.slice(4) : l).replace(PREFIX, '');
   // Card-type labels printed on the card ("Secondary MissionSecondary Missions: Attacker…", "Opponent").
-  const LABEL = /^(primary mission|secondary missions?|twist|deployment|opponent|player)\b/i;
+  // Labels printed on the card, often run together ("Secondary MissionSecondary Missions: AttackerSecondary Missions: Defender").
+  const LABEL = /^(primary mission|secondary mission|twist|deployment|opponent|player)(?![a-z])|^(?:secondary missions?:\s*(?:attacker|defender)\s*)+$|^(?:(?:primary|secondary) missions?(?::\s*(?:attacker|defender|fixed|tactical))?\s*)+$/i;
   const cards = new Map();
   let cur = null;
   const flush = () => {
@@ -71,6 +72,11 @@ export function parseMissionDeck(html, names = deckNames()) {
   for (const raw of lines) {
     const line = clean(raw).trim();
     const hit = kindOf.get(norm(line));
+    // The card's own name again inside it (its action is often named the same: "PLUNDER"): part of the card.
+    if (hit && cur && hit.name === cur.name) {
+      if (cur.lines.length) cur.lines.push(`**${line.replace(/\*\*/g, '')}**`);
+      continue;
+    }
     if (hit) {
       flush();
       cur = { ...hit, lines: [], tags: new Set() };

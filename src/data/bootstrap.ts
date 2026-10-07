@@ -94,6 +94,7 @@ const WP_FILES: [keyof WahapediaFiles, string][] = [
   ['stratagems', 'Stratagems.csv'],
   ['enhancements', 'Enhancements.csv'],
   ['detachmentAbilities', 'Detachment_abilities.csv'],
+  ['abilities', 'Abilities.csv'],
 ];
 
 /**

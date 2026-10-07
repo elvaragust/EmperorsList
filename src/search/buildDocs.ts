@@ -105,7 +105,7 @@ export function buildDocs(index: DataIndex, imported: ImportedRule[]): RefDoc[] 
       add({ id: r.id, kind: 'core', name: r.name, text: r.text, source: `Core Rules ${r.detachment ?? ''} · Wahapedia`, group: 'Core Rules (Wahapedia)' });
       continue;
     }
-    const kind = r.kind === 'stratagem' ? 'stratagem' : r.kind === 'enhancement' ? 'enhancement' : 'detachment';
+    const kind = r.kind === 'stratagem' ? 'stratagem' : r.kind === 'enhancement' ? 'enhancement' : r.kind === 'armyRule' ? 'army' : 'detachment';
     const bits = [r.cp ? `${r.cp}CP` : '', r.detachment ?? r.faction, r.phase ?? ''].filter(Boolean);
     add({ id: r.id, kind, name: r.name, text: r.text, source: `${bits.join(' · ')} · Wahapedia`, extra: [r.type, r.turn, r.phase].filter(Boolean).join(' · '), group: r.factionId ? r.faction : 'Core' });
   }

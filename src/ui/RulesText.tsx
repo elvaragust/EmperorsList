@@ -9,7 +9,12 @@ import { useRulePopup } from './RulePopup';
  */
 export function RulesText({ text, index, inline }: { text: string; index?: DataIndex; inline?: boolean }) {
   const popup = useRulePopup();
-  const paragraphs = text.replace(/\r/g, '').split(/\n{2,}/);
+  // Keywords written bold-and-keyword (**^^X^^** or ^^**X**^^) are just keywords.
+  const paragraphs = text
+    .replace(/\r/g, '')
+    // (the data sometimes nests them wrongly: ^^**X^^**)
+    .replace(/(\*\*\^\^|\^\^\*\*)(.+?)(\*\*\^\^|\^\^\*\*)/g, '^^$2^^')
+    .split(/\n{2,}/);
   const matcher = index ? termMatcher(index) : undefined;
   /** Plain text with known rule names and core terms made tappable (e.g. "surge move", "Deep Strike"). */
   const linkify = (chunk: string, key: string): ReactNode[] => {

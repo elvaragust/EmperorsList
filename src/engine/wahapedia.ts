@@ -6,7 +6,7 @@
  * "Powered by Wahapedia" wherever shown.
  */
 
-export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule' | 'coreRule' | 'mission';
+export type ImportedKind = 'stratagem' | 'enhancement' | 'detachmentRule' | 'coreRule' | 'mission' | 'armyRule';
 
 export interface ImportedRule {
   id: string;
@@ -76,6 +76,8 @@ export interface WahapediaFiles {
   stratagems?: string;
   enhancements?: string;
   detachmentAbilities?: string;
+  /** Army rules and other shared abilities (Oath of Moment…). */
+  abilities?: string;
 }
 
 /** Guess which export a file is from its header row. */
@@ -84,6 +86,7 @@ export function detectFile(name: string, text: string): keyof WahapediaFiles | u
   if (/stratagem/i.test(name) || (head.includes('cp_cost') && head.includes('phase'))) return 'stratagems';
   if (/enhancement/i.test(name)) return 'enhancements';
   if (/detachment_abilit/i.test(name)) return 'detachmentAbilities';
+  if (/^abilities/i.test(name)) return 'abilities';
   if (/faction/i.test(name) || /^id\|name\|link/.test(head)) return 'factions';
   return undefined;
 }
@@ -141,6 +144,21 @@ export function importWahapedia(files: WahapediaFiles): ImportedRule[] {
         factionId: r.faction_id ?? '',
         name: r.name,
         detachment: r.detachment || undefined,
+        legend: r.legend ? htmlToText(r.legend) : undefined,
+        text: htmlToText(r.description ?? ''),
+        source: 'Wahapedia',
+      });
+    }
+  }
+  if (files.abilities) {
+    for (const r of parsePipeCsv(files.abilities)) {
+      if (!r.name || !r.description) continue;
+      out.push({
+        id: `wp-a-${r.id || `${r.faction_id}-${r.name}`}`,
+        kind: 'armyRule',
+        faction: factionName(r.faction_id ?? ''),
+        factionId: r.faction_id ?? '',
+        name: r.name,
         legend: r.legend ? htmlToText(r.legend) : undefined,
         text: htmlToText(r.description ?? ''),
         source: 'Wahapedia',
