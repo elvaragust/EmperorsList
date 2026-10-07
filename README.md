@@ -58,7 +58,7 @@ Open a unit from the list. Everything is on one page, like the official app:
 - Options that bundle choices (e.g. *Pistol and Melee Weapon*) open their own choices underneath once picked — which pistol, which melee weapon.
 - The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
 
-**Adding units:** in *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
+**Adding units:** the list is split into *Characters*, *Battleline*, *Dedicated Transports*, *Other datasheets* (everything else) and *Allied units* (units from another faction your army may take, e.g. Agents of the Imperium), each with its points and a **+** that opens *Add unit* filtered to that section. In *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
 
 **Warlord:** open a Character → Wargear → tick **Warlord**. **Enhancements** for your chosen detachment appear in the same place.
 

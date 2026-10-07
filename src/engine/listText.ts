@@ -1,5 +1,6 @@
 import { buildDefault, instAt, newUnit, setOptionCount, updateChildren, type SelPath } from './rules/edit';
 import { modelTypes, setModelsWithOption } from './rules/modelTypes';
+import { unitRole } from './rules/roles';
 import { PTS } from './rules/evaluate';
 import type { Inst } from './rules/instance';
 import { offeredEntries } from './rules/nodes';
@@ -11,15 +12,14 @@ const SECTION: Record<string, string> = {
   Battleline: 'BATTLELINE',
   'Dedicated Transports': 'DEDICATED TRANSPORTS',
   'Other datasheets': 'OTHER DATASHEETS',
+  'Allied units': 'ALLIED UNITS',
 };
 
 function roleOf(engine: RosterEngine, unitId: string): string {
+  const role = unitRole(engine, unitId);
+  if (role === 'Allied units') return role;
   const cats = [...engine.categoriesOf(unitId)].map((c) => engine.index.categories.get(c)?.name ?? '');
-  const primary = engine.index.categories.get(engine.unitInst(unitId)?.node?.primaryCategory ?? '')?.name ?? '';
-  if (/character|epic hero/i.test(primary) || cats.includes('Character')) return 'Characters';
-  if (/battleline/i.test(primary)) return 'Battleline';
-  if (/dedicated transport/i.test(primary)) return 'Dedicated Transports';
-  return 'Other datasheets';
+  return cats.includes('Character') ? 'Characters' : role;
 }
 
 /**

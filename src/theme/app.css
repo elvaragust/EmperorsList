@@ -1310,3 +1310,28 @@ textarea.input {
   background: var(--danger);
   color: #1a0000;
 }
+
+/* List sections like the official app: name, points, + */
+.role-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 6px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.role-add {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 22px;
+  color: var(--accent);
+  text-decoration: none;
+}
