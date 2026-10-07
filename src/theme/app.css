@@ -310,7 +310,8 @@ textarea.input {
 /* Text filters: active one is underlined in its own colour, never a tinted box. */
 .filters {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   overflow-x: auto;
   padding: 4px 0 10px;
   scrollbar-width: none;

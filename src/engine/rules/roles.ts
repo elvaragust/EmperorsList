@@ -73,3 +73,11 @@ export function unitRole(engine: RosterEngine, unitId: string, primary?: string)
   if (allied(engine, engine.categoriesOf(unitId))) return 'Allied units';
   return roleOfCategory(engine.index.categories.get(primary ?? engine.unitInst(unitId)?.node?.primaryCategory ?? '')?.name ?? '');
 }
+
+/** The ally a datasheet comes from, by its faction keyword ("Imperial Agents", "Imperial Knights"…). */
+export function allyName(engine: RosterEngine, node: { categoryIds: string[]; targetId: string }): string {
+  const own = ownFactions(engine);
+  const f = catsOf(engine, node).find((id) => isFaction(engine, id) && !own.has(id));
+  const name = f ? (engine.index.categories.get(f)?.name ?? '') : '';
+  return name.replace(/^faction:\s*/i, '') || 'Allies';
+}

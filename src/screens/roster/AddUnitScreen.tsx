@@ -6,7 +6,9 @@ import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { newUnit } from '@/engine/rules/edit';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
-import { choiceRole, ROLES } from '@/engine/rules/roles';
+import { allyName, choiceRole, ROLES } from '@/engine/rules/roles';
+import { setShowOptions, showOptions } from '@/engine/rules/config';
+import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
 import { AbilityList, StatLine } from '@/ui/DatasheetView';
@@ -47,29 +49,90 @@ export function AddUnitScreen() {
     return { name: e2.unitName(unit.id), points: e2.unitPoints(unit.id), sheet: datasheet(e2, inst), models: unitModels(e2, unit.id) };
   }, [engine, roster, preview]);
 
-  const choices = useMemo(() => engine?.unitChoices() ?? [], [engine]);
+  // Allied datasheets the army may take: the data hides most of them behind its
+  // "Show Imperial Agents / Knights / Titans" switches, so look with each one on.
+  const configKey = JSON.stringify(roster?.config ?? []);
+  const allies = useMemo(() => {
+    if (!engine || !roster) return [] as { choice: ReturnType<RosterEngine['unitChoices']>[number]; needs?: string; ally: string }[];
+    const base = { ...roster, units: [] };
+    const roots = [...engine.roots.values()];
+    const e0 = new RosterEngine(engine.index, base, roots);
+    const visible = new Set(e0.unitChoices().map((c) => c.root.key));
+    const out: { choice: ReturnType<RosterEngine['unitChoices']>[number]; needs?: string; ally: string }[] = [];
+    const seen = new Set<string>();
+    const collect = (e: RosterEngine, needs?: string) => {
+      for (const c of e.unitChoices()) {
+        if (seen.has(c.root.key) || choiceRole(e, c.root.node, c.category) !== 'Allied units') continue;
+        seen.add(c.root.key);
+        out.push({ choice: c, needs: visible.has(c.root.key) ? undefined : needs, ally: allyName(e, c.root.node) });
+      }
+    };
+    collect(e0);
+    for (const o of showOptions(e0).filter((x) => !x.hidden && !x.on && /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name))) {
+      collect(new RosterEngine(engine.index, setShowOptions(e0, base, { [o.key]: true }), roots), o.key);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine?.index, roster?.catalogueId, configKey]);
+  const needsOf = useMemo(() => new Map(allies.filter((a) => a.needs).map((a) => [a.choice.root.key, a.needs!])), [allies]);
+  const choices = useMemo(() => {
+    const own = engine?.unitChoices() ?? [];
+    const have = new Set(own.map((c) => c.root.key));
+    return [...own, ...allies.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)];
+  }, [engine, allies]);
+  const allyOf = useMemo(() => new Map(allies.map((a) => [a.choice.root.key, a.ally])), [allies]);
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
     return choices
       .map((c) => {
         const cat = engine?.index.categories.get(c.category ?? '')?.name ?? '';
-        const r = engine ? choiceRole(engine, c.root.node, c.category) : 'Other datasheets';
-        return { ...c, role: r, cat, score: rank(c.name, query) };
+        const r = allyOf.has(c.root.key) ? 'Allied units' : engine ? choiceRole(engine, c.root.node, c.category) : 'Other datasheets';
+        return { ...c, role: r, cat, ally: allyOf.get(c.root.key), score: rank(c.name, query) };
       })
       .filter((c) => c.score >= 0 && (role === 'All' || c.role === role))
       .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
-  }, [choices, q, role, engine]);
+  }, [choices, q, role, engine, allyOf]);
+  const allyGroups = useMemo(() => {
+    const m = new Map<string, typeof list>();
+    list.forEach((c) => c.ally && m.set(c.ally, [...(m.get(c.ally) ?? []), c]));
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [list]);
 
   /** Add a unit and stay here, so several can be added in a row. */
   const add = async (key: string, open = false) => {
     if (!engine || !roster) return;
-    const unit = newUnit(engine, key);
-    await saveRoster(index, { ...roster, units: [...roster.units, unit] });
+    // An ally behind a Show switch: turn the switch on for this list first.
+    const needs = needsOf.get(key);
+    const r = needs ? setShowOptions(engine, roster, { [needs]: true }) : roster;
+    const e = needs ? new RosterEngine(engine.index, r, [...engine.roots.values()]) : engine;
+    const unit = newUnit(e, key);
+    await saveRoster(index, { ...r, units: [...r.units, unit] });
     if (open) navigate(`/roster/${roster.id}/unit/${unit.id}`, { replace: true });
     else showToast(`Added ${unit.name}`, { label: 'EDIT', to: `/roster/${roster.id}/unit/${unit.id}` });
   };
 
   const inList = (key: string) => roster?.units.filter((u) => u.entryId === key).length ?? 0;
+
+  const row = (c: (typeof list)[number]) => {
+    const n = inList(c.root.key);
+    return (
+      <div key={c.root.key} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
+        <button className="choice" style={{ borderTop: 0, flex: 1 }} onClick={() => setPreview(c.root.key)}>
+          <span style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600 }}>{c.name}</div>
+            <div className="muted small">
+              {c.role === 'Allied units' ? `${c.ally ?? 'Allied'} · ${c.cat}` : c.cat}
+              {n ? ` · ${n} in list` : ''}
+            </div>
+          </span>
+          <span className="num muted">{c.points}</span>
+        </button>
+        <button className="icon-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)} style={{ color: 'var(--accent)', fontSize: 24 }}>
+          +
+        </button>
+      </div>
+    );
+  };
 
   return (
     <Screen title="Add unit" back>
@@ -82,28 +145,15 @@ export function AddUnitScreen() {
         ))}
       </div>
       {!engine && <p className="muted">Loading units…</p>}
-      <div className="card">
-        {list.map((c) => {
-          const n = inList(c.root.key);
-          return (
-            <div key={c.root.key} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
-              <button className="choice" style={{ borderTop: 0, flex: 1 }} onClick={() => setPreview(c.root.key)}>
-                <span style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{c.name}</div>
-                  <div className="muted small">
-                    {c.role === 'Allied units' ? `Allied · ${c.cat}` : c.cat}
-                    {n ? ` · ${n} in list` : ''}
-                  </div>
-                </span>
-                <span className="num muted">{c.points}</span>
-              </button>
-              <button className="icon-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)} style={{ color: 'var(--accent)', fontSize: 24 }}>
-                +
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {role === 'Allied units' && !q.trim() ? (
+        allyGroups.map(([ally, units]) => (
+          <Collapse key={ally} title={ally} right={<span className="muted small num">{units.length}</span>}>
+            <div className="card">{units.map(row)}</div>
+          </Collapse>
+        ))
+      ) : (
+        <div className="card">{list.map(row)}</div>
+      )}
       {engine && list.length === 0 && <p className="muted">No units match.</p>}
       <p className="small muted">Tap a unit to read it first, or + to add it straight away (you stay here to add more).</p>
       {roster && (

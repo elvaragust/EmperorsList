@@ -204,3 +204,40 @@ export function enhancementsByDetachment(index: DataIndex, detachments: { key: s
   todo.forEach((d) => cache!.set(d.key, out.get(d.key)!));
   return out;
 }
+
+export interface ShowOption {
+  key: string;
+  rootKey: string;
+  name: string;
+  hidden: boolean;
+  on: boolean;
+}
+
+/**
+ * The data's "Show/Hide Options" switches ("Show Imperial Agents", "Show
+ * Imperial Knights", "Show Titans", "Show Legends"…): allied and Legends
+ * datasheets stay hidden until the matching switch is on.
+ */
+export function showOptions(engine: RosterEngine): ShowOption[] {
+  const root = [...engine.roots.values()].find((r) => /^show\s*\/\s*hide options$/i.test(r.node.name));
+  if (!root) return [];
+  const inst = engine.tree.force.children.find((c) => c.node?.key === root.key);
+  const v = inst ?? virtualChild(engine.tree.force, root.node, [], 1);
+  return offeredEntries(engine.index, root.node).map((o) => ({
+    key: o.node.key,
+    rootKey: root.key,
+    name: o.node.name,
+    hidden: engine.ev.hidden(virtualChild(v, o.node, o.groups, 1)),
+    on: Boolean(inst?.children.some((c) => c.node?.key === o.node.key && c.count > 0)),
+  }));
+}
+
+/** Turn some Show/Hide switches on or off (others are kept). */
+export function setShowOptions(engine: RosterEngine, roster: Roster, changes: Record<string, boolean>): Roster {
+  const opts = showOptions(engine);
+  if (!opts.length) return roster;
+  const rootKey = opts[0]!.rootKey;
+  const on = new Set(opts.filter((o) => o.on).map((o) => o.key));
+  for (const [k, v] of Object.entries(changes)) v ? on.add(k) : on.delete(k);
+  return replaceConfig(roster, rootKey, on.size ? { entryId: rootKey, count: 1, children: [...on].map((k) => ({ entryId: k, count: 1, children: [] })) } : undefined);
+}
