@@ -1335,3 +1335,48 @@ textarea.input {
   color: var(--accent);
   text-decoration: none;
 }
+
+/* Unified datasheet */
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.stat-table th {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 6px 4px 2px;
+  text-align: center;
+}
+.stat-table td.v {
+  text-align: center;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 20px;
+  padding: 2px 4px 8px;
+}
+.stat-table td.stat-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  max-width: 120px;
+  line-height: 1.2;
+}
+.stat-table tr + tr td {
+  border-top: 1px solid var(--line-soft);
+}
+.ability {
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.from-tag {
+  background: var(--raised);
+  color: var(--text-muted);
+}
