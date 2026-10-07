@@ -25,3 +25,15 @@ describe('mission deck page', () => {
     expect(as.text).not.toContain('not a card');
   });
 });
+
+describe('cards whose action has the same name', () => {
+  it('keeps the whole card (Plunder) and drops run-together labels', () => {
+    const html =
+      '<h2>Secondary Mission: Plunder</h2><div>PLUNDER</div><div>Secondary MissionSecondary Missions: AttackerSecondary Missions: Defender</div><p>Unguarded prizes lie strewn across the field of battle.</p><p><b>WHEN DRAWN:</b> If the Cleanse Secondary Mission is active for you, draw a new card.</p><div>PLUNDER</div><p><b>STARTS:</b> Your Shooting phase.</p><div>ANY BATTLE ROUND</div><p><b>WHEN:</b> End of your turn.</p><p>A terrain area was plundered this turn.<span>5VP</span></p>';
+    const p = parseMissionDeck(html).find((c: { name: string }) => c.name === 'Plunder');
+    expect(p.text).not.toMatch(/Secondary Missions:/);
+    expect(p.text).toContain('STARTS');
+    expect(p.text).toContain('— 5VP');
+    expect(p.tags).toEqual(expect.arrayContaining(['attacker', 'defender']));
+  });
+});

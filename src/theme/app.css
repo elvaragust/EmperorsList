@@ -41,6 +41,7 @@ input {
 }
 .screen {
   overscroll-behavior-y: contain;
+  overflow-x: hidden;
   flex: 1;
   overflow-y: auto;
   padding: 0 16px 24px;
@@ -338,16 +339,19 @@ textarea.input {
   display: flex;
   border-bottom: 1px solid var(--line);
   margin: 4px 0 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 .seg button {
-  flex: 1;
+  flex: 1 0 auto;
+  white-space: nowrap;
   border: 0;
   background: none;
   padding: 12px 4px;
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 0.06em;
+  font-size: 13px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
   border-bottom: 2px solid transparent;
@@ -1380,4 +1384,22 @@ textarea.input {
 .from-tag {
   background: var(--raised);
   color: var(--text-muted);
+}
+
+/* Search result rows: never wider than the screen */
+.result-row {
+  display: flex;
+  align-items: flex-start;
+  border-top: 1px solid var(--line-soft);
+  min-width: 0;
+  overflow: hidden;
+}
+.result-row > .choice {
+  flex: 1;
+  min-width: 0;
+  border-top: 0;
+  align-items: flex-start;
+}
+.result-row > :last-child {
+  flex: none;
 }

@@ -63,8 +63,8 @@ export function ReferenceScreen() {
   };
 
   const row = (h: { id: string; kind: RuleKind; name: string; text: string; source: string }) => (
-    <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', borderTop: '1px solid var(--line-soft)' }}>
-      <button className="choice" onClick={() => open(h.id)} style={{ alignItems: 'flex-start', borderTop: 0, flex: 1 }}>
+    <div key={h.id} className="result-row">
+      <button className="choice" onClick={() => open(h.id)}>
         <span style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
             <strong>{h.name}</strong>

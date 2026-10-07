@@ -14,7 +14,7 @@ import { join } from 'node:path';
 
 const out = process.argv[2] ?? 'wahapedia';
 const base = process.argv[3] ?? 'https://wahapedia.ru/wh40k11ed/';
-const files = ['Factions.csv', 'Stratagems.csv', 'Enhancements.csv', 'Detachment_abilities.csv', 'Last_update.csv'];
+const files = ['Factions.csv', 'Stratagems.csv', 'Enhancements.csv', 'Detachment_abilities.csv', 'Abilities.csv', 'Last_update.csv'];
 mkdirSync(out, { recursive: true });
 let ok = 0;
 for (const f of files) {

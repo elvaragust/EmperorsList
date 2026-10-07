@@ -15,7 +15,7 @@ import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
 import { ScoreRow } from './GameScreen';
-import { PhasePanel, RoundBar, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
+import { PhasePanel, RoundBar, RulesPanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
@@ -247,7 +247,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
-  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
+  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'rules' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [note, setNote] = useState('');
   const [ending, setEnding] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -358,12 +358,14 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       <NotesPanel gameId={game.id} notes={game.notes} />
 
       <div className="seg" role="tablist">
-        {(['phase', 'missions', 'units', 'score', 'log'] as const).map((t) => (
+        {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'missions' ? 'Missions' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
+            {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
         ))}
       </div>
+
+      {tab === 'rules' && <RulesPanel engine={engine} />}
 
       {tab === 'missions' && (
         <>

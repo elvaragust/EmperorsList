@@ -1,5 +1,5 @@
 import type { SavedGame } from '@/data/db';
-import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, type TacticalState } from '@/engine/missions';
+import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, shuffled, type TacticalState } from '@/engine/missions';
 import { showToast } from '@/ui/Toast';
 import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
 
@@ -25,10 +25,10 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>Start of your Command phase:</strong> draw 2 cards face up. Cards you haven't scored stay in your hand.
       </li>
       <li>
-        <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others for <strong>1CP each</strong>.
+        <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others.
       </li>
       <li>
-        <strong>Once per battle:</strong> spend 1CP to discard one card and draw a new one.
+        <strong>Once per battle:</strong> spend 1CP to discard one card and draw a new one (<em>Redraw (1CP)</em>). When a card can't be achieved, or its <em>When drawn</em> rule allows it, shuffle it back and draw another (<em>Redraw (free)</em>).
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
@@ -193,7 +193,7 @@ export function MissionsPanel({
                 put(scoreTactical(t, n, round));
               }}
               footer={
-                <div className="btn-row" style={{ marginTop: 6 }}>
+                <div className="btn-row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-sm"
                     onClick={() => {
@@ -201,28 +201,35 @@ export function MissionsPanel({
                       showToast(`${n} marked achieved`);
                     }}
                   >
-                    Achieved (VP added by hand)
+                    Achieved
+                  </button>
+                  <button className="btn btn-sm" onClick={() => (put(discardTactical(t, n)), showToast(`${n} discarded`))}>
+                    Discard
                   </button>
                   <button
                     className="btn btn-sm"
+                    title="When a card can't be achieved or its WHEN DRAWN rule lets you: shuffle it back and draw another, free"
                     onClick={() => {
-                      put(discardTactical(t, n, true));
-                      onCp(1, `Discarded ${n}`);
+                      const back = { ...t, active: t.active.filter((a) => a !== n), deck: shuffled([...t.deck, n]) };
+                      const next = drawTactical(back, 1);
+                      put(next);
+                      showToast(`Shuffled ${n} back · drew ${next.active.find((x) => !t.active.includes(x)) ?? 'nothing'}`);
                     }}
                   >
-                    Discard (+1CP)
+                    Redraw (free)
                   </button>
-                  {!t.newOrdersUsed && (
-                    <button
-                      className="btn btn-sm btn-ghost"
-                      onClick={() => {
-                        put(drawTactical({ ...discardTactical(t, n), newOrdersUsed: true }, 1));
-                        onCp(-1, `New card: swapped ${n}`);
-                      }}
-                    >
-                      New card (1CP, once)
-                    </button>
-                  )}
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    disabled={t.newOrdersUsed}
+                    title="Once per battle: spend 1CP to discard this card and draw a new one"
+                    onClick={() => {
+                      const next = drawTactical({ ...discardTactical(t, n), newOrdersUsed: true }, 1);
+                      put(next);
+                      onCp(-1, `Redraw: swapped ${n}`);
+                    }}
+                  >
+                    {t.newOrdersUsed ? 'Redraw (1CP) used' : 'Redraw (1CP)'}
+                  </button>
                 </div>
               }
             />

@@ -75,6 +75,10 @@ export function ScoreCard({
   const parsed = useMemo(() => (c ? parseCard(c.text) : undefined), [c]);
   const [counts, setCounts] = useState<Record<string, number[]>>({});
   const [more, setMore] = useState(false);
+  const [open, setOpen] = useState(true);
+  // The first intro line is flavour text; the rest (WHEN DRAWN, actions) are rules you need while playing.
+  const flavour = parsed?.intro.slice(0, 1) ?? [];
+  const introRules = parsed?.intro.slice(1) ?? [];
   const now = parsed ? sectionsFor(parsed, round) : [];
   const later = parsed ? parsed.sections.filter((s) => !now.includes(s)) : [];
   const total = now.reduce((sum, s) => sum + scoreItems(s.items, counts[s.title] ?? []), 0);
@@ -84,13 +88,23 @@ export function ScoreCard({
     return { ...all, [title]: list };
   });
   return (
-    <div className="score-card">
-      <div className="score-card-head">
-        <strong style={{ flex: 1 }}>{name}</strong>
+    <div className={`score-card ${open ? '' : 'closed'}`}>
+      <button className="score-card-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <strong style={{ flex: 1, textAlign: 'left' }}>{name}</strong>
         {c?.tags.includes('fixed') && <span className="tag">FIXED</span>}
-      </div>
+        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+      <>
       {!c && <p className="small muted" style={{ margin: '4px 0' }}>Card text not loaded on this device.</p>}
-      {parsed && parsed.sections.length === 0 && <RulesText text={c!.text} />}
+      {parsed && parsed.sections.length === 0 && <RulesText text={[...introRules, ...parsed.notes].join('\n') || c!.text} />}
+      {parsed && parsed.sections.length > 0 && introRules.length > 0 && (
+        <div className="card-rules small">
+          {introRules.map((l, i) => (
+            <RulesText key={i} text={l} />
+          ))}
+        </div>
+      )}
       {now.map((s) => (
         <div key={s.title} className="score-section">
           <div className="round-pill">{s.title}</div>
@@ -150,14 +164,16 @@ export function ScoreCard({
         </button>
       )}
       {footer}
-      {parsed && (parsed.intro.length > 0 || later.length > 0 || parsed.notes.length > 0) && (
+      </>
+      )}
+      {open && parsed && (flavour.length > 0 || later.length > 0) && (
         <button className="link-btn small" onClick={() => setMore(!more)} aria-expanded={more}>
           {more ? 'Hide' : 'Show'} the rest of the card {more ? '▴' : '▾'}
         </button>
       )}
-      {more && parsed && (
+      {open && more && parsed && (
         <div className="small muted">
-          {parsed.intro.map((l, i) => (
+          {flavour.map((l, i) => (
             <RulesText key={i} text={l} />
           ))}
           {later.map((s) => (

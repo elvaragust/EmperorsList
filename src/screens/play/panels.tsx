@@ -8,6 +8,9 @@ import { abilityInPhase, type Phase } from '@/engine/game';
 import type { UnitSummary } from '@/engine/live';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { catalogueChain } from '@/engine/bsdata/index';
+import { armyRules, detachmentRules } from '@/engine/rules/armyRules';
+import { ruleText } from '@/engine/rules/nodes';
+import { RulesText } from '@/ui/RulesText';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { stratagemFits, stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
 import { RuleLabel } from '@/ui/RuleLabel';
@@ -193,6 +196,57 @@ export function RoundBar({ round, onPick, disabled }: { round: number; onPick: (
         <button key={r} className={r === round ? 'on' : r < round ? 'past' : undefined} aria-pressed={r === round} disabled={disabled && r !== round} onClick={() => r !== round && onPick(r)}>
           R{r}
         </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Your army's rules for the whole game: army rules (Oath of Moment…) and the
+ * rules of your detachments, each a bar you open. Wahapedia's text is used
+ * when it has the same rule (it follows new codexes sooner than the unit data).
+ */
+export function RulesPanel({ engine }: { engine?: RosterEngine }) {
+  const imported = useLiveQuery(() => db.imported.where('kind').anyOf('armyRule', 'detachmentRule').toArray(), []);
+  const index = engine?.index;
+  const data = useMemo(() => {
+    if (!engine) return undefined;
+    const wpArmy = new Map((imported ?? []).filter((r) => r.kind === 'armyRule').map((r) => [r.name.toLowerCase(), r]));
+    const army = armyRules(engine).map((r) => {
+      const wp = wpArmy.get(r.name.toLowerCase());
+      return { name: r.name, text: wp?.text ?? ruleText(r), wp: Boolean(wp) };
+    });
+    const dets = engine.roster.detachmentNames ?? [];
+    const wpDet = (imported ?? []).filter((r) => r.kind === 'detachmentRule' && dets.some((d) => d.toLowerCase() === (r.detachment ?? '').toLowerCase()));
+    const fromData = detachmentRules(engine);
+    const detRules = dets.map((d) => {
+      const wp = wpDet.filter((r) => (r.detachment ?? '').toLowerCase() === d.toLowerCase());
+      return { detachment: d, rules: wp.length ? wp.map((r) => ({ name: r.name, text: r.text, wp: true })) : fromData.filter((r) => r.detachment === d).map((r) => ({ name: r.name, text: r.text, wp: false })) };
+    });
+    return { army, detRules };
+  }, [engine, imported]);
+  if (!data) return <p className="muted">Loading…</p>;
+  const item = (r: { name: string; text: string; wp: boolean }, key: string, open = false) => (
+    <Collapse key={key} title={r.name} tone="plain" defaultOpen={open}>
+      <RulesText text={r.text} index={index} />
+      {r.wp && <p className="credit">Powered by Wahapedia</p>}
+    </Collapse>
+  );
+  return (
+    <div>
+      <div className="section-label">Army rules</div>
+      <div className="card" style={{ padding: '0 12px' }}>
+        {data.army.map((r) => item(r, `a-${r.name}`, data.army.length === 1))}
+        {data.army.length === 0 && <div className="row muted small">No army rules found in the data.</div>}
+      </div>
+      {data.detRules.map((d) => (
+        <div key={d.detachment}>
+          <div className="section-label">{d.detachment}</div>
+          <div className="card" style={{ padding: '0 12px' }}>
+            {d.rules.map((r) => item(r, `d-${d.detachment}-${r.name}`, d.rules.length === 1))}
+            {d.rules.length === 0 && <div className="row muted small">No rules text for this detachment in the data.</div>}
+          </div>
+        </div>
       ))}
     </div>
   );

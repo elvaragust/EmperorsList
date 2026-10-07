@@ -15,7 +15,7 @@ import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { saveGame, withLog } from './games';
 import { useSessionState } from '@/ui/useSessionState';
-import { NotesPanel, PhasePanel, RoundBar } from './panels';
+import { NotesPanel, PhasePanel, RoundBar, RulesPanel } from './panels';
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
@@ -220,7 +220,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
 function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
+  const [tab, setTab] = useSessionState<'phase' | 'missions' | 'rules' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [ending, setEnding] = useState(false);
   const [note, setNote] = useState('');
   const first = game.firstTurn ?? 'me';
@@ -308,9 +308,9 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
       <NotesPanel gameId={game.id} notes={game.notes} />
 
       <div className="seg" role="tablist">
-        {(['phase', 'missions', 'units', 'score', 'log'] as const).map((t) => (
+        {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'missions' ? 'Missions' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
+            {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
         ))}
       </div>
@@ -328,6 +328,8 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
           }}
         />
       )}
+
+      {tab === 'rules' && <RulesPanel engine={engine} />}
 
       {tab === 'missions' && (
         <MissionsPanel
