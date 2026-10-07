@@ -72,7 +72,12 @@ export function UnitScreen() {
   const chosenEnh = enhancements.find((e) => e.selected > 0);
   const isModelThing = (v: OptionView): boolean => (v.kind === 'entry' ? v.node.type === 'model' : v.children.length > 0 && v.children.every(isModelThing));
   const singleModel = root?.node?.type === 'model';
-  const handled = new Set(types.flatMap((t) => [...t.groups.map((g) => g.key), ...t.extras.map((e) => e.key)]));
+  // Pick-one choices that aren't wargear (e.g. which of the Nine Great Cults, a Mark of Chaos): shown on their own card.
+  const isPlainPick = (v: OptionView) =>
+    v.kind === 'group' && v.max === 1 && !/enhancement/i.test(v.name) && !(v.hidden && !v.selected) && v.children.length > 1 && v.children.every((c) => c.kind === 'entry' && c.node.type !== 'model' && !c.node.profiles.length && !c.node.infoLinks.some((l) => l.type === 'profile') && !c.children.length);
+  const picks = views.filter(isPlainPick);
+  const pickKeys = new Set(picks.map((p) => p.node.key));
+  const handled = new Set([...types.flatMap((t) => [...t.groups.map((g) => g.key), ...t.extras.map((e) => e.key)]), ...pickKeys]);
   const others = singleModel
     ? []
     : views.filter((v) => v !== warlord && v !== enhGroup && !isModelThing(v) && !handled.has(v.node.key) && !(v.hidden && !v.selected));
@@ -144,6 +149,40 @@ export function UnitScreen() {
         </button>
       )}
 
+      {engine &&
+        picks.map((g) => {
+          const chosen = g.children.find((c) => c.selected > 0);
+          const missing = g.min > g.selected;
+          return (
+            <div key={g.node.key} className={`card pick-card ${missing ? 'missing' : ''}`}>
+              <div className="pick-head">
+                <strong style={{ flex: 1 }}>{g.name}</strong>
+                {missing ? <span className="tag danger-tag">PICK ONE</span> : <span className="muted small">{chosen?.name}</span>}
+              </div>
+              {missing && <p className="small muted" style={{ margin: '2px 0 8px' }}>This unit has to choose one of these before the list is valid.</p>}
+              <div className="kw-list" style={{ gap: '6px 10px' }}>
+                {g.children
+                  .filter((c) => !(c.hidden && !c.selected))
+                  .map((c) => (
+                    <button
+                      key={c.node.key}
+                      className={`filter ${c.selected ? 'on' : ''}`}
+                      aria-pressed={c.selected > 0}
+                      onClick={() => {
+                        if (c.selected) return;
+                        let u = unit;
+                        for (const other of g.children) if (other.selected > 0) u = setOptionCount(engineFor(u), u, [], other.node.key, 0);
+                        commit(setOptionCount(engineFor(u), u, [], c.node.key, 1));
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          );
+        })}
+
       {(warlord || enhancements.length > 0) && (
         <>
           {warlord && !(warlord.hidden && !warlord.selected) && (
@@ -177,6 +216,7 @@ export function UnitScreen() {
             t={t}
             single={singleModel}
             index={index}
+            hideGroups={pickKeys}
             nested={(mt, o) => {
               // Find the picked option's selection and show the choices under it.
               let path: SelPath | undefined;
@@ -326,7 +366,9 @@ function ModelSection({
   onCarry,
   index,
   nested,
+  hideGroups,
 }: {
+  hideGroups?: Set<string>;
   index?: DataIndex;
   /** Choices inside a picked option (e.g. "Pistol and Melee Weapon" → which pistol, which melee weapon). */
   nested?: (t: ModelType, o: ModelOption) => ReactNode;
@@ -339,7 +381,7 @@ function ModelSection({
   const variable = !single && (t.min !== t.max || t.max < 0 || t.count !== t.min);
   const lo = Math.min(t.min, t.count);
   const hi = t.max < 0 ? Math.max(99, t.count) : Math.max(t.max, t.count);
-  const hasChoices = t.groups.some((g) => g.options.length > 1 || g.optional) || t.extras.length > 0;
+  const hasChoices = t.groups.some((g) => !hideGroups?.has(g.key) && (g.options.length > 1 || g.optional)) || t.extras.length > 0;
   const empty = t.count === 0;
   return (
     <>
@@ -364,7 +406,7 @@ function ModelSection({
               ))}
             </div>
           )}
-          {t.groups.map((g) => (
+          {t.groups.filter((g) => !hideGroups?.has(g.key)).map((g) => (
             <div className="gear-box" key={g.key}>
               <div className="gear-box-head">
                 {g.name}
