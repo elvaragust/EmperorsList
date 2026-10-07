@@ -108,6 +108,16 @@ export function ImportScreen() {
               </ul>
             </div>
           )}
+          {(report.report.notes?.length ?? 0) > 0 && (
+            <div className="card" style={{ padding: 14, marginTop: 10 }}>
+              <div className="advice-title">{report.report.notes![0]}</div>
+              <ul className="small">
+                {report.report.notes!.slice(1).map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="btn-row">
             <button className="btn btn-primary btn-block" onClick={() => navigate(`/roster/${report.id}`, { replace: true })}>
               Open the list

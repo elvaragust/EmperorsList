@@ -80,9 +80,11 @@ export async function fetchDataFile(s: SourceConfig, commit: string, path: strin
     library: Boolean(cat?.library),
     gameSystem: Boolean(file.gameSystem),
   };
+  // Look the file id up before the write: only dataFiles and dataMeta are part of the transaction.
+  const id = sha ?? (await db.dataSources.get(sourceName(s)))?.shas?.[path];
   await db.transaction('rw', db.dataFiles, db.dataMeta, async () => {
     await db.dataFiles.put(rec);
-    await db.dataMeta.put(metaOf(rec, sha ?? (await db.dataSources.get(sourceName(s)))?.shas?.[path]));
+    await db.dataMeta.put(metaOf(rec, id));
   });
   return rec;
 }
