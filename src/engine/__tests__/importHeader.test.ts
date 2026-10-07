@@ -80,3 +80,52 @@ describe('lists without a header', () => {
     expect(p.title).toBeUndefined();
   });
 });
+
+describe('official app export (attached units, one bullet per group)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const text = require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures/official-app-export.txt'), 'utf8') as string;
+  const p = parseListText(text);
+  it('finds every unit and nothing else', () => {
+    expect(p.units.map((u) => u.name)).toEqual([
+      "Emperor's Champion",
+      'Assault Intercessor Squad',
+      'High Marshal Helbrecht',
+      'Crusader Squad',
+      'Chaplain on Bike',
+      'Outrider Squad',
+      'Techmarine',
+      'Land Raider Redeemer',
+      'Sword Brethren Squad',
+    ]);
+  });
+  it('pairs leaders with bodyguards', () => {
+    expect(p.units.slice(0, 2).map((u) => [u.attachedGroup, u.attachedRole])).toEqual([
+      [1, 'leader'],
+      [1, 'bodyguard'],
+    ]);
+    expect(p.units[6]!.attachedGroup).toBeUndefined();
+  });
+  it('reads un-bulleted wargear lines at the right depth', () => {
+    const crusader = p.units[3]!.lines.map((l) => `${l.depth}:${l.count} ${l.name}`);
+    expect(crusader).toContain('1:5 Initiate');
+    expect(crusader).toContain('2:3 Initiate Chainsword');
+    expect(crusader).toContain('2:2 Power Fist');
+    expect(p.units[3]!.lines.find((l) => l.kind === 'enhancement')?.name).toBe('Furious Assault');
+    expect(p.units[6]!.lines.map((l) => `${l.depth}:${l.name}`)).toEqual(['1:Forge Bolter', '1:Grav-pistol', '1:Omnissian Power Axe and Servo-arm']);
+  });
+  it('splits "A, B and C (3 Detachment Points)" and keeps names with "and"', () => {
+    const cfg = matchConfig(p, {
+      detachments: [
+        { key: 'a', name: 'Assault Brethren' },
+        { key: 'i', name: 'Ironstorm Spearhead' },
+        { key: 'm', name: "Marshal's Household" },
+        { key: 's', name: 'Legends of Saga and Song' },
+      ],
+      dispositions: [{ key: 'p', name: 'Purge the Foe' }],
+    });
+    expect(cfg.detachments.map((d) => d.key)).toEqual(['a', 'i', 'm']);
+    expect(cfg.disposition?.key).toBe('p');
+    const saga = matchConfig({ ...p, headerLines: ['Legends of Saga and Song'] }, { detachments: [{ key: 's', name: 'Legends of Saga and Song' }], dispositions: [] });
+    expect(saga.detachments.map((d) => d.key)).toEqual(['s']);
+  });
+});

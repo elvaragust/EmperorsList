@@ -53,10 +53,17 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
   if (disp) rep.matched.push(`Force Disposition: ${disp.name}${cfg.disposition ? '' : ' (from the detachment)'}`);
   if (!cfg.detachments.length) rep.unmatched.push(fallback ? `No detachment found in the header — set to ${fallback.name}; change it in the list menu` : 'No detachment found in the header — pick one in the list menu');
   const fName = normName(faction.name);
-  cfg.unused.filter((u) => normName(u) !== fName && !/space marines|adeptus astartes/i.test(u) && !/\d/.test(u)).forEach((u) => rep.unmatched.push(`Header line not matched: ${u}`));
+  rep.notes = [];
+  // Header names that aren't the faction: most likely a detachment the game data doesn't have yet.
+  const factionWords = new Set([fName, ...rec.name ? [normName(rec.name.split(' - ').pop() ?? '')] : []]);
+  cfg.unused
+    .filter((u) => !factionWords.has(normName(u)) && !/space marines|adeptus astartes|^attached units?/i.test(u) && !/\d/.test(u))
+    .forEach((u) => rep.unmatched.push(`Detachment not in the game data yet: ${u}`));
 
   const units: RosterUnit[] = [];
   const attach: { unit: RosterUnit; to: string }[] = [];
+  const groups = new Map<number, { leaders: RosterUnit[]; body?: RosterUnit }>();
+  const pairs: { pu: (typeof parsed.units)[number]; u: RosterUnit }[] = [];
   for (const pu of parsed.units) {
     onProgress?.(`Matching ${pu.name}…`);
     const engineFor = (us: RosterUnit[]) => new RosterEngine(index, { ...roster, units: us }, roots);
@@ -68,13 +75,36 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     filled.added.forEach((a) => rep.unmatched.push(`${pu.name}: added missing ${a} — check its wargear`));
     u = autoFill(one, filled.unit);
     units.push(u);
+    pairs.push({ pu, u });
     const a = pu.lines.find((l) => l.kind === 'attached');
     if (a) attach.push({ unit: u, to: a.name });
+    if (pu.attachedGroup !== undefined) {
+      const g = groups.get(pu.attachedGroup) ?? { leaders: [] };
+      if (pu.attachedRole === 'bodyguard') g.body = u;
+      else g.leaders.push(u);
+      groups.set(pu.attachedGroup, g);
+    }
+  }
+  // "Attached Unit N" blocks: each leader joins that block's bodyguard unit.
+  for (const g of groups.values()) {
+    if (!g.body) continue;
+    for (const l of g.leaders) {
+      l.leaderOf = g.body.id;
+      rep.matched.push(`${l.name} leads ${g.body.name}`);
+    }
   }
   for (const { unit, to } of attach) {
     const body = units.find((x) => x !== unit && normName(x.name) === normName(to));
     if (body) unit.leaderOf = body.id;
   }
   roster = { ...roster, units };
+  // Points that differ from the list come from the game data version, not the import.
+  const final = new RosterEngine(index, roster, roots);
+  pairs.forEach(({ pu, u }) => {
+    if (pu.points === undefined) return;
+    const here = final.unitPoints(u.id);
+    if (here !== pu.points) rep.notes!.push(`${pu.name}: ${here} pts here, ${pu.points} in your list`);
+  });
+  if (rep.notes.length) rep.notes.unshift('Points differ because the community game data (BSData) is on an older points list than the official app:');
   return { roster, report: rep };
 }

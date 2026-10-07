@@ -1,4 +1,5 @@
 import { buildDefault, instAt, newUnit, setOptionCount, updateChildren, type SelPath } from './rules/edit';
+import { modelTypes, setModelsWithOption } from './rules/modelTypes';
 import { PTS } from './rules/evaluate';
 import type { Inst } from './rules/instance';
 import { offeredEntries } from './rules/nodes';
@@ -86,6 +87,16 @@ export interface ParsedUnit {
   name: string;
   points?: number;
   lines: ParsedLine[];
+  /** "Attached Unit 2" block this unit is listed in, and its part in it. */
+  attachedGroup?: number;
+  attachedRole?: 'leader' | 'bodyguard';
+}
+
+/** One line under a unit before depths are worked out. */
+interface RawLine {
+  indent: number;
+  text: string;
+  symbol?: string;
 }
 export interface ParsedList {
   title?: string;
@@ -108,36 +119,53 @@ export function parseListText(text: string): ParsedList {
   const lines = text.replace(/\r/g, '').split('\n');
   let cur: ParsedUnit | undefined;
   let inHeader = true;
+  let group: number | undefined;
+  const raws = new Map<ParsedUnit, RawLine[]>();
+  let lastBulletIndent = 0;
+  const startUnit = (name: string, points?: number) => {
+    cur = { name, points, lines: [], attachedGroup: group };
+    out.units.push(cur);
+    raws.set(cur, []);
+    lastBulletIndent = 0;
+  };
   for (const raw of lines) {
-    const line = raw.replace(/\t/g, '  ');
+    const line = raw.replace(/\t/g, '  ').replace(/\u00a0/g, ' ');
     const trimmed = line.trim();
     if (!trimmed) continue;
     if (/^exported with/i.test(trimmed)) continue;
+    const indent = line.length - line.trimStart().length;
+    // "Attached Units" / "Attached Unit 2": a leader and its bodyguard follow.
+    const att = trimmed.match(/^attached units?(?:\s+(\d+))?$/i);
+    if (att) {
+      inHeader = false;
+      cur = undefined;
+      group = att[1] ? Number(att[1]) : group;
+      continue;
+    }
     if (SECTIONS.test(trimmed)) {
       inHeader = false;
       cur = undefined;
+      group = undefined;
       continue;
     }
     const bullet = trimmed.match(/^([•◦\-*+▪●○·])\s*(.*)$/);
     // A list that starts straight with a unit: what looked like the title was the first unit.
     if (bullet && !cur && out.title && !out.headerLines.length && !out.units.length) {
-      cur = { name: out.title, points: out.points, lines: [] };
-      out.units.push(cur);
+      const t = out.title;
+      const p = out.points;
       out.title = undefined;
       out.points = undefined;
       inHeader = false;
+      startUnit(t, p);
     }
     if (bullet && cur) {
-      const indent = line.length - line.trimStart().length;
-      const depth = bullet[1] === '◦' || bullet[1] === '○' || indent >= 4 ? 2 : 1;
-      const body = bullet[2]!.trim();
-      if (/^warlord$/i.test(body)) cur.lines.push({ depth, count: 1, name: 'Warlord', kind: 'warlord' });
-      else if (/^enhancements?:/i.test(body)) cur.lines.push({ depth, count: 1, name: body.replace(/^enhancements?:\s*/i, '').replace(UNIT_RE, '$1').trim(), kind: 'enhancement' });
-      else if (/^attached to:/i.test(body)) cur.lines.push({ depth, count: 1, name: body.replace(/^attached to:\s*/i, ''), kind: 'attached' });
-      else {
-        const m = body.match(/^(\d+)\s*x\s+(.+)$/i);
-        cur.lines.push({ depth, count: m ? Number(m[1]) : 1, name: (m ? m[2]! : body).trim(), kind: 'item' });
-      }
+      raws.get(cur)!.push({ indent, text: bullet[2]!.trim(), symbol: bullet[1] });
+      lastBulletIndent = indent;
+      continue;
+    }
+    // "    1x Bolt Pistol" under a bullet: more of the same list (the app puts one bullet per group).
+    if (cur && !inHeader && (indent > 0 || /^\d+\s*x\s+/i.test(trimmed)) && !UNIT_RE.test(trimmed)) {
+      raws.get(cur)!.push({ indent: lastBulletIndent, text: trimmed });
       continue;
     }
     const u = trimmed.match(UNIT_RE);
@@ -159,21 +187,48 @@ export function parseListText(text: string): ParsedList {
     }
     if (u) {
       inHeader = false;
-      cur = { name: u[1]!.trim(), points: num(u[2]!), lines: [] };
-      out.units.push(cur);
-    } else if (!bullet) {
-      cur = { name: trimmed, lines: [] };
-      out.units.push(cur);
+      startUnit(u[1]!.trim(), num(u[2]!));
+    } else if (!bullet && indent === 0) {
+      inHeader = false;
+      startUnit(trimmed);
     }
   }
+  for (const unit of out.units) unit.lines = toLines(unit, raws.get(unit) ?? []);
   return out;
+}
+
+/** Depth from indentation: the shallowest list level is 1 (models / wargear), the next 2 (a model's wargear). */
+function toLines(unit: ParsedUnit, raws: RawLine[]): ParsedLine[] {
+  const items: RawLine[] = [];
+  for (const r of raws) {
+    const role = r.text.match(/^attached as:\s*(leader|bodyguard)/i);
+    if (role) {
+      unit.attachedRole = role[1]!.toLowerCase() as 'leader' | 'bodyguard';
+      continue;
+    }
+    if (/^attached as:/i.test(r.text)) continue;
+    items.push(r);
+  }
+  const levels = [...new Set(items.map((r) => r.indent))].sort((a, b) => a - b);
+  const strip = (t: string) => t.replace(UNIT_RE, '$1').replace(/\s*\((?:upgrade|enhancement)\)\s*$/i, '').trim();
+  return items.map((r) => {
+    let depth = Math.min(2, levels.indexOf(r.indent) + 1);
+    if (r.symbol === '◦' || r.symbol === '○') depth = 2;
+    const body = r.text;
+    if (/^warlord$/i.test(body)) return { depth, count: 1, name: 'Warlord', kind: 'warlord' as const };
+    if (/^enhancements?:/i.test(body)) return { depth: 1, count: 1, name: strip(body.replace(/^enhancements?:\s*/i, '')), kind: 'enhancement' as const };
+    if (/^attached to:/i.test(body)) return { depth, count: 1, name: body.replace(/^attached to:\s*/i, ''), kind: 'attached' as const };
+    const m = body.match(/^(\d+)\s*x\s+(.+)$/i);
+    return { depth, count: m ? Number(m[1]) : 1, name: (m ? m[2]! : body).trim(), kind: 'item' as const };
+  });
 }
 
 /** "Detachment: Gladius Task Force (2 DP) + Anvil Siege Force" -> the names. */
 export function headerParts(line: string): string[] {
   return line
     .replace(/^(detachments?|faction|army|chapter)\s*:\s*/i, '')
-    .split(/\s*(?:\+|,|\/|&)\s*/)
+    .replace(/\s*[([][^)\]]*(?:detachment points?|dp)[^)\]]*[)\]]\s*$/i, '')
+    .split(/\s*(?:\+|,|\/|&|\band\b)\s*/)
     .map((p) => p.replace(/\s*[([][^)\]]*[)\]]\s*$/, '').trim())
     .filter(Boolean);
 }
@@ -191,6 +246,8 @@ export const normName = (s: string) =>
 export interface ImportReport {
   matched: string[];
   unmatched: string[];
+  /** Differences that come from the game data rather than the text (points, missing new options). */
+  notes?: string[];
 }
 
 function findOption(engine: RosterEngine, parent: Inst, name: string) {
@@ -223,29 +280,74 @@ export function importUnit(engineFor: (units: RosterUnit[]) => RosterEngine, oth
   }
   let unit = newUnit(engine, choice.root.key);
   const refresh = () => (engine = engineFor([...others, unit]));
+  const one = (u: RosterUnit) => engineFor([...others, u]);
   refresh();
 
-  const top = parsed.lines.filter((l) => l.depth === 1);
-  const modelLines = top.filter((l) => {
-    const root = engine.unitInst(unit.id);
-    const o = root && l.kind === 'item' ? findOption(engine, root, l.name) : undefined;
-    return o?.node.type === 'model';
-  });
-
-  if (modelLines.length) {
-    // Clear default models, then add each listed model as its own selection.
+  // 1. Models: replace the default models with the ones listed. The app lists
+  // "5x Initiate" where the data has kinds by weapon ("Initiate w/Chainsword…"):
+  // those are split by the weapon counts underneath.
+  const lines = parsed.lines;
+  const modelOf = new Map<number, string>();
+  const handled = new Set<number>();
+  {
     const root = engine.unitInst(unit.id)!;
-    unit = updateChildren(unit, [], (children) => children.filter((s) => root.children.find((c) => c.sel === s)?.node?.type !== 'model'));
-    refresh();
+    const models = offeredEntries(engine.index, root.node!).filter((o) => o.node.type === 'model');
+    const plan: { i: number; parts: { o: (typeof models)[number]; n: number }[] }[] = [];
+    lines.forEach((l, i) => {
+      if (l.depth !== 1 || l.kind !== 'item') return;
+      const o = findOption(engine, root, l.name);
+      if (o?.node.type !== 'model') return;
+      const w = normName(l.name).replace(/s$/, '');
+      const kinds = models.filter((m) => normName(m.node.name).replace(/s$/, '') === w || new RegExp(`^${w}s? w/`).test(normName(m.node.name)));
+      if (kinds.length < 2 || kinds.some((k) => normName(k.node.name).replace(/s$/, '') === w)) {
+        plan.push({ i, parts: [{ o, n: l.count }] });
+        return;
+      }
+      // Weapons under this line that only some kinds carry decide how many of each.
+      const sub: number[] = [];
+      for (let k = i + 1; k < lines.length && lines[k]!.depth === 2; k++) sub.push(k);
+      const tokens = (s: string) => new Set(normName(s).replace(/s\b/g, '').split(/[^a-z0-9']+/).filter((t) => t && t !== w && t !== 'w'));
+      const suffix = (m: (typeof models)[number]) => tokens(normName(m.node.name).split(' w/ ')[1] ?? '');
+      const counts = new Map<(typeof models)[number], number>();
+      let left = l.count;
+      for (const k of sub) {
+        const g = lines[k]!;
+        const want = [...tokens(g.name)];
+        if (!want.length) continue;
+        const fits = kinds.filter((m) => want.every((t) => suffix(m).has(t)));
+        if (fits.length !== 1 || g.count >= l.count + 1) continue;
+        const n = Math.min(left, g.count);
+        if (n <= 0) continue;
+        counts.set(fits[0]!, (counts.get(fits[0]!) ?? 0) + n);
+        left -= n;
+        handled.add(k);
+      }
+      if (left > 0) {
+        const def = kinds.find((m) => !counts.has(m)) ?? kinds[0]!;
+        counts.set(def, (counts.get(def) ?? 0) + left);
+      }
+      plan.push({ i, parts: [...counts.entries()].map(([o2, n]) => ({ o: o2, n })) });
+    });
+    if (plan.length) {
+      unit = updateChildren(unit, [], (children) => children.filter((s) => root.children.find((c) => c.sel === s)?.node?.type !== 'model'));
+      refresh();
+      for (const { i, parts } of plan) {
+        for (const { o, n } of parts) {
+          const r = engine.unitInst(unit.id)!;
+          unit = { ...unit, selections: [...unit.selections, buildDefault(engine, r, o.node, o.groups, n)] };
+          refresh();
+          report.matched.push(`${parsed.name}: ${n}x ${o.node.name}`);
+        }
+        // Wargear lines go to the (first) kind; lines used to split kinds are already done.
+        modelOf.set(i, parts[0]!.o.node.key);
+      }
+    }
   }
 
-  let lineIdx = 0;
-  for (const line of parsed.lines) {
-    lineIdx++;
-    if (line.depth !== 1) continue;
-    const root = engine.unitInst(unit.id);
-    if (!root) break;
-    if (line.kind === 'attached') continue;
+  // 2. Warlord and Enhancement.
+  for (const line of lines) {
+    if (line.kind !== 'warlord' && line.kind !== 'enhancement') continue;
+    const root = engine.unitInst(unit.id)!;
     if (line.kind === 'warlord') {
       const o = findOption(engine, root, 'Warlord');
       if (o) {
@@ -253,51 +355,89 @@ export function importUnit(engineFor: (units: RosterUnit[]) => RosterEngine, oth
         refresh();
         report.matched.push(`${parsed.name}: Warlord`);
       } else report.unmatched.push(`${parsed.name}: Warlord`);
-      continue;
-    }
-    if (line.kind === 'enhancement') {
+    } else {
       const ok = setDeep(engine, unit, [], line.name, 1);
       if (ok) {
         unit = ok;
         refresh();
         report.matched.push(`${parsed.name}: ${line.name}`);
       } else report.unmatched.push(`${parsed.name}: Enhancement ${line.name}`);
-      continue;
     }
-    const o = findOption(engine, root, line.name);
-    if (!o) {
-      // Single-model units list wargear at the first level.
-      const ok = setDeep(engine, unit, [], line.name, line.count);
-      if (ok) {
-        unit = ok;
-        refresh();
-        report.matched.push(`${parsed.name}: ${line.name}`);
-      } else report.unmatched.push(`${parsed.name}: ${line.name}`);
-      continue;
+  }
+
+  // 3. Wargear: each model's lines say how many of those models carry each weapon.
+  const gear: { modelKey?: string; line: ParsedLine }[] = [];
+  let currentModel: string | undefined;
+  lines.forEach((l, i) => {
+    if (handled.has(i)) return;
+    if (modelOf.has(i)) {
+      currentModel = modelOf.get(i);
+      return;
     }
-    if (o.node.type === 'model') {
-      const sel = buildDefault(engine, root, o.node, o.groups, line.count);
-      unit = { ...unit, selections: [...unit.selections, sel] };
-      refresh();
-      const path: SelPath = [unit.selections.length - 1];
-      // Its wargear lines follow at depth 2.
-      for (let k = lineIdx; k < parsed.lines.length && parsed.lines[k]!.depth === 2; k++) {
-        const w = parsed.lines[k]!;
-        const ok = setDeep(engine, unit, path, w.name, Math.max(1, Math.round(w.count / Math.max(line.count, 1))));
-        if (ok) {
-          unit = ok;
-          refresh();
-        } else report.unmatched.push(`${parsed.name}: ${o.node.name} → ${w.name}`);
+    if (l.kind !== 'item') return;
+    if (l.depth === 1) currentModel = undefined;
+    gear.push({ modelKey: l.depth === 2 ? currentModel : undefined, line: l });
+  });
+  const applied = new Map<string, Set<string>>();
+  for (const { modelKey, line } of gear) {
+    const types = modelTypes(engine, unit.id);
+    const t = modelKey !== undefined ? types.find((x) => x.key === modelKey) : types.length === 1 ? types[0] : types.find((x) => !x.key);
+    const label = `${parsed.name}: ${line.count}x ${line.name}`;
+    if (t) {
+      if (matchName(line.name, t.fixed.map((f) => f.name))) {
+        report.matched.push(label);
+        continue;
       }
-      report.matched.push(`${parsed.name}: ${line.count}x ${o.node.name}`);
-    } else {
-      unit = setOptionCount(engine, unit, [], o.node.key, line.count);
-      refresh();
-      report.matched.push(`${parsed.name}: ${line.name}`);
+      const opts = [...t.groups.flatMap((g) => g.options.map((o) => ({ o, g }))), ...t.extras.map((o) => ({ o, g: undefined }))];
+      const hit = matchName(line.name, opts.map((x) => x.o.name));
+      if (hit) {
+        const { o, g } = opts.find((x) => x.o.name === hit)!;
+        // Only choices in the same group compete for a model (all of them carry the same pistol).
+        const slot = `${t.key}|${g?.key ?? o.key}`;
+        const avoid = applied.get(slot) ?? new Set<string>();
+        if (t.count <= 1 && line.count > 1) {
+          // One model carrying several (e.g. 2x Flamestorm Cannon on a tank).
+          const mi = t.key ? unit.selections.findIndex((x) => x.entryId === t.key) : -1;
+          unit = setOptionCount(engine, unit, mi >= 0 ? [mi] : [], o.key, line.count);
+        } else unit = setModelsWithOption(one, unit, t.key, o.key, line.count, g, avoid);
+        avoid.add(o.key);
+        applied.set(slot, avoid);
+        refresh();
+        report.matched.push(label);
+        continue;
+      }
     }
+    // Not a plain choice (e.g. inside a bundle like "Pistol and Melee Weapon"): look deeper.
+    const mi = modelKey ? unit.selections.findIndex((x) => x.entryId === modelKey) : -1;
+    const path: SelPath = mi >= 0 ? [mi] : [];
+    const perModel = mi >= 0 ? Math.max(1, Math.round(line.count / Math.max(1, unit.selections[mi]!.count))) : line.count;
+    const ok = setDeep(engine, unit, path, line.name, perModel);
+    if (ok) {
+      unit = ok;
+      refresh();
+      report.matched.push(label);
+    } else report.unmatched.push(label);
   }
   report.matched.push(`Unit: ${choice.name}`);
   return unit;
+}
+
+/** Best match for a wargear name among the data's names ("Chainsword" ↔ "Astartes Chainsword"). */
+export function matchName(want: string, names: string[]): string | undefined {
+  const w = normName(want);
+  const n = names.map((x) => ({ x, k: normName(x) }));
+  const sing = (s: string) => s.replace(/s\b/g, '');
+  return (
+    n.find((e) => e.k === w)?.x ??
+    n.find((e) => sing(e.k) === sing(w))?.x ??
+    n.find((e) => e.k.endsWith(` ${w}`) || w.endsWith(` ${e.k}`))?.x ??
+    n.find((e) => e.k.includes(w) || w.includes(e.k))?.x ??
+    n.find((e) => {
+      const a = sing(w).split(' ');
+      const b = new Set(sing(e.k).split(' '));
+      return a.length > 1 && a.every((t) => b.has(t));
+    })?.x
+  );
 }
 
 /** Find an option by name under a selection or any of its selected children, and set its count. */
@@ -315,16 +455,21 @@ function setDeep(engine: RosterEngine, unit: RosterUnit, path: SelPath, name: st
 
 export { PTS };
 
-/** Every name-like piece of the list's header (faction, sub-faction, detachments, disposition). */
-export function headerCandidates(parsed: ParsedList): string[] {
-  const out: string[] = [];
+/** Header lines split into name-like pieces, one array per line. */
+function headerPieces(parsed: ParsedList): string[][] {
+  const out: string[][] = [];
   for (const l of parsed.headerLines) {
     if (/incursion|strike force|onslaught/i.test(l)) continue;
     if (parsed.title && l.startsWith(parsed.title)) continue;
-    out.push(...headerParts(l.replace(/^(force )?disposition:\s*/i, '')));
+    out.push(headerParts(l.replace(/^(force )?disposition:\s*/i, '')));
   }
-  if (parsed.disposition) out.push(parsed.disposition);
-  return [...new Set(out)];
+  if (parsed.disposition) out.push([parsed.disposition]);
+  return out;
+}
+
+/** Every name-like piece of the list's header (faction, sub-faction, detachments, disposition). */
+export function headerCandidates(parsed: ParsedList): string[] {
+  return [...new Set(headerPieces(parsed).flat())];
 }
 
 /** The faction file the header names; the most specific match wins ("Black Templars" over "Space Marines"). */
@@ -337,25 +482,39 @@ export function matchFaction<T extends { name: string }>(parsed: ParsedList, fac
   return loose.sort((a, b) => b.name.length - a.name.length)[0];
 }
 
-/** Detachments and Force Disposition named anywhere in the header, matched against the data. */
+/**
+ * Detachments and Force Disposition named anywhere in the header, matched
+ * against the data. Pieces split on "and" are joined back when a name has
+ * "and" in it ("Legends of Saga and Song").
+ */
 export function matchConfig(parsed: ParsedList, choices: { detachments: { key: string; name: string }[]; dispositions: { key: string; name: string }[] }) {
-  const cands = headerCandidates(parsed);
   const detachments: { key: string; name: string }[] = [];
   let disposition: { key: string; name: string } | undefined;
-  const used = new Set<string>();
-  for (const c of cands) {
-    const n = normName(c);
-    const d = choices.detachments.find((x) => normName(x.name) === n);
-    if (d && !detachments.includes(d)) {
-      detachments.push(d);
-      used.add(c);
-      continue;
-    }
-    const p = choices.dispositions.find((x) => normName(x.name) === n);
-    if (p) {
-      disposition = p;
-      used.add(c);
+  const unused: string[] = [];
+  const find = <T extends { name: string }>(list: T[], name: string) => list.find((x) => normName(x.name) === normName(name));
+  for (const parts of headerPieces(parsed)) {
+    for (let i = 0; i < parts.length; ) {
+      let took = 0;
+      for (let n = Math.min(3, parts.length - i); n >= 1 && !took; n--) {
+        const name = parts.slice(i, i + n).join(' and ');
+        const d = find(choices.detachments, name);
+        if (d) {
+          if (!detachments.includes(d)) detachments.push(d);
+          took = n;
+          continue;
+        }
+        const p = find(choices.dispositions, name);
+        if (p) {
+          disposition = p;
+          took = n;
+        }
+      }
+      if (!took) {
+        unused.push(parts[i]!);
+        took = 1;
+      }
+      i += took;
     }
   }
-  return { detachments, disposition, unused: cands.filter((c) => !used.has(c)) };
+  return { detachments, disposition, unused: [...new Set(unused)] };
 }

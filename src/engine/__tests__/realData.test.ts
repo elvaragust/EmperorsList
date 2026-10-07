@@ -310,3 +310,35 @@ describe.skipIf(!have)('model kinds and per-model wargear counts', () => {
     }
   });
 });
+
+describe.skipIf(!have)('official app export with attached units', () => {
+  it('imports models, split kinds and wargear counts', async () => {
+    const { parseListText, importUnit, matchConfig } = await import('../listText');
+    const { modelTypes } = await import('../rules/modelTypes');
+    const index = load();
+    const bt = [...index.catalogues.values()].find((c) => /Black Templars/.test(c.name))!;
+    const roots = rootOptions(index, bt.id);
+    const parsed = parseListText(readFileSync(join(__dirname, 'fixtures/official-app-export.txt'), 'utf8'));
+    let roster = blank(bt.id);
+    roster = setBattleSize(new RosterEngine(index, roster, roots), roster, 'strikeForce');
+    const ch = configChoices(new RosterEngine(index, roster, roots));
+    const cfg = matchConfig(parsed, ch);
+    roster = setDetachments(new RosterEngine(index, roster, roots), roster, cfg.detachments.map((d) => d.key));
+    const report = { matched: [] as string[], unmatched: [] as string[] };
+    const units: ReturnType<typeof blank>['units'] = [];
+    for (const pu of parsed.units) {
+      const u = importUnit((us) => new RosterEngine(index, { ...roster, units: us }, roots), units, pu, report);
+      if (u) units.push(u);
+    }
+    const e = new RosterEngine(index, { ...roster, units }, roots);
+    const desc = (name: string) =>
+      modelTypes(e, units.find((u) => u.name === name)!.id)
+        .filter((t) => t.count)
+        .map((t) => `${t.count} ${t.name}: ${t.groups.flatMap((g) => g.options.filter((o) => o.carried).map((o) => `${o.carried} ${o.name}`)).join(', ')}`);
+    expect(units).toHaveLength(9);
+    expect(report.unmatched.filter((u) => /^Unit:/.test(u))).toEqual([]);
+    expect(desc('Crusader Squad').join(' | ')).toMatch(/3 Initiate w\/Chainsword.*2 Initiate w\/Power Fist.*4 Neophyte w\/ Astartes Chainsword/);
+    expect(desc('Assault Intercessor Squad').join(' | ')).toMatch(/1 Assault Intercessor Sergeant:.*1 Thunder Hammer/);
+    expect(desc('Sword Brethren Squad').join(' | ')).toMatch(/1 Thunder Hammer, 4 Master-crafted Power Weapon/);
+  });
+});

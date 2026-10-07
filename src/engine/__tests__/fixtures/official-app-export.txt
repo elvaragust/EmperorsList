@@ -1,0 +1,95 @@
+vla (1100 points)
+
+Space Marines
+Black Templars
+Assault Brethren, Ironstorm Spearhead and Marshal's Household (3 Detachment Points)
+Purge the Foe
+Strike Force (2000 points)
+
+Attached Units
+Attached Unit 1
+
+Emperor's Champion (100 points)
+• Attached as: Leader (Character)
+  • Warlord
+  • 1x Black Sword
+    1x Bolt Pistol
+
+Assault Intercessor Squad (85 points)
+• Attached as: Bodyguard (Battleline)
+  • 4x Assault Intercessor
+    • 4x Chainsword
+      4x Heavy Bolt Pistol
+  • 1x Assault Intercessor Sergeant
+    • 1x Heavy Bolt Pistol
+      1x Thunder Hammer
+
+Attached Unit 2
+
+High Marshal Helbrecht (125 points)
+• Attached as: Leader (Character)
+  • 1x Ferocity
+    1x Sword of the High Marshals
+
+Crusader Squad (170 points)
+• Attached as: Bodyguard (Battleline)
+  • Enhancement: Furious Assault (Upgrade)
+  • 1x Sword Brother
+    • 1x Heavy Bolt Pistol
+      1x Master-crafted Power Weapon
+  • 5x Initiate
+    • 5x Bolt Pistol
+      5x Close combat weapon
+      5x Heavy Bolt Pistol
+      3x Initiate Chainsword
+      2x Power Fist
+  • 4x Neophyte
+    • 4x Bolt Pistol
+      4x Neophyte Chainsword
+
+Attached Unit 3
+
+Chaplain on Bike (75 points)
+• Attached as: Leader (Character)
+  • 1x Absolvor Bolt Pistol
+    1x Crozius Arcanum
+    1x Twin Bolt Rifle
+
+Outrider Squad (80 points)
+• Attached as: Bodyguard
+  • 2x Outrider
+    • 2x Chainsword
+      2x Heavy Bolt Pistol
+      2x Twin Bolt Rifle
+  • 1x Outrider Sergeant
+    • 1x Heavy Bolt Pistol
+      1x Thunder Hammer
+      1x Twin Bolt Rifle
+
+
+CHARACTERS
+
+Techmarine (55 points)
+  • 1x Forge Bolter
+    1x Grav-pistol
+    1x Omnissian Power Axe and Servo-arm
+
+
+OTHER DATASHEETS
+
+Land Raider Redeemer (270 points)
+  • 1x Armoured Tracks
+    2x Flamestorm Cannon
+    1x Hunter-killer Missile
+    1x Multi-melta
+    1x Storm Bolter
+    1x Twin Assault Cannon
+  • Enhancement: Redoubtable Machine Spirit (Upgrade)
+
+Sword Brethren Squad (140 points)
+  • 5x Sword Brother
+    • 5x Heavy Bolt Pistol
+      4x Master-crafted Power Weapon
+      1x Thunder Hammer
+
+Exported with App Version: v2.7.1 (146), Data Version: v972

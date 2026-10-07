@@ -138,7 +138,7 @@ const clone = (s: Selection): Selection => ({ ...s, children: s.children.map(clo
  * choice out; taking the option away puts the group's default back), then
  * identical models are merged again and the rules' requirements filled in.
  */
-export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, modelKey: string, optionKey: string, n: number, group?: ModelGroup): RosterUnit {
+export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, modelKey: string, optionKey: string, n: number, group?: ModelGroup, avoid?: Set<string>): RosterUnit {
   // The unit itself is the model (characters, vehicles).
   if (!modelKey) {
     let u = setOptionCount(engineFor(unit), unit, [], optionKey, n > 0 ? 1 : 0);
@@ -159,7 +159,9 @@ export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, 
   const has = (eng: RosterEngine, i: number) => Boolean(instAt(eng, u.id, [i])?.children.some((c) => c.node?.key === optionKey && c.count > 0));
   let eng = engineFor(u);
   const withIt = idx.filter((i) => has(eng, i));
-  const without = idx.filter((i) => !has(eng, i));
+  // Models already given another of these choices (e.g. during an import) are changed last.
+  const busy = (i: number) => Boolean(avoid?.size && instAt(eng, u.id, [i])?.children.some((c) => c.count > 0 && avoid.has(c.node?.key ?? '')));
+  const without = idx.filter((i) => !has(eng, i)).sort((a, b) => Number(busy(a)) - Number(busy(b)));
   const target = Math.max(0, Math.min(n, idx.length));
   if (target > withIt.length) {
     for (const i of without.slice(0, target - withIt.length)) {
