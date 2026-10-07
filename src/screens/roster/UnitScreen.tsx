@@ -7,19 +7,18 @@ import { autoFill, instAt, setForWholeUnit, setOptionCount, type SelPath } from 
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { modelTypes, setModelsWithOption, type ModelGroup, type ModelOption, type ModelType } from '@/engine/rules/modelTypes';
 import { RosterEngine, WARLORD_CATEGORY, type OptionView } from '@/engine/rules/rosterEngine';
-import type { RawProfile } from '@/engine/bsdata/raw';
 import type { DataIndex } from '@/engine/bsdata/index';
 import { GearDetails, hasGearInfo } from '@/ui/GearDetails';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Collapse } from '@/ui/Collapse';
-import { AbilityList, DatasheetView } from '@/ui/DatasheetView';
+import { DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
-import { leaderBuffTag } from './combined';
 import { OptionList } from './WargearEditor';
+import { combinedModels } from './combined';
 
 /**
  * One page per unit, laid out like the official app: the unit and its points,
@@ -34,7 +33,6 @@ export function UnitScreen() {
   useFactionTheme(roster?.factionName);
   const [menu, setMenu] = useState(false);
   const [leadPicker, setLeadPicker] = useState(false);
-  const [showSheet, setShowSheet] = useState(false);
 
   const unit = roster?.units.find((u) => u.id === unitId);
   const leading = unit?.leaderOf ? roster?.units.find((u) => u.id === unit.leaderOf) : undefined;
@@ -90,14 +88,12 @@ export function UnitScreen() {
     commit(u);
   };
 
-  const leaderAbilities: { from: string; abilities: RawProfile[] }[] = [];
-  if (engine) {
-    for (const a of attached) {
-      const inst = engine.unitInst(a.id);
-      if (!inst) continue;
-      leaderAbilities.push({ from: a.nickname || a.name, abilities: datasheet(engine, inst).abilities.filter((x) => x.name !== 'Leader') });
-    }
-  }
+  const leaderSheets = engine
+    ? attached.flatMap((a) => {
+        const inst = engine.unitInst(a.id);
+        return inst ? [{ name: a.nickname || a.name, sheet: datasheet(engine, inst) }] : [];
+      })
+    : [];
 
   return (
     <Screen
@@ -121,7 +117,7 @@ export function UnitScreen() {
           </div>
         </div>
         <span className="pts-chip">{pts} pts</span>
-        <button className="icon-btn" aria-label="Datasheet" title="Datasheet" onClick={() => setShowSheet(true)}>
+        <button className="icon-btn" aria-label="Datasheet" title="Datasheet" onClick={() => document.getElementById('datasheet')?.scrollIntoView({ behavior: 'smooth' })}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
             <path d="M14 3v6h6M8 13h8M8 17h8" />
@@ -264,24 +260,27 @@ export function UnitScreen() {
         </Collapse>
       )}
 
-      {leaderAbilities.length > 0 && (
-        <Collapse title="Attached characters" defaultOpen>
-          {leaderAbilities.map((l) => (
-            <div key={l.from}>
-              <div className="small muted" style={{ marginTop: 6 }}>
-                {l.from}
-              </div>
-              <AbilityList abilities={l.abilities} index={index} highlight={leaderBuffTag} />
+      {attached.length > 0 && (
+        <div className="card attached-row">
+          {attached.map((a) => (
+            <div key={a.id} className="row" style={{ alignItems: 'center' }}>
+              <Link to={`/roster/${roster.id}/unit/${a.id}`} style={{ flex: 1 }}>
+                <span className="muted small">Led by </span>
+                <strong>{a.nickname || a.name}</strong>
+              </Link>
+              <button className="btn btn-sm btn-ghost" onClick={() => save((r) => ({ ...r, units: r.units.map((x) => (x.id === a.id ? { ...x, leaderOf: undefined } : x)) }))}>
+                Detach
+              </button>
             </div>
           ))}
-          <div className="btn-row">
-            {attached.map((a) => (
-              <button key={a.id} className="btn btn-sm" onClick={() => save((r) => ({ ...r, units: r.units.map((x) => (x.id === a.id ? { ...x, leaderOf: undefined } : x)) }))}>
-                Detach {a.nickname || a.name}
-              </button>
-            ))}
-          </div>
-        </Collapse>
+        </div>
+      )}
+
+      {sheet && ownModels && (
+        <div id="datasheet" style={{ marginTop: 14 }}>
+          <div className="section-label">Datasheet{attached.length ? ` · with ${attached.map((a) => a.nickname || a.name).join(' & ')}` : ''}</div>
+          <DatasheetView sheet={sheet} weapons={[...(engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels).weapons.values()]} index={index} attached={leaderSheets} />
+        </div>
       )}
 
       <div className="sticky-bar">
@@ -296,9 +295,6 @@ export function UnitScreen() {
         </Link>
       </div>
 
-      <Sheet open={showSheet} onClose={() => setShowSheet(false)} title={unit.name}>
-        {sheet && ownModels && <DatasheetView sheet={sheet} weapons={[...ownModels.weapons.values()]} index={index} />}
-      </Sheet>
 
       <Sheet open={leadPicker} onClose={() => setLeadPicker(false)} title="Attach to">
         {targets.length === 0 && <p className="muted">No unit in this list can take this character. Add one of the units its Leader ability lists.</p>}

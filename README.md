@@ -49,13 +49,14 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 
 ### Changing a unit
 Open a unit from the list. Everything is on one page, like the official app:
-- **Top:** the unit's points and model count. The 📄 button opens the full datasheet.
+- **Top:** the unit's points and model count. The 📄 button jumps to the datasheet at the bottom of the page.
 - **Warlord** switch and **Unit enhancements** (tap to open; pick *None* or tap the chosen one again to remove it).
 - **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many. A model the unit must have but is missing (e.g. the Sergeant) also gets + / − so you can add it.
 - **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
 - **▾ next to a weapon or enhancement** opens what it does: the weapon's profile (range, attacks, BS/WS, S, AP, D and its abilities) or the enhancement's rules text — so you can compare before you pick.
 - When a squad must all carry the same weapon, changing it on one model changes the whole unit.
 - Options that bundle choices (e.g. *Pistol and Melee Weapon*) open their own choices underneath once picked — which pistol, which melee weapon.
+- **Datasheet** at the bottom: one profile table (identical models merged), weapons, then every ability in one list — including those of a character leading the unit, tagged with its name. Who a character can join (Leader / Support) and the keywords are folded away in the last bar. The battle screen and the Reference use the same layout.
 - The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
 
 **Adding units:** the list is split into *Characters*, *Battleline*, *Dedicated Transports*, *Other datasheets* (everything else) and *Allied units* (units from another faction your army may take, e.g. Agents of the Imperium), each with its points and a **+** that opens *Add unit* filtered to that section. In *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.

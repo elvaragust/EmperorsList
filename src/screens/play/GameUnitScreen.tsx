@@ -5,10 +5,10 @@ import { db } from '@/data/db';
 import { useRosterEngine } from '@/data/gameData';
 import { datasheet } from '@/engine/rules/models';
 import { useFactionTheme } from '@/theme/themes';
-import { AbilityList, DatasheetView } from '@/ui/DatasheetView';
+import { DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
-import { combinedModels, leaderBuffTag } from '../roster/combined';
+import { combinedModels } from '../roster/combined';
 import { saveGame, withLog } from './games';
 
 /** Casualty tracking for one unit (with its attached characters) during a game. */
@@ -69,17 +69,17 @@ export function GameUnitScreen() {
       )}
       <WeaponGridView loadouts={models.loadouts} models={models.models} weapons={models.weapons} dead={dead} onToggle={toggle} wounds={wounds} onWound={setWound} />
       <p className="small muted">Tap a row to see each model: − / + tracks its wounds (losing the last one removes it).</p>
-      {group.slice(1).map((l) => {
-        const li = engine.unitInst(l.id);
-        const ds = li ? datasheet(engine, li) : undefined;
-        return ds ? (
-          <div key={l.id}>
-            <div className="section-label">From {l.name}</div>
-            <AbilityList abilities={ds.abilities.filter((a) => a.name !== 'Leader')} index={index} highlight={leaderBuffTag} />
-          </div>
-        ) : null;
-      })}
-      {sheet && <DatasheetView sheet={sheet} weapons={[...models.weapons.values()]} index={index} />}
+      {sheet && (
+        <DatasheetView
+          sheet={sheet}
+          weapons={[...models.weapons.values()]}
+          index={index}
+          attached={group.slice(1).flatMap((l) => {
+            const li = engine.unitInst(l.id);
+            return li ? [{ name: l.nickname || l.name, sheet: datasheet(engine, li) }] : [];
+          })}
+        />
+      )}
     </Screen>
   );
 }
