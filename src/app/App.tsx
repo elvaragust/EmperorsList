@@ -25,6 +25,7 @@ import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { RulePopupProvider } from '@/ui/RulePopup';
 import { DataBanner } from '@/ui/DataBanner';
 import { ToastHost } from '@/ui/Toast';
+import { SplitRoute } from '@/ui/layout';
 import { PinnedScreen } from '@/screens/reference/PinnedScreen';
 import { useEffect } from 'react';
 import { startupSync } from '@/data/bootstrap';
@@ -41,18 +42,21 @@ export function App() {
   return (
     <RulePopupProvider>
       <div className="shell">
+        <TabBar />
+        <div className="shell-main">
         <DataBanner />
         <Routes>
           <Route path="/" element={<Navigate to="/lists" replace />} />
           <Route path="/lists" element={<ListsScreen />} />
           <Route path="/new" element={<NewListScreen />} />
           <Route path="/import" element={<ImportScreen />} />
-          <Route path="/roster/:id" element={<RosterScreen />} />
-          <Route path="/roster/:id/add" element={<AddUnitScreen />} />
-          <Route path="/roster/:id/army" element={<ArmyScreen />} />
-          <Route path="/roster/:id/export" element={<ExportScreen />} />
+          <Route path="/roster/:id" element={<SplitRoute main={<RosterScreen />} />}>
+            <Route path="add" element={<AddUnitScreen />} />
+            <Route path="army" element={<ArmyScreen />} />
+            <Route path="export" element={<ExportScreen />} />
+            <Route path="unit/:unitId" element={<UnitScreen />} />
+          </Route>
           <Route path="/roster/:id/print" element={<PrintScreen />} />
-          <Route path="/roster/:id/unit/:unitId" element={<UnitScreen />} />
           <Route path="/reference" element={<ReferenceScreen />} />
           <Route path="/reference/core" element={<CoreRulesScreen />} />
           <Route path="/reference/pinned" element={<PinnedScreen />} />
@@ -62,14 +66,15 @@ export function App() {
           <Route path="/play/new" element={<NewGameScreen />} />
           <Route path="/play/join" element={<JoinScreen />} />
           <Route path="/play/layouts" element={<LayoutsScreen />} />
-          <Route path="/play/:gameId" element={<GameScreen />} />
-          <Route path="/play/:gameId/unit/:unitId" element={<GameUnitScreen />} />
-          <Route path="/play/:gameId/opp/:playerId/:idx" element={<OpponentUnitScreen />} />
+          <Route path="/play/:gameId" element={<SplitRoute main={<GameScreen />} />}>
+            <Route path="unit/:unitId" element={<GameUnitScreen />} />
+            <Route path="opp/:playerId/:idx" element={<OpponentUnitScreen />} />
+          </Route>
           <Route path="/collection" element={<CollectionScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/lists" replace />} />
         </Routes>
-        <TabBar />
+        </div>
         <ToastHost />
       </div>
     </RulePopupProvider>

@@ -312,6 +312,8 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       ) : (
         <Status room={room} />
       )}
+      <div className="game-layout">
+      <div className="game-controls">
       <RoundBar round={state.round} disabled={!mayAdvance} onPick={(r) => dispatch({ t: 'round', round: r })} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontWeight: 600 }}>
@@ -356,7 +358,9 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       </div>
 
       <NotesPanel gameId={game.id} notes={game.notes} />
+      </div>
 
+      <div className="game-main">
       <div className="seg" role="tablist">
         {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
@@ -471,6 +475,8 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
           </div>
         </>
       )}
+      </div>
+      </div>
 
       <Sheet open={menu} onClose={() => setMenu(false)} title="Game">
         {isHost ? (
