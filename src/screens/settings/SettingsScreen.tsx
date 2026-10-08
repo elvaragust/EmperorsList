@@ -136,9 +136,9 @@ export function SettingsScreen() {
           </div>
           <Choice k="labelStyle" value={look.labelStyle} options={[['dotted', 'Dotted box'], ['bold', 'Bold'], ['underline', 'Underline']]} />
           <div className="small muted" style={{ marginTop: 8 }}>
-            Layout width (for laptops and tablets)
+            Layout on laptops and tablets
           </div>
-          <Choice k="width" value={look.width} options={[['phone', 'Phone column'], ['wide', 'Wide']]} />
+          <Choice k="layout" value={look.layout} options={[['auto', 'Fit the screen'], ['phone', 'Phone column']]} />
         </div>
       </div>
 

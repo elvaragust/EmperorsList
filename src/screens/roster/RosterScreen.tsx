@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
@@ -58,7 +58,7 @@ export function RosterScreen() {
     const unitIssues = issues.filter((i) => i.unitId === u.id).length;
     return (
       <div key={u.id}>
-        <Link className={`unit-row ${isLed ? 'led' : ''}`} to={`/roster/${roster.id}/unit/${u.id}`}>
+        <NavLink className={({ isActive }) => `unit-row ${isLed ? 'led' : ''}${isActive ? ' active' : ''}`} to={`/roster/${roster.id}/unit/${u.id}`}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 17 }}>
               {u.nickname || u.name}
@@ -75,7 +75,7 @@ export function RosterScreen() {
             {unitIssues > 0 && <div className="small issue-title">{unitIssues === 1 ? '1 issue' : `${unitIssues} issues`}</div>}
           </div>
           <span className="pts">{pts}</span>
-        </Link>
+        </NavLink>
         {attached.map((a) => unitLine(a, true))}
       </div>
     );
@@ -149,6 +149,7 @@ export function RosterScreen() {
         </>
       )}
 
+      <div className="role-grid">
       {sections.map(([role, list]) => {
         const pts = list.reduce((s, u) => s + (engine?.unitPoints(u.id) ?? u.points) + roster.units.filter((a) => a.leaderOf === u.id).reduce((t, a) => t + (engine?.unitPoints(a.id) ?? a.points), 0), 0);
         return (
@@ -164,6 +165,7 @@ export function RosterScreen() {
           </div>
         );
       })}
+      </div>
       <div style={{ marginTop: 16 }}>
         <Link className="btn btn-primary btn-block" to={`/roster/${roster.id}/add`}>
           Add unit

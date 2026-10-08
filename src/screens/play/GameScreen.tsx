@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
@@ -271,6 +271,8 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
         </button>
       }
     >
+      <div className="game-layout">
+      <div className="game-controls">
       <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontWeight: 600 }}>{game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`}</span>
@@ -306,7 +308,9 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
       </div>
 
       <NotesPanel gameId={game.id} notes={game.notes} />
+      </div>
 
+      <div className="game-main">
       <div className="seg" role="tablist">
         {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
@@ -362,14 +366,14 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
       {tab === 'units' && (
         <div className="card">
           {unitsLeft.map(({ u, group, total, dead }) => (
-            <Link key={u.id} className="unit-row" to={`/play/${game.id}/unit/${u.id}`}>
+            <NavLink key={u.id} className={({ isActive }) => `unit-row${isActive ? ' active' : ''}`} to={`/play/${game.id}/unit/${u.id}`}>
               <span style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, textDecoration: dead >= total ? 'line-through' : undefined }}>{group.map((x) => x.nickname || x.name).join(' + ')}</div>
                 <div className="muted small">
                   {total - dead}/{total} models
                 </div>
               </span>
-            </Link>
+            </NavLink>
           ))}
         </div>
       )}
@@ -418,6 +422,8 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
           </div>
         </>
       )}
+      </div>
+      </div>
 
       <Sheet open={ending} onClose={() => setEnding(false)} title="End the game?">
         <p>

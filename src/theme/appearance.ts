@@ -8,15 +8,18 @@ export interface Appearance {
   textSize: 'normal' | 'large' | 'xlarge';
   titleFont: 'gothic' | 'serif' | 'plain';
   labelStyle: 'dotted' | 'bold' | 'underline';
-  width: 'phone' | 'wide';
+  /** 'auto' = adapt to the screen (sidebar and side-by-side panes on a PC); 'phone' = always the phone column. */
+  layout: 'auto' | 'phone';
 }
 
 const KEY = 'emperorslist.appearance';
-const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', width: 'phone' };
+const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', layout: 'auto' };
 
 function load(): Appearance {
   try {
-    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Appearance>) };
+    // Older versions had a 'width' setting that defaulted to the phone column; it's ignored so everyone gets the adaptive layout.
+    const { width: _old, ...saved } = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Appearance> & { width?: string };
+    return { ...DEFAULTS, ...saved };
   } catch {
     return DEFAULTS;
   }
@@ -50,7 +53,7 @@ export function applyAppearance() {
   const root = document.documentElement;
   root.dataset.text = current.textSize;
   root.dataset.titleFont = current.titleFont;
-  root.dataset.width = current.width;
+  root.dataset.layout = current.layout;
   if (current.themeMode === 'fixed') {
     if (current.fixedTheme) root.dataset.theme = current.fixedTheme;
     else delete root.dataset.theme;
