@@ -94,7 +94,7 @@ export function parseMissionDeck(html, names = deckNames()) {
       if (/\bfixed\b/i.test(line)) cur.tags.add('fixed');
       continue;
     }
-    cur.lines.push(line.replace(/([^\s+])(\+?\d+VP)/g, '$1 — $2').replace(/VP(CUMULATIVE)/g, 'VP · $1'));
+    cur.lines.push(line.replace(/([^\s+])(\+?\d+VP)/g, '$1 — $2').replace(/VP(FIXED|TACTICAL)/g, 'VP · $1').replace(/VP(CUMULATIVE)/g, 'VP · $1'));
   }
   flush();
   return [...cards.values()];

@@ -162,7 +162,7 @@ export function MissionsPanel({
       )}
       {mode === 'fixed' &&
         (list(game.secondaries?.me).length ? (
-          list(game.secondaries?.me).map((n) => <ScoreCard key={n} name={n} cards={cards} round={round} onAdd={(vp) => onVp('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} />)
+          list(game.secondaries?.me).map((n) => <ScoreCard key={n} mode="fixed" name={n} cards={cards} round={round} onAdd={(vp) => onVp('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} />)
         ) : (
           <p className="muted small">No Fixed cards chosen.</p>
         ))}
@@ -184,6 +184,7 @@ export function MissionsPanel({
           {t.active.map((n) => (
             <ScoreCard
               key={n}
+              mode="tactical"
               name={n}
               cards={cards}
               round={round}
