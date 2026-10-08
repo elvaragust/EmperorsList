@@ -63,7 +63,9 @@ export function ScoreCard({
   onAdd,
   addLabel = 'Add',
   footer,
+  mode,
 }: {
+  mode?: 'fixed' | 'tactical';
   name: string;
   cards: Map<string, CardInfo>;
   round: number;
@@ -72,7 +74,13 @@ export function ScoreCard({
   footer?: React.ReactNode;
 }) {
   const c = cards.get(name.toLowerCase());
-  const parsed = useMemo(() => (c ? parseCard(c.text) : undefined), [c]);
+  const parsed = useMemo(() => {
+    if (!c) return undefined;
+    const p = parseCard(c.text);
+    // Lines tagged FIXED / TACTICAL only count in that mode.
+    if (mode) p.sections = p.sections.map((s) => ({ ...s, items: s.items.filter((it) => !it.mode || it.mode === mode) }));
+    return p;
+  }, [c, mode]);
   const [counts, setCounts] = useState<Record<string, number[]>>({});
   const [more, setMore] = useState(false);
   const [open, setOpen] = useState(true);

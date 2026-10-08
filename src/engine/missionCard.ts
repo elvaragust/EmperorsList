@@ -12,6 +12,8 @@ export interface ScoreItem {
   cap?: number;
   /** Line starting with "+": adds to the line above. */
   bonus?: boolean;
+  /** Line only applies when secondaries are used Fixed / Tactical. */
+  mode?: 'fixed' | 'tactical';
 }
 
 export interface CardSection {
@@ -31,7 +33,7 @@ export interface ParsedCard {
 }
 
 const ORD: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5 };
-const ROUND_HEAD = /^(?:(first|second|third|fourth|fifth|any)(?:\s*(?:,|and|or)\s*(first|second|third|fourth|fifth))*\s+battle rounds?(?:\s+onwards)?|end of the battle|end of battle)$/i;
+const ROUND_HEAD = /^(?:(first|second|third|fourth|fifth|any)(?:\s*(?:,|and|or|to)\s*(first|second|third|fourth|fifth))*\s+battle rounds?(?:\s+onwards)?|end of the battle|end of battle)$/i;
 
 export function roundsOf(title: string): { from: number; to: number } {
   const t = title.toLowerCase();
@@ -70,11 +72,16 @@ export function parseCard(text: string): ParsedCard {
       cur.when = when[1];
       continue;
     }
-    const vp = line.match(/^(\+?)(.*?)\s*(?:—\s*)?\+?(\d+)\s*VP\b(.*)$/i);
+    const vp = line.match(/^(\+?)(.*?)\s*(?:—\s*)?\+?(\d+)\s*VP(.*)$/i);
     if (vp && /\d+\s*VP/i.test(line)) {
       const body = vp[2]!.replace(/^\+/, '').trim();
-      const cap = vp[4]!.match(/up to\s*(\d+)\s*VP/i);
-      cur.items.push({ text: body, vp: Number(vp[3]), each: /^for (each|every)\b/i.test(plain(body)), cap: cap ? Number(cap[1]) : undefined, bonus: vp[1] === '+' || /^\+/.test(line) });
+      // Suffix tags glued on by the source: "3VPFIXED", "+1VPFIXEDCUMULATIVE", "VP · CUMULATIVE".
+      let rest = vp[4]!;
+      const tags: string[] = [];
+      for (let m; (m = rest.match(/^[\s·]*(FIXED|TACTICAL|CUMULATIVE)/i)); rest = rest.slice(m[0].length)) tags.push(m[1]!.toLowerCase());
+      const cap = rest.match(/up to\s*(\d+)\s*VP/i);
+      const mode = tags.includes('fixed') ? 'fixed' : tags.includes('tactical') ? 'tactical' : undefined;
+      cur.items.push({ text: body, vp: Number(vp[3]), each: /^for (each|every)\b/i.test(plain(body)), cap: cap ? Number(cap[1]) : undefined, bonus: vp[1] === '+' || /^\+/.test(line) || tags.includes('cumulative'), mode });
       continue;
     }
     cur.lines.push(line);
