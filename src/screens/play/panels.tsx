@@ -12,7 +12,7 @@ import { armyRules, detachmentRules } from '@/engine/rules/armyRules';
 import { ruleText } from '@/engine/rules/nodes';
 import { RulesText } from '@/ui/RulesText';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
-import { stratagemFits, stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
+import { sameName, stratagemFits, stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
 import { RuleLabel } from '@/ui/RuleLabel';
 import { useRulePopup } from '@/ui/RulePopup';
 
@@ -217,10 +217,10 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
       return { name: r.name, text: wp?.text ?? ruleText(r), wp: Boolean(wp) };
     });
     const dets = engine.roster.detachmentNames ?? [];
-    const wpDet = (imported ?? []).filter((r) => r.kind === 'detachmentRule' && dets.some((d) => d.toLowerCase() === (r.detachment ?? '').toLowerCase()));
+    const wpDet = (imported ?? []).filter((r) => r.kind === 'detachmentRule' && dets.some((d) => sameName(d, r.detachment ?? '')));
     const fromData = detachmentRules(engine);
     const detRules = dets.map((d) => {
-      const wp = wpDet.filter((r) => (r.detachment ?? '').toLowerCase() === d.toLowerCase());
+      const wp = wpDet.filter((r) => sameName(r.detachment ?? '', d));
       return { detachment: d, rules: wp.length ? wp.map((r) => ({ name: r.name, text: r.text, wp: true })) : fromData.filter((r) => r.detachment === d).map((r) => ({ name: r.name, text: r.text, wp: false })) };
     });
     return { army, detRules };
