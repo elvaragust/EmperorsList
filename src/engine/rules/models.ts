@@ -1,3 +1,4 @@
+import { isRetiredRule } from '../bsdata/retired';
 import type { RawProfile, RawRule } from '../bsdata/raw';
 import { toWeapon } from '../loadouts';
 import type { ModelInstance, ModelLoadout, WeaponProfile } from '../types';
@@ -128,7 +129,7 @@ export function datasheet(engine: RosterEngine, inst: Inst): Datasheet {
       else if (p.typeName === 'Abilities') abilities.set(p.name, p);
       else if (p.typeName !== 'Ranged Weapons' && p.typeName !== 'Melee Weapons') other.set(p.name, p);
     }
-    info.rules.forEach((r) => !r.hidden && rules.set(r.name, r));
+    info.rules.forEach((r) => !r.hidden && !isRetiredRule(r.name) && rules.set(r.name, r));
     i.children.forEach((c) => visit(c, depth + 1));
   };
   visit(inst, 0);

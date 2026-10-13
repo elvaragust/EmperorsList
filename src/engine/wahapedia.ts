@@ -1,3 +1,4 @@
+import { isRetiredRule } from './bsdata/retired';
 /**
  * Wahapedia export files (pipe-separated CSV) -> rules the app can show.
  * Used only for what BSData doesn't carry, mainly Stratagems. The files are
@@ -152,7 +153,7 @@ export function importWahapedia(files: WahapediaFiles): ImportedRule[] {
   }
   if (files.abilities) {
     for (const r of parsePipeCsv(files.abilities)) {
-      if (!r.name || !r.description) continue;
+      if (!r.name || !r.description || isRetiredRule(r.name)) continue;
       out.push({
         id: `wp-a-${r.id || `${r.faction_id}-${r.name}`}`,
         kind: 'armyRule',
