@@ -189,21 +189,47 @@ export function stratagemFits(r: ImportedRule, phase: (typeof PHASES)[number], t
  * faction's general ones. Matching is by name; the same stratagem listed more
  * than once (Wahapedia repeats core ones) is kept once.
  */
+/** Compare names without punctuation: Wahapedia writes "Marshal’s Household", the data "Marshal's Household". */
+export const sameName = (a: string, b: string) => norm(a) === norm(b);
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
 export function stratagemsFor(all: ImportedRule[], detachmentNames: string[], factionHints: string[]): ImportedRule[] {
-  const dets = detachmentNames.map((d) => d.toLowerCase());
+  const dets = detachmentNames.map(norm);
   const hints = factionHints.map((h) => h.toLowerCase()).filter((h) => h.length > 2);
+  const strats = all.filter((r) => r.kind === 'stratagem' && isPlayableStratagem(r));
+  // Wahapedia keeps the previous edition's core set ("Core – Battle Tactic Stratagem")
+  // next to the current one ("Core Stratagem"); use the current one when it's there.
+  const current = strats.some((r) => isCore(r) && /^core stratagem/i.test(r.type ?? ''));
   const seen = new Set<string>();
-  return all.filter((r) => {
-    if (r.kind !== 'stratagem') return false;
-    const det = (r.detachment ?? '').toLowerCase();
-    const core = !det && (/core/i.test(r.type ?? '') || r.factionId === '' || /core/i.test(r.faction));
-    const ok = (det && dets.includes(det)) || core || (!det && hints.some((h) => r.faction.toLowerCase() === h || r.faction.toLowerCase().includes(h)));
+  return strats.filter((r) => {
+    const det = norm(r.detachment ?? '');
+    const core = isCore(r);
+    if (core && current && !/^core stratagem/i.test(r.type ?? '')) return false;
+    const ok = (det && dets.includes(det)) || core || (!det && r.factionId !== '' && hints.some((h) => r.faction.toLowerCase() === h || r.faction.toLowerCase().includes(h)));
     if (!ok) return false;
-    const key = `${r.name.toLowerCase()}|${r.cp ?? ''}|${core ? 'core' : det}`;
+    const key = `${r.name.toLowerCase().replace(/[^a-z]/g, '')}|${core ? 'core' : det}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+/** Core stratagems: no faction, no detachment, typed "Core …". */
+function isCore(r: ImportedRule): boolean {
+  return !r.detachment && r.factionId === '' && /^core\b/i.test(r.type ?? '');
+}
+
+/**
+ * Wahapedia's stratagem table also holds things you can't use in a normal game:
+ * the core actions of the edition ("Normal Fight", "Pile-in Move"), Boarding
+ * Actions and Challenger cards, and Crusade stratagems.
+ */
+function isPlayableStratagem(r: ImportedRule): boolean {
+  const type = r.type ?? '';
+  if (type && !/stratagem/i.test(type)) return false;
+  if (/^(boarding actions|challenger|crusade)\b/i.test(type)) return false;
+  if (/^ability\b/i.test(r.phase ?? '')) return false;
+  return true;
 }
 
 export interface CoreSection {

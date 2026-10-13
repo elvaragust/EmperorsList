@@ -6,6 +6,7 @@ import { importWahapedia, parsePipeCsv, stratagemFits, stratagemsFor } from '../
 import { baseRuleName } from '../rules/glossary';
 import { shortCode } from '../loadouts';
 import type { Roster } from '../types';
+import type { ImportedRule } from '../wahapedia';
 
 describe('turn order', () => {
   it('runs phases, swaps turns, then rounds, and ends after round 5', () => {
@@ -103,6 +104,24 @@ describe('Wahapedia import', () => {
     expect(stratagemFits(rules[0]!, 'shooting', 'them')).toBe(true);
     expect(stratagemFits(rules[0]!, 'charge', 'me')).toBe(false);
     expect(stratagemFits(rules[1]!, 'charge', 'me')).toBe(true);
+  });
+});
+
+describe('stratagems for an army', () => {
+  const row = (name: string, type: string, extra: Partial<ImportedRule> = {}): ImportedRule => ({ id: name + type, kind: 'stratagem', faction: '', factionId: '', name, type, cp: '1', source: 'Wahapedia', text: '', ...extra });
+  const all = [
+    row('Command Re-Roll', 'Core Stratagem', { phase: 'Any phase' }),
+    row('Counteroffensive', 'Core Stratagem'),
+    row('Counter-Offensive', 'Core – Strategic Ploy Stratagem'),
+    row('Battlefield Command', 'Boarding Actions – Strategic Ploy Stratagem'),
+    row('All In', 'Challenger – Strategic Ploy Stratagem', { cp: '0' }),
+    row('Normal Fight', 'Shooting Ability', { phase: 'Ability "Fight"' }),
+    row('Blade of Detestation', 'Marshal’s Household Stratagem', { faction: 'Space Marines', factionId: 'SM', detachment: 'Marshal’s Household' }),
+    row('Armour of Contempt', 'Gladius Task Force – Battle Tactic Stratagem', { faction: 'Space Marines', factionId: 'SM', detachment: 'Gladius Task Force' }),
+  ];
+  it('keeps the current core set and your detachments only', () => {
+    const names = stratagemsFor(all, ["Marshal's Household"], ['Black Templars', 'Space Marines']).map((s) => s.name);
+    expect(names).toEqual(['Command Re-Roll', 'Counteroffensive', 'Blade of Detestation']);
   });
 });
 
