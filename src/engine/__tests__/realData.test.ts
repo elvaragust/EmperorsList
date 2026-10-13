@@ -14,7 +14,7 @@ import { newUnit, refreshCaches, setOptionCount } from '../rules/edit';
 import { unitModels } from '../rules/models';
 import { computeWeaponGrid } from '../weaponGrid';
 import type { Roster } from '../types';
-import { configChoices, setBattleSize, setDetachments, setDisposition } from '../rules/config';
+import { configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '../rules/config';
 
 const dir = resolve(process.env.EL_DATA ?? join(__dirname, '../../../../data-cache'));
 const have = existsSync(join(dir, 'Imperium - Black Templars.json'));
@@ -188,6 +188,15 @@ describe.skipIf(!have)('real 11th edition data', () => {
     console.log(`${choices.length} units; problems:\n${report.join('\n')}`);
     expect(report.length).toBeLessThan(choices.length * 0.1);
   });
+  it('offers Legends units behind Show Legends, without the library\'s Chaos units', () => {
+    const r = blank(btId);
+    const e = new RosterEngine(index, r, roots);
+    const leg = showOptions(e).find((o) => /^show legends$/i.test(o.name))!;
+    expect(e.unitChoices().some((c) => /\[legends\]/i.test(c.name))).toBe(false);
+    const names = new RosterEngine(index, setShowOptions(e, r, { [leg.key]: true }), roots).unitChoices().map((c) => c.name);
+    expect(names).toContain('Kratos [Legends]');
+    expect(names).not.toContain('Blood Slaughterer [Legends]');
+  });
 });
 
 describe.skipIf(!have)('every downloaded faction', () => {
@@ -341,4 +350,5 @@ describe.skipIf(!have)('official app export with attached units', () => {
     expect(desc('Assault Intercessor Squad').join(' | ')).toMatch(/1 Assault Intercessor Sergeant:.*1 Thunder Hammer/);
     expect(desc('Sword Brethren Squad').join(' | ')).toMatch(/1 Thunder Hammer, 4 Master-crafted Power Weapon/);
   });
+
 });

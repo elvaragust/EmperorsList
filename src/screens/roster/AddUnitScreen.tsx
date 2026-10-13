@@ -17,6 +17,7 @@ import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
+import { isLegends, LegendsTag, legendsName } from '@/ui/Legends';
 
 const FILTERS = ['All', ...ROLES] as const;
 const SHORT: Record<string, string> = { 'Dedicated Transports': 'Transports' };
@@ -49,38 +50,49 @@ export function AddUnitScreen() {
     return { name: e2.unitName(unit.id), points: e2.unitPoints(unit.id), sheet: datasheet(e2, inst), models: unitModels(e2, unit.id) };
   }, [engine, roster, preview]);
 
-  // Allied datasheets the army may take: the data hides most of them behind its
-  // "Show Imperial Agents / Knights / Titans" switches, so look with each one on.
+  // Datasheets the data hides behind its "Show …" switches: allies ("Show Imperial
+  // Agents / Knights / Titans") and Legends. Look with each switch on, list what
+  // appears, and turn the switch on for this list when one is added.
   const configKey = JSON.stringify(roster?.config ?? []);
-  const allies = useMemo(() => {
-    if (!engine || !roster) return [] as { choice: ReturnType<RosterEngine['unitChoices']>[number]; needs?: string; ally: string }[];
+  type Extra = { choice: ReturnType<RosterEngine['unitChoices']>[number]; needs: string[]; ally?: string; legends: boolean };
+  const extras = useMemo(() => {
+    if (!engine || !roster) return [] as Extra[];
     const base = { ...roster, units: [] };
     const roots = [...engine.roots.values()];
     const e0 = new RosterEngine(engine.index, base, roots);
     const visible = new Set(e0.unitChoices().map((c) => c.root.key));
-    const out: { choice: ReturnType<RosterEngine['unitChoices']>[number]; needs?: string; ally: string }[] = [];
+    const out: Extra[] = [];
     const seen = new Set<string>();
-    const collect = (e: RosterEngine, needs?: string) => {
+    const opts = showOptions(e0).filter((x) => !x.hidden && !x.on);
+    const legends = opts.find((x) => /^show legends$/i.test(x.name));
+    const allySwitches = opts.filter((x) => /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name));
+    const collect = (needs: string[]) => {
+      const e = needs.length ? new RosterEngine(engine.index, setShowOptions(e0, base, Object.fromEntries(needs.map((k) => [k, true]))), roots) : e0;
       for (const c of e.unitChoices()) {
-        if (seen.has(c.root.key) || choiceRole(e, c.root.node, c.category) !== 'Allied units') continue;
+        if (seen.has(c.root.key)) continue;
+        const ally = choiceRole(e, c.root.node, c.category) === 'Allied units';
+        const isLegend = isLegends(c.name);
+        if (!ally && !isLegend) continue;
         seen.add(c.root.key);
-        out.push({ choice: c, needs: visible.has(c.root.key) ? undefined : needs, ally: allyName(e, c.root.node) });
+        out.push({ choice: c, needs: visible.has(c.root.key) ? [] : needs, ally: ally ? allyName(e, c.root.node) : undefined, legends: isLegend });
       }
     };
-    collect(e0);
-    for (const o of showOptions(e0).filter((x) => !x.hidden && !x.on && /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name))) {
-      collect(new RosterEngine(engine.index, setShowOptions(e0, base, { [o.key]: true }), roots), o.key);
+    collect([]);
+    for (const o of allySwitches) collect([o.key]);
+    if (legends) {
+      collect([legends.key]);
+      for (const o of allySwitches) collect([o.key, legends.key]);
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine?.index, roster?.catalogueId, configKey]);
-  const needsOf = useMemo(() => new Map(allies.filter((a) => a.needs).map((a) => [a.choice.root.key, a.needs!])), [allies]);
+  const needsOf = useMemo(() => new Map(extras.filter((a) => a.needs.length).map((a) => [a.choice.root.key, a.needs])), [extras]);
   const choices = useMemo(() => {
     const own = engine?.unitChoices() ?? [];
     const have = new Set(own.map((c) => c.root.key));
-    return [...own, ...allies.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)];
-  }, [engine, allies]);
-  const allyOf = useMemo(() => new Map(allies.map((a) => [a.choice.root.key, a.ally])), [allies]);
+    return [...own, ...extras.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)];
+  }, [engine, extras]);
+  const allyOf = useMemo(() => new Map(extras.filter((a) => a.ally).map((a) => [a.choice.root.key, a.ally!])), [extras]);
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
     return choices
@@ -103,7 +115,7 @@ export function AddUnitScreen() {
     if (!engine || !roster) return;
     // An ally behind a Show switch: turn the switch on for this list first.
     const needs = needsOf.get(key);
-    const r = needs ? setShowOptions(engine, roster, { [needs]: true }) : roster;
+    const r = needs ? setShowOptions(engine, roster, Object.fromEntries(needs.map((k) => [k, true]))) : roster;
     const e = needs ? new RosterEngine(engine.index, r, [...engine.roots.values()]) : engine;
     const unit = newUnit(e, key);
     await saveRoster(index, { ...r, units: [...r.units, unit] });
@@ -119,7 +131,10 @@ export function AddUnitScreen() {
       <div key={c.root.key} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
         <button className="choice" style={{ borderTop: 0, flex: 1 }} onClick={() => setPreview(c.root.key)}>
           <span style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600 }}>{c.name}</div>
+            <div style={{ fontWeight: 600 }}>
+              {legendsName(c.name)}
+              {isLegends(c.name) && <LegendsTag />}
+            </div>
             <div className="muted small">
               {c.role === 'Allied units' ? `${c.ally ?? 'Allied'} · ${c.cat}` : c.cat}
               {n ? ` · ${n} in list` : ''}

@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState, type ReactNode } from 'react';
+import { legendsName } from '@/ui/Legends';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
@@ -97,7 +98,7 @@ export function UnitScreen() {
 
   return (
     <Screen
-      title={unit.nickname || unit.name}
+      title={unit.nickname || legendsName(unit.name)}
       back
       actions={
         <button className="icon-btn" aria-label="Unit menu" onClick={() => setMenu(true)}>

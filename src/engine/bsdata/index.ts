@@ -142,7 +142,7 @@ export interface RootChoice {
 export function rootLinks(index: DataIndex, catalogueId: string, seen = new Set<string>()): RootChoice[] {
   const out = new Map<string, RootChoice>();
   const targets = new Set<string>();
-  const visit = (cat: RawCatalogue, importAll: boolean) => {
+  const visit = (cat: RawCatalogue, importAll: boolean, parent?: RawCatalogue) => {
     cat.entryLinks?.forEach((l) => {
       const e = resolveLink(index, l);
       if (!e || l.hidden || targets.has(e.id)) return;
@@ -154,8 +154,12 @@ export function rootLinks(index: DataIndex, catalogueId: string, seen = new Set<
       targets.add(e.id);
       out.set(e.id, { key: e.id, entry: e, catalogueId: cat.id });
     });
-    if (importAll) {
-      // Older catalogues list roots as shared entries.
+    // Older catalogues list roots as shared entries. A library the importing army
+    // already links into by hand (e.g. Space Marines → Astartes Heresy Legends,
+    // which also holds Chaos units) offers only what's linked.
+    const shared = new Set(cat.sharedSelectionEntries?.map((e) => e.id) ?? []);
+    const picked = parent?.entryLinks?.some((l) => shared.has(l.targetId)) ?? false;
+    if (importAll && !picked) {
       cat.sharedSelectionEntries?.forEach((e) => {
         if (e.hidden || targets.has(e.id) || (e.type !== 'unit' && e.type !== 'model')) return;
         if (!(cat.entryLinks?.length ?? 0)) {
@@ -168,7 +172,7 @@ export function rootLinks(index: DataIndex, catalogueId: string, seen = new Set<
       if (seen.has(cl.targetId)) return;
       seen.add(cl.targetId);
       const next = index.catalogues.get(cl.targetId);
-      if (next && cl.importRootEntries !== false) visit(next, true);
+      if (next && cl.importRootEntries !== false) visit(next, true, cat);
     });
   };
   const cat = index.catalogues.get(catalogueId);

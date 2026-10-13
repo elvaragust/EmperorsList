@@ -616,6 +616,15 @@ textarea.input {
   letter-spacing: 0.04em;
   color: var(--accent);
 }
+.legends-tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  vertical-align: 2px;
+}
 .issue-title {
   font-weight: 600;
   color: var(--danger);
