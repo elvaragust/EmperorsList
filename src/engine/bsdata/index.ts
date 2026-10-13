@@ -1,3 +1,4 @@
+import { isRetiredRule } from './retired';
 import type { RawCatalogue, RawEntry, RawFile, RawForceEntry, RawLink, RawProfile, RawRule } from './raw';
 
 /**
@@ -43,6 +44,7 @@ export function buildIndex(files: RawFile[]): DataIndex {
     if (!index.origin.has(p.id)) index.origin.set(p.id, cat);
   };
   const addRule = (r: RawRule, cat: string) => {
+    if (isRetiredRule(r.name)) return;
     index.rules.set(r.id, r);
     if (!index.origin.has(r.id)) index.origin.set(r.id, cat);
   };

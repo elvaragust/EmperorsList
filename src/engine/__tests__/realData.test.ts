@@ -188,6 +188,10 @@ describe.skipIf(!have)('real 11th edition data', () => {
     console.log(`${choices.length} units; problems:\n${report.join('\n')}`);
     expect(report.length).toBeLessThan(choices.length * 0.1);
   });
+  it('hides rules retired in this edition (Templar Vows)', () => {
+    expect([...index.rules.values()].some((r) => r.name === 'Templar Vows')).toBe(false);
+  });
+
   it('offers Legends units behind Show Legends, without the library\'s Chaos units', () => {
     const r = blank(btId);
     const e = new RosterEngine(index, r, roots);
