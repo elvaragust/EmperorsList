@@ -129,3 +129,28 @@ describe('official app export (attached units, one bullet per group)', () => {
     expect(saga.detachments.map((d) => d.key)).toEqual(['s']);
   });
 });
+
+describe('Legends in the official export', () => {
+  it('reads the Legends header and unit marker without treating them as a detachment or wargear', async () => {
+    const { parseListText } = await import('../listText');
+    const p = parseListText(`vla (1495 points)
+
+Space Marines
+Black Templars
+Ironstorm Spearhead (1 Detachment Point)
+Strike Force (2000 points)
+This roster contains Legends datasheets
+
+OTHER DATASHEETS
+
+Centurion Devastator Squad (175 points)
+  • Legends
+  • 2x Devastator Centurion
+    • 2x Twin Lascannon
+`);
+    expect(p.legends).toBe(true);
+    expect(p.headerLines.join(' ')).not.toMatch(/legends/i);
+    expect(p.units[0]!.legends).toBe(true);
+    expect(p.units[0]!.lines.map((l) => l.name)).toEqual(['Devastator Centurion', 'Twin Lascannon']);
+  });
+});

@@ -90,6 +90,8 @@ export interface ParsedUnit {
   /** "Attached Unit 2" block this unit is listed in, and its part in it. */
   attachedGroup?: number;
   attachedRole?: 'leader' | 'bodyguard';
+  /** Marked "Legends" in the official app. */
+  legends?: boolean;
 }
 
 /** One line under a unit before depths are worked out. */
@@ -107,6 +109,8 @@ export interface ParsedList {
   disposition?: string;
   units: ParsedUnit[];
   headerLines: string[];
+  /** "This roster contains Legends datasheets" */
+  legends?: boolean;
 }
 
 const SECTIONS = /^(CHARACTERS?|EPIC HER(O|OES)|BATTLELINE|DEDICATED TRANSPORTS?|OTHER DATASHEETS|ALLIED UNITS|INFANTRY|VEHICLES?|MONSTERS?|FORTIFICATIONS?)$/i;
@@ -133,6 +137,10 @@ export function parseListText(text: string): ParsedList {
     const trimmed = line.trim();
     if (!trimmed) continue;
     if (/^exported with/i.test(trimmed)) continue;
+    if (/legends datasheets?/i.test(trimmed) && !UNIT_RE.test(trimmed)) {
+      out.legends = true;
+      continue;
+    }
     const indent = line.length - line.trimStart().length;
     // "Attached Units" / "Attached Unit 2": a leader and its bodyguard follow.
     const att = trimmed.match(/^attached units?(?:\s+(\d+))?$/i);
@@ -207,6 +215,10 @@ function toLines(unit: ParsedUnit, raws: RawLine[]): ParsedLine[] {
       continue;
     }
     if (/^attached as:/i.test(r.text)) continue;
+    if (/^legends$/i.test(r.text.trim())) {
+      unit.legends = true;
+      continue;
+    }
     items.push(r);
   }
   const levels = [...new Set(items.map((r) => r.indent))].sort((a, b) => a - b);
