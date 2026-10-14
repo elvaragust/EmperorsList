@@ -205,8 +205,15 @@ export class RosterEngine {
     return out;
   }
 
+  /** Characters can always be attached by hand; the data's Leader list is only a guide. */
   canLead(unitId: string): boolean {
-    return Boolean(this.unitInst(unitId)?.node?.associations.length);
+    return Boolean(this.unitInst(unitId)?.node?.associations.length) || this.isCharacter(unitId);
+  }
+
+  /** Units a character could be attached to by hand: every non-Character unit except itself. */
+  otherAttachTargets(leaderId: string): string[] {
+    const listed = new Set(this.attachTargets(leaderId));
+    return this.roster.units.filter((u) => u.id !== leaderId && !u.leaderOf && !listed.has(u.id) && !this.isCharacter(u.id)).map((u) => u.id);
   }
 
   attachedTo(bodyguardId: string): RosterUnit[] {
@@ -435,9 +442,9 @@ export class RosterEngine {
       } else if (!this.attachTargets(u.id).includes(u.leaderOf)) {
         const body = this.roster.units.find((x) => x.id === u.leaderOf);
         push(`lead-bad:${u.id}`, {
-          severity: 'error',
-          title: `${u.name} can't lead ${body?.name ?? 'that unit'}`,
-          why: `${u.name}'s Leader ability does not list that unit.`,
+          severity: u.leaderForced ? 'advice' : 'error',
+          title: u.leaderForced ? `${u.name} leading ${body?.name ?? 'that unit'} is likely not supported` : `${u.name} can't lead ${body?.name ?? 'that unit'}`,
+          why: u.leaderForced ? `You attached it by hand: the game data's Leader list doesn't include that unit. Fine if the current rules allow it.` : `${u.name}'s Leader ability does not list that unit.`,
           fix: 'Detach',
           unitId: u.id,
         });

@@ -73,6 +73,8 @@ export interface RosterUnit {
   primaryCategory: string;
   /** Id of the RosterUnit this character is attached to (Leader or Support). */
   leaderOf?: string;
+  /** Attached by hand to a unit the data doesn't list for this Leader (the data can lag behind the rules). */
+  leaderForced?: boolean;
   /** Children of the unit's own selection: models, wargear, enhancement, Warlord. */
   selections: Selection[];
   /** Optional nickname shown instead of the datasheet name. */
