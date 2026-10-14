@@ -1,0 +1,39 @@
+vla (1495 points)
+
+Space Marines
+Black Templars
+Ironstorm Spearhead, Marshal's Household and Tactical Brethren (3 Detachment Points)
+Purge the Foe
+Strike Force (2000 points)
+This roster contains Legends datasheets
+
+CHARACTERS
+
+Techmarine (55 points)
+  • 1x Forge Bolter
+    1x Grav-pistol
+    1x Omnissian Power Axe and Servo-arm
+
+
+OTHER DATASHEETS
+
+Centurion Devastator Squad (175 points)
+  • Legends
+  • 1x Devastator Centurion Sergeant
+    • 1x Centurion Bolters
+      1x Centurion Fists
+      1x Twin Lascannon
+  • 2x Devastator Centurion
+    • 2x Centurion Bolters
+      2x Centurion Fists
+      2x Twin Lascannon
+
+Land Raider Redeemer (245 points)
+  • 1x Armoured Tracks
+    2x Flamestorm Cannon
+    1x Hunter-killer Missile
+    1x Multi-melta
+    1x Storm Bolter
+    1x Twin Assault Cannon
+
+Exported with App Version: v2.7.1 (146), Data Version: v972

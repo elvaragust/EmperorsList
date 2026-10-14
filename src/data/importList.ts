@@ -2,7 +2,7 @@ import { ensureFaction, type FactionFile } from './dataPacks';
 import { loadIndex, rootsFor } from './gameData';
 import { uid } from './rosters';
 import { importUnit, matchConfig, normName, parseListText, type ImportReport, type ParsedList } from '@/engine/listText';
-import { configChoices, setBattleSize, setDetachments, setDisposition } from '@/engine/rules/config';
+import { configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '@/engine/rules/config';
 import { autoFill } from '@/engine/rules/edit';
 import { fillMinimumModels } from '@/engine/rules/modelTypes';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
@@ -60,6 +60,14 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     .filter((u) => !factionWords.has(normName(u)) && !/space marines|adeptus astartes|^attached units?/i.test(u) && !/\d/.test(u))
     .forEach((u) => rep.unmatched.push(`Detachment not in the game data yet: ${u}`));
 
+  // Legends datasheets are behind the data's "Show Legends" switch: turn it on when the list has any.
+  const legendsSwitch = () => showOptions(eng()).find((o) => /^show legends$/i.test(o.name));
+  const legendsOn = () => {
+    const o = legendsSwitch();
+    if (o && !o.on) roster = setShowOptions(eng(), roster, { [o.key]: true });
+  };
+  if (parsed.legends || parsed.units.some((u) => u.legends)) legendsOn();
+
   const units: RosterUnit[] = [];
   const attach: { unit: RosterUnit; to: string }[] = [];
   const groups = new Map<number, { leaders: RosterUnit[]; body?: RosterUnit }>();
@@ -68,6 +76,18 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     onProgress?.(`Matching ${pu.name}…`);
     const engineFor = (us: RosterUnit[]) => new RosterEngine(index, { ...roster, units: us }, roots);
     let u = importUnit(engineFor, units, pu, rep);
+    // Not found: it may be a Legends datasheet the list didn't mark. Try again with Legends shown.
+    if (!u && legendsSwitch() && !legendsSwitch()!.on) {
+      const before = roster;
+      legendsOn();
+      const probe: ImportReport = { matched: [], unmatched: [] };
+      u = importUnit((us) => new RosterEngine(index, { ...roster, units: us }, roots), units, pu, probe);
+      if (u) {
+        rep.unmatched = rep.unmatched.filter((x) => x !== `Unit: ${pu.name}`);
+        rep.matched.push(...probe.matched);
+        rep.unmatched.push(...probe.unmatched);
+      } else roster = before;
+    }
     if (!u) continue;
     // Fill in anything the datasheet requires that the text left out (e.g. the Sergeant).
     const one = (x: RosterUnit) => engineFor([...units, x]);
