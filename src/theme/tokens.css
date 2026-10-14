@@ -104,18 +104,20 @@
 [data-theme='votann'] { --bg: #100d09; --bg-deep: #080605; --surface: #1a1610; --raised: #241e16; --line: #3a3124; --line-soft: #2b251b; --text: #f0e9dc; --text-muted: #a69c88; --accent: #f0a83a; --accent-strong: #8a5a1a; --on-accent-strong: #fff; }
 
 /*
- * Light mode (Settings → Appearance). Higher specificity than the faction themes,
- * so it replaces their dark base but keeps each faction's accent and button colour.
+ * Light mode (Settings → Appearance). Every faction theme gets its own light
+ * version: the light base is tinted with that theme's main colour
+ * (--accent-strong), and its accent, buttons and fonts are kept. Higher
+ * specificity than the themes, so it replaces only their dark base.
  */
 :root[data-mode='light'] {
-  --bg: #f3eee4;
-  --bg-deep: #e7dfd0;
-  --surface: #fffcf6;
-  --raised: #efe8da;
-  --line: #d3c8b3;
-  --line-soft: #e3dacb;
-  --text: #1d1712;
-  --text-muted: #675d4f;
+  --bg: color-mix(in oklab, var(--accent-strong) 10%, #f6f2ea);
+  --bg-deep: color-mix(in oklab, var(--accent-strong) 16%, #ebe5da);
+  --surface: color-mix(in oklab, var(--accent-strong) 3%, #fffdf9);
+  --raised: color-mix(in oklab, var(--accent-strong) 9%, #f1ece3);
+  --line: color-mix(in oklab, var(--accent-strong) 22%, #d4ccbd);
+  --line-soft: color-mix(in oklab, var(--accent-strong) 14%, #e5dfd3);
+  --text: color-mix(in oklab, var(--accent-strong) 15%, #19140f);
+  --text-muted: color-mix(in oklab, var(--accent-strong) 22%, #645b4f);
   --danger: #b3261e;
   --ok: #1d7a4c;
   --rule-core: #4a5a70;
