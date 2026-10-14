@@ -144,8 +144,11 @@ const isAttachRule = (a: RawProfile) => /^(leader|support)$/i.test(a.name);
  * Deep Strike…) and "Faction" (Oath of Moment, Combat Doctrines…), each tappable.
  */
 export function RuleChips({ rules, index }: { rules: { name: string }[]; index?: DataIndex }) {
+  const kind = (n: string) => (index ? lookupRule(index, n)?.kind : undefined);
+  const faction = (n: string) => kind(n) === 'army';
+  // Weapon abilities (Pistol, Anti-, Extra Attacks…) are shown on the weapons themselves.
+  rules = rules.filter((r) => kind(r.name) !== 'weaponAbility');
   if (!rules.length) return null;
-  const faction = (n: string) => (index ? lookupRule(index, n)?.kind === 'army' : false);
   const groups: [string, { name: string }[]][] = [
     ['Core', rules.filter((r) => !faction(r.name))],
     ['Faction', rules.filter((r) => faction(r.name))],

@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { isLegends, LegendsTag, legendsName } from '@/ui/Legends';
 import { PinnedMark, usePinnedNames } from '@/ui/PinButton';
+import { useSessionState } from '@/ui/useSessionState';
+import { PlayView } from './PlayView';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
@@ -23,6 +25,8 @@ export function RosterScreen() {
   const roster = useLiveQuery(() => db.rosters.get(id), [id]);
   const { engine, index, error } = useRosterEngine(roster);
   const pinnedSheets = usePinnedNames('datasheet');
+  // Build (edit the list) or Play (read it like at the table); remembered per list on this device.
+  const [view, setView] = useSessionState<'build' | 'play'>(`roster-view:${id}`, 'build');
   useFactionTheme(roster?.factionName);
   const [showIssues, setShowIssues] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -91,12 +95,32 @@ export function RosterScreen() {
       title={roster.name}
       back
       actions={
-        <button className="icon-btn" aria-label="List menu" onClick={() => setMenu(true)}>
-          ⋯
-        </button>
+        <>
+          <div className="view-toggle" role="tablist" aria-label="View">
+            <button role="tab" aria-selected={view === 'build'} className={view === 'build' ? 'on' : undefined} onClick={() => setView('build')}>
+              Build
+            </button>
+            <button role="tab" aria-selected={view === 'play'} className={view === 'play' ? 'on' : undefined} onClick={() => setView('play')}>
+              Play
+            </button>
+          </div>
+          <button className="icon-btn" aria-label="List menu" onClick={() => setMenu(true)}>
+            ⋯
+          </button>
+        </>
       }
     >
       {error && <p className="issue-title">{error} Open Settings → Data to download it.</p>}
+      {view === 'play' ? (
+        <>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            {total.toLocaleString('en')} / {limit.toLocaleString('en')} pts · {roster.detachmentNames?.join(' + ') || 'No detachment'}
+            {roster.forceDisposition ? ` · ${roster.forceDisposition}` : ''}
+          </p>
+          {engine ? <PlayView engine={engine} roster={roster} /> : <p className="muted">Loading…</p>}
+        </>
+      ) : (
+      <>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span className="big-num">{total.toLocaleString('en')}</span>
         <span className="muted">/ {limit.toLocaleString('en')} pts</span>
@@ -176,6 +200,8 @@ export function RosterScreen() {
           Add unit
         </Link>
       </div>
+      </>
+      )}
 
       <Sheet open={menu} onClose={() => (setMenu(false), setRename(null), setConfirmDelete(false))} title={roster.name}>
         {rename === null ? (

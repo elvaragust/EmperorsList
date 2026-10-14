@@ -1566,3 +1566,34 @@ textarea.input {
   gap: 6px 8px;
   margin: 4px 0;
 }
+
+/* Build / Play switch in a list's header */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-right: 2px;
+}
+.view-toggle button {
+  border: 0;
+  background: none;
+  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.view-toggle button.on {
+  background: var(--accent-strong);
+  color: var(--on-accent-strong);
+}
+.play-view-tags {
+  display: block;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
