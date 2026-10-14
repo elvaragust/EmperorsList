@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { totalScore } from '@/engine/game';
@@ -12,12 +13,31 @@ function liveTitle(g: SavedGame): string {
 }
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
+import { Sheet } from '@/ui/Sheet';
+import { showToast } from '@/ui/Toast';
 
 /** War Journal: games in progress and finished games. */
 export function PlayScreen() {
   const games = useLiveQuery(() => db.games.orderBy('startedAt').reverse().toArray(), []);
   const live = games?.filter((g) => g.stage !== 'done' || g.idle) ?? [];
   const done = games?.filter((g) => g.stage === 'done' && !g.idle) ?? [];
+  const [menu, setMenu] = useState<SavedGame | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const title = (g: SavedGame) => (g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`);
+  const close = () => (setMenu(null), setConfirm(false));
+  const more = (g: SavedGame) => (
+    <button
+      className="icon-btn"
+      aria-label={`More for ${title(g)}`}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenu(g);
+      }}
+    >
+      ⋯
+    </button>
+  );
   const record = done.reduce((r, g) => ({ ...r, [g.result ?? 'draw']: (r[g.result ?? 'draw'] ?? 0) + 1 }), {} as Record<string, number>);
   return (
     <Screen title="War Journal">
@@ -47,6 +67,7 @@ export function PlayScreen() {
                   </div>
                   <div className="muted small">{g.idle ? 'Ended after 2 hours with no changes · tap to resume · ' : ''}{g.live ? `Live · room ${g.live.room} · ` : ''}{(g.idle?.stage ?? g.stage) === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${totalScore(g.live.state.vp.A)}–${totalScore(g.live.state.vp.B)}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
                 </span>
+                {more(g)}
               </Link>
             ))}
           </div>
@@ -69,11 +90,37 @@ export function PlayScreen() {
                   </div>
                 </span>
                 <span className={g.result === 'win' ? 'tag' : 'muted small'}>{(g.result ?? 'draw').toUpperCase()}</span>
+                {more(g)}
               </Link>
             ))}
           </div>
         </>
       )}
+      <Sheet open={Boolean(menu)} onClose={close} title={menu ? title(menu) : undefined}>
+        {menu && (
+          <>
+            <Link className="menu-item" to={`/play/${menu.id}`} onClick={close}>
+              Open
+            </Link>
+            {!confirm ? (
+              <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>
+                Delete game
+              </button>
+            ) : (
+              <button
+                className="menu-item btn-danger"
+                onClick={() => {
+                  const g = menu;
+                  void db.games.delete(g.id).then(() => showToast('Game deleted'));
+                  close();
+                }}
+              >
+                Tap again to delete this game{menu.stage === 'done' ? '' : ' (still in progress)'} — this can't be undone
+              </button>
+            )}
+          </>
+        )}
+      </Sheet>
       {!games && <Loading what="your games" />}
       {games && games.length === 0 && <p className="muted" style={{ marginTop: 16 }}>No games yet. Start one from here or from a list's menu.</p>}
     </Screen>

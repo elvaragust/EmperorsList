@@ -568,6 +568,15 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
         >
           Close
         </button>
+        <button
+          className="btn btn-ghost btn-danger"
+          onClick={() => {
+            closeRoom(game.id);
+            void db.games.delete(game.id).then(() => navigate('/play', { replace: true }));
+          }}
+        >
+          Delete game
+        </button>
       </div>
     </Screen>
   );
