@@ -1,3 +1,4 @@
+import { lookupRule } from '@/engine/rules/glossary';
 import type { DataIndex } from '@/engine/bsdata/index';
 import type { RawProfile } from '@/engine/bsdata/raw';
 import type { Datasheet } from '@/engine/rules/models';
@@ -139,6 +140,33 @@ export function StatTable({ profiles }: { profiles: { name: string; profile: Raw
 const isAttachRule = (a: RawProfile) => /^(leader|support)$/i.test(a.name);
 
 /**
+ * The unit's rule chips as the official app groups them: "Core" (Infiltrators,
+ * Deep Strike…) and "Faction" (Oath of Moment, Combat Doctrines…), each tappable.
+ */
+export function RuleChips({ rules, index }: { rules: { name: string }[]; index?: DataIndex }) {
+  if (!rules.length) return null;
+  const faction = (n: string) => (index ? lookupRule(index, n)?.kind === 'army' : false);
+  const groups: [string, { name: string }[]][] = [
+    ['Core', rules.filter((r) => !faction(r.name))],
+    ['Faction', rules.filter((r) => faction(r.name))],
+  ];
+  return (
+    <div className="rule-chips">
+      {groups
+        .filter(([, list]) => list.length)
+        .map(([label, list]) => (
+          <div key={label} className="rule-chip-row">
+            <span className="small muted">{label}:</span>
+            {list.map((r) => (
+              <Term key={r.name} term={r.name} index={index} />
+            ))}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/**
  * One datasheet, the same everywhere (list builder, reference, battle,
  * opponent): profiles, weapons, then every ability in one list — the unit's
  * own and those of characters leading it, tagged — and a fold at the bottom
@@ -180,13 +208,7 @@ export function DatasheetView({
         </>
       )}
       <div className="section-label">Abilities</div>
-      {rules.length > 0 && (
-        <div className="kw-list" style={{ margin: '4px 0 6px' }}>
-          {rules.map((r) => (
-            <Term key={r.name} term={r.name} index={index} />
-          ))}
-        </div>
-      )}
+      <RuleChips rules={rules} index={index} />
       {abilities.map(({ a, from }) => {
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const buffs = from && /while this model is leading|this model's unit|the unit this model is leading|models in this model's unit|bodyguard/i.test(text);

@@ -12,7 +12,7 @@ import { legendsFit } from '@/engine/rules/legends';
 import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
-import { AbilityList, StatLine, WeaponTable } from '@/ui/DatasheetView';
+import { AbilityList, RuleChips, StatLine, WeaponTable } from '@/ui/DatasheetView';
 import { PinButton, pinId, usePinnedNames } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
@@ -235,7 +235,8 @@ export function AddUnitScreen() {
                 <WeaponTable weapons={previewData.options.filter((w) => w.melee)} index={engine?.index} melee />
               </Collapse>
             )}
-            {previewData.sheet.abilities.length > 0 && <div className="section-label">Abilities</div>}
+            {(previewData.sheet.abilities.length > 0 || previewData.sheet.rules.length > 0) && <div className="section-label">Abilities</div>}
+            <RuleChips rules={previewData.sheet.rules} index={engine?.index} />
             <AbilityList abilities={previewData.sheet.abilities} index={engine?.index} />
             <div className="section-label">Keywords</div>
             <div className="kw-list">
