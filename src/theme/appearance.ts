@@ -10,10 +10,12 @@ export interface Appearance {
   labelStyle: 'dotted' | 'bold' | 'underline';
   /** 'auto' = adapt to the screen (sidebar and side-by-side panes on a PC); 'phone' = always the phone column. */
   layout: 'auto' | 'phone';
+  /** Light or dark colours; 'system' follows the phone's setting. */
+  mode: 'dark' | 'light' | 'system';
 }
 
 const KEY = 'emperorslist.appearance';
-const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', layout: 'auto' };
+const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', layout: 'auto', mode: 'dark' };
 
 function load(): Appearance {
   try {
@@ -54,10 +56,20 @@ export function applyAppearance() {
   root.dataset.text = current.textSize;
   root.dataset.titleFont = current.titleFont;
   root.dataset.layout = current.layout;
+  const light = current.mode === 'light' || (current.mode === 'system' && window.matchMedia?.('(prefers-color-scheme: light)').matches);
+  root.dataset.mode = light ? 'light' : 'dark';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f3eee4' : '#080606');
   if (current.themeMode === 'fixed') {
     if (current.fixedTheme) root.dataset.theme = current.fixedTheme;
     else delete root.dataset.theme;
   } else {
     delete root.dataset.theme;
   }
+}
+
+// 'system': follow the phone when it switches between light and dark.
+if (typeof window !== 'undefined' && window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => {
+    if (current.mode === 'system') applyAppearance();
+  });
 }

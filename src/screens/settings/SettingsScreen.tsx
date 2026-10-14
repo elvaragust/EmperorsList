@@ -128,6 +128,10 @@ export function SettingsScreen() {
           </div>
           <Choice k="textSize" value={look.textSize} options={[['normal', 'Normal'], ['large', 'Large'], ['xlarge', 'Extra large']]} />
           <div className="small muted" style={{ marginTop: 8 }}>
+            Colours
+          </div>
+          <Choice k="mode" value={look.mode} options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Match phone']]} />
+          <div className="small muted" style={{ marginTop: 8 }}>
             Title font
           </div>
           <Choice k="titleFont" value={look.titleFont} options={[['gothic', 'Gothic'], ['serif', 'Engraved'], ['plain', 'Plain']]} />
