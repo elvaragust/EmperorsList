@@ -11,7 +11,7 @@ import { buildIndex, type DataIndex } from '../bsdata/index';
 import type { RawFile } from '../bsdata/raw';
 import { RosterEngine, rootOptions } from '../rules/rosterEngine';
 import { newUnit, refreshCaches, setOptionCount } from '../rules/edit';
-import { unitModels } from '../rules/models';
+import { allWeapons, unitModels } from '../rules/models';
 import { computeWeaponGrid } from '../weaponGrid';
 import type { Roster } from '../types';
 import { legendsFit } from '../rules/legends';
@@ -204,6 +204,13 @@ describe.skipIf(!have)('real 11th edition data', () => {
     const e = new RosterEngine(index, r, roots);
     r.units.forEach((u) => pts.push(e.unitPoints(u.id)));
     expect(pts).toEqual([base, base, base + 20]);
+  });
+
+  it('lists every weapon a datasheet can take, without enhancement or Crusade ones', () => {
+    const cs = roots.find((r) => r.node.name === 'Crusader Squad')!;
+    const names = allWeapons(index, cs.node).map((w) => w.name);
+    expect(names).toEqual(expect.arrayContaining(['Pyreblaster', 'Power fist', 'Heavy Bolt Pistol']));
+    expect(names).not.toContain('Paragon Blade');
   });
 
   it('hides rules retired in this edition (Templar Vows)', () => {

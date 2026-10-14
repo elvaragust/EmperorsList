@@ -3,7 +3,7 @@ import type { RawProfile, RawRule } from '../bsdata/raw';
 import { toWeapon } from '../loadouts';
 import type { ModelInstance, ModelLoadout, WeaponProfile } from '../types';
 import type { Inst } from './instance';
-import { childNodes, findOffered, infoOf, type OptNode } from './nodes';
+import { childNodes, findOffered, infoOf, offeredEntries, type OptNode } from './nodes';
 import type { RosterEngine } from './rosterEngine';
 
 export interface UnitModels {
@@ -154,4 +154,28 @@ export function datasheet(engine: RosterEngine, inst: Inst): Datasheet {
 export function orderAbilities<T extends { name: string }>(list: T[]): T[] {
   const rank = (a: T) => (/^(leader|damaged\b)/i.test(a.name) ? 2 : /^support$/i.test(a.name) ? 1 : 0);
   return list.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a);
+}
+
+/**
+ * Every weapon a datasheet can carry, from the data's options (not only the
+ * default loadout): walks models and wargear choices under the unit.
+ */
+export function allWeapons(index: RosterEngine['index'], node: OptNode): WeaponProfile[] {
+  const out = new Map<string, WeaponProfile>();
+  const seen = new Set<string>();
+  const visit = (n: OptNode, depth: number) => {
+    if (depth > 8 || seen.has(n.key)) return;
+    seen.add(n.key);
+    for (const p of infoOf(index, n).profiles) {
+      const w = toWeapon(p);
+      if (w && !out.has(weaponSig(w))) out.set(weaponSig(w), w);
+    }
+    // Not enhancements, relics or Crusade upgrades (those weapons belong to other detachments).
+    for (const o of offeredEntries(index, n)) {
+      if ([o.node, ...o.groups].some((g) => /\b(enhancements?|relics?|crusade|battle honours?)\b/i.test(g.name))) continue;
+      visit(o.node, depth + 1);
+    }
+  };
+  visit(node, 0);
+  return [...out.values()].sort((a, b) => Number(a.melee) - Number(b.melee) || a.name.localeCompare(b.name));
 }

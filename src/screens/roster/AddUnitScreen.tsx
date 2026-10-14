@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { newUnit } from '@/engine/rules/edit';
-import { datasheet, unitModels } from '@/engine/rules/models';
+import { allWeapons, datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { allyName, choiceRole, ROLES } from '@/engine/rules/roles';
 import { setShowOptions, showOptions } from '@/engine/rules/config';
@@ -12,7 +12,7 @@ import { legendsFit } from '@/engine/rules/legends';
 import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
-import { AbilityList, StatLine } from '@/ui/DatasheetView';
+import { AbilityList, StatLine, WeaponTable } from '@/ui/DatasheetView';
 import { PinButton, pinId, usePinnedNames } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
@@ -49,7 +49,12 @@ export function AddUnitScreen() {
     const unit = newUnit(engine, preview);
     const e2 = new RosterEngine(engine.index, { ...roster, units: [...roster.units, unit] }, [...engine.roots.values()]);
     const inst = e2.unitInst(unit.id)!;
-    return { name: e2.unitName(unit.id), points: e2.unitPoints(unit.id), sheet: datasheet(e2, inst), models: unitModels(e2, unit.id) };
+    const models = unitModels(e2, unit.id);
+    const defaults = [...models.weapons.values()];
+    const sig = (w: { name: string; melee: boolean }) => `${w.name.toLowerCase()}|${w.melee}`;
+    const have = new Set(defaults.map(sig));
+    const options = inst.node ? allWeapons(engine.index, inst.node).filter((w) => !have.has(sig(w))) : [];
+    return { name: e2.unitName(unit.id), points: e2.unitPoints(unit.id), sheet: datasheet(e2, inst), models, defaults, options };
   }, [engine, roster, preview]);
 
   // Datasheets the data hides behind its "Show …" switches: allies ("Show Imperial
@@ -218,6 +223,18 @@ export function AddUnitScreen() {
             ))}
             <div className="section-label">Models</div>
             <Composition models={previewData.models} />
+            {previewData.defaults.length > 0 && (
+              <Collapse title="Weapons" right={<span className="muted small num">{previewData.defaults.length}</span>}>
+                <WeaponTable weapons={previewData.defaults.filter((w) => !w.melee)} index={engine?.index} melee={false} />
+                <WeaponTable weapons={previewData.defaults.filter((w) => w.melee)} index={engine?.index} melee />
+              </Collapse>
+            )}
+            {previewData.options.length > 0 && (
+              <Collapse title="Other weapon options" right={<span className="muted small num">{previewData.options.length}</span>}>
+                <WeaponTable weapons={previewData.options.filter((w) => !w.melee)} index={engine?.index} melee={false} />
+                <WeaponTable weapons={previewData.options.filter((w) => w.melee)} index={engine?.index} melee />
+              </Collapse>
+            )}
             {previewData.sheet.abilities.length > 0 && <div className="section-label">Abilities</div>}
             <AbilityList abilities={previewData.sheet.abilities} index={engine?.index} />
             <div className="section-label">Keywords</div>
