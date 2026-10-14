@@ -156,7 +156,9 @@ export class Evaluator {
       const hit = targets.some((t) => this.matches(t, c.childId));
       return c.type === 'instanceOf' ? hit : !hit;
     }
-    if (c.type === 'before') return self.order <= origin.order;
+    // "Selected before" the unit being priced: strictly earlier, so the unit doesn't count itself
+    // (the 3rd Sword Brethren Squad costs +20, not the 2nd).
+    if (c.type === 'before') return self.order < origin.order;
     if (c.type === 'after') return self.order > origin.order;
     const scopes = this.scopeInsts(c.scope, self);
     const n = scopes.length ? this.measure(c, scopes[0]!) : 0;
