@@ -186,7 +186,12 @@ export async function syncMissions(force = false): Promise<number | undefined> {
 /** Make the stored Core Rules available to rule popups and tappable words. */
 export async function loadCoreRules() {
   const rows = await db.imported.where('kind').equals('coreRule').toArray();
-  setCoreSections(rows.map((r) => ({ num: r.detachment ?? '', title: r.name, text: r.text })).sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true })));
+  // Wahapedia lists the edition's core actions (Normal Move, Assault Disembark Move,
+  // Normal Fight…) in its stratagem table: they're definitions, not stratagems.
+  const actions = (await db.imported.where('kind').equals('stratagem').toArray())
+    .filter((r) => /ability$/i.test(r.type ?? '') && /^ability/i.test(r.phase ?? ''))
+    .map((r) => ({ num: r.type ?? 'Ability', title: r.name, text: r.text }));
+  setCoreSections([...rows.map((r) => ({ num: r.detachment ?? '', title: r.name, text: r.text })).sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true })), ...actions]);
 }
 
 let started = false;

@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import type { DataIndex } from '@/engine/bsdata/index';
-import { lookupRule, termMatcher } from '@/engine/rules/glossary';
+import { exactTerm, lookupRule, termMatcher } from '@/engine/rules/glossary';
 import { useRulePopup } from './RulePopup';
 
 /**
@@ -27,13 +27,28 @@ export function RulesText({ text, index, inline }: { text: string; index?: DataI
     let mm: RegExpExecArray | null;
     while ((mm = re.exec(chunk))) {
       if (mm.index > at) parts.push(chunk.slice(at, mm.index));
-      const word = mm[0];
+      let word = mm[0];
+      let canon = matcher!.canonical.get(word.toLowerCase()) ?? word;
+      // Neighbouring words that together name one rule ("Assault" + "Disembark" + "move"
+      // = "Assault Disembark Move"): link the combined rule, not the pieces.
+      const next = chunk.slice(mm.index + word.length).match(/^(?:[ \t]+[A-Za-z][A-Za-z-]*){1,3}/)?.[0] ?? '';
+      const words = next.match(/[ \t]+[A-Za-z][A-Za-z-]*/g) ?? [];
+      for (let k = words.length; k > 0; k--) {
+        const phrase = word + words.slice(0, k).join('');
+        const hit = exactTerm(index!, phrase);
+        if (hit) {
+          word = phrase;
+          canon = hit;
+          break;
+        }
+      }
       parts.push(
-        <button key={`${key}-t${n++}`} className="kw kw-soft" onClick={() => popup.openTerm(matcher!.canonical.get(word.toLowerCase()) ?? word, index)}>
+        <button key={`${key}-t${n++}`} className="kw kw-soft" onClick={() => popup.openTerm(canon, index)}>
           {word}
         </button>,
       );
       at = mm.index + word.length;
+      re.lastIndex = at;
     }
     if (at < chunk.length) parts.push(chunk.slice(at));
     return parts;

@@ -148,11 +148,31 @@ export function termMatcher(index: DataIndex): TermMatcher {
   };
   for (const r of g.rules.values()) if (r.kind === 'core' || r.kind === 'weaponAbility' || r.kind === 'army') add(r.name.replace(/\s+\d.*$/, ''));
   CORE_TERMS.forEach(add);
-  coreSections.filter((c) => c.num.includes('.') && c.text && !GENERIC.has(c.title.toLowerCase())).forEach((c) => add(c.title));
-  const list = [...names.values()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  coreSections.filter((c) => (c.num.includes('.') || /ability/i.test(c.num)) && c.text && !GENERIC.has(c.title.toLowerCase())).forEach((c) => add(c.title));
+  // Singular or plural either way ("Surge Moves" also matches "surge move").
+  const pattern = (n: string) => {
+    const base = /[^siu]s$/i.test(n) && n.length > 4 ? n.slice(0, -1) : n;
+    return `${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:s|es)?`;
+  };
+  const list = [...names.values()].sort((a, b) => b.length - a.length).map(pattern);
   const m: TermMatcher = { re: list.length ? new RegExp(`\\b(${list.join('|')})\\b`, 'gi') : null, canonical: names };
   matcherCache.set(index, { v: coreVersion, m });
   return m;
+}
+
+/**
+ * A phrase that is itself something the app can explain, compared without
+ * plurals ("assault disembark move" = "Assault Disembark Moves"). Used to join
+ * neighbouring terms ("Assault" + "Disembark" + "move") into the combined one.
+ */
+export function exactTerm(index: DataIndex, phrase: string): string | undefined {
+  const t = stem(phrase);
+  if (!t || !t.includes(' ')) return undefined;
+  const g = glossary(index);
+  for (const r of g.rules.values()) if (stem(r.name) === t) return r.name;
+  const sec = coreSections.find((c) => c.text && stem(c.title) === t);
+  if (sec) return sec.title;
+  return CORE_TERMS.find((c) => stem(c) === t);
 }
 
 export function isCoreTerm(term: string): boolean {
