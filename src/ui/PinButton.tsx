@@ -33,3 +33,18 @@ export function PinButton({ pin, small }: { pin: Omit<Pin, 'createdAt'>; small?:
 }
 
 export const pinId = (kind: string, name: string, extra = '') => `${kind}:${name.toLowerCase()}${extra ? `:${extra}` : ''}`;
+
+/** Names (lower case) of everything pinned of one kind, e.g. 'datasheet'. */
+export function usePinnedNames(kind: string): Set<string> {
+  const pins = useLiveQuery(() => db.pins.where('kind').equals(kind).toArray(), [kind]);
+  return new Set((pins ?? []).map((p) => p.name.toLowerCase()));
+}
+
+/** Small filled star shown next to something pinned. */
+export function PinnedMark() {
+  return (
+    <span className="pinned-mark" title="Pinned" aria-label="Pinned">
+      ★
+    </span>
+  );
+}

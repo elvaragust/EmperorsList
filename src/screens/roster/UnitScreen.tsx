@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState, type ReactNode } from 'react';
 import { legendsName } from '@/ui/Legends';
+import { PinButton, pinId } from '@/ui/PinButton';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
@@ -118,6 +119,7 @@ export function UnitScreen() {
           </div>
         </div>
         <span className="pts-chip">{pts} pts</span>
+        <PinButton pin={{ id: pinId('datasheet', unit.name), kind: 'datasheet', name: unit.name, route: `/reference/unit/${roster.catalogueId}/${unit.entryId}`, source: `${pts} pts` }} />
         <button className="icon-btn" aria-label="Datasheet" title="Datasheet" onClick={() => document.getElementById('datasheet')?.scrollIntoView({ behavior: 'smooth' })}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />

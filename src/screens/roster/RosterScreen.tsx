@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { isLegends, LegendsTag, legendsName } from '@/ui/Legends';
+import { PinnedMark, usePinnedNames } from '@/ui/PinButton';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
@@ -21,6 +22,7 @@ export function RosterScreen() {
   const navigate = useNavigate();
   const roster = useLiveQuery(() => db.rosters.get(id), [id]);
   const { engine, index, error } = useRosterEngine(roster);
+  const pinnedSheets = usePinnedNames('datasheet');
   useFactionTheme(roster?.factionName);
   const [showIssues, setShowIssues] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -62,6 +64,7 @@ export function RosterScreen() {
         <NavLink className={({ isActive }) => `unit-row ${isLed ? 'led' : ''}${isActive ? ' active' : ''}`} to={`/roster/${roster.id}/unit/${u.id}`}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 17 }}>
+              {pinnedSheets.has(u.name.toLowerCase()) && <PinnedMark />}
               {u.nickname || legendsName(u.name)}
               {isLegends(u.name) && <LegendsTag />}
               {warlord && <span className="tag" style={{ marginLeft: 8 }}>WARLORD</span>}
