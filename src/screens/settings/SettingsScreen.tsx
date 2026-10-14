@@ -140,6 +140,10 @@ export function SettingsScreen() {
           </div>
           <Choice k="labelStyle" value={look.labelStyle} options={[['dotted', 'Dotted box'], ['bold', 'Bold'], ['underline', 'Underline']]} />
           <div className="small muted" style={{ marginTop: 8 }}>
+            Legends units in Add unit (imported lists keep theirs)
+          </div>
+          <Choice k="legends" value={look.legends} options={[['hidden', 'Hidden'], ['shown', 'Shown']]} />
+          <div className="small muted" style={{ marginTop: 8 }}>
             Layout on laptops and tablets
           </div>
           <Choice k="layout" value={look.layout} options={[['auto', 'Fit the screen'], ['phone', 'Phone column']]} />

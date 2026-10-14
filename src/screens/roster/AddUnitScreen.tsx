@@ -17,6 +17,7 @@ import { PinButton, pinId, usePinnedNames } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
+import { useAppearance } from '@/theme/appearance';
 import { Screen } from '@/ui/Screen';
 import { isLegends, LegendsTag, legendsName } from '@/ui/Legends';
 
@@ -88,14 +89,16 @@ export function AddUnitScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine?.index, roster?.catalogueId, configKey]);
   const needsOf = useMemo(() => new Map(extras.filter((a) => a.needs.length).map((a) => [a.choice.root.key, a.needs])), [extras]);
+  // Legends are offered only when turned on in Settings.
+  const showLegends = useAppearance().legends === 'shown';
   const choices = useMemo(() => {
     if (!engine) return [];
     // Allies the army can take without Legends: Legends from other allies stay out.
     const allowedAllies = new Set(extras.filter((a) => a.ally && !a.legends).map((a) => a.ally!));
     const own = engine.unitChoices();
     const have = new Set(own.map((c) => c.root.key));
-    return [...own, ...extras.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)].filter((c) => legendsFit(engine, c, allowedAllies));
-  }, [engine, extras]);
+    return [...own, ...extras.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)].filter((c) => (showLegends || !isLegends(c.name)) && legendsFit(engine, c, allowedAllies));
+  }, [engine, extras, showLegends]);
   const allyOf = useMemo(() => new Map(extras.filter((a) => a.ally).map((a) => [a.choice.root.key, a.ally!])), [extras]);
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();

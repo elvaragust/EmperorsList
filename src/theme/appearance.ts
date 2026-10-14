@@ -12,10 +12,12 @@ export interface Appearance {
   layout: 'auto' | 'phone';
   /** Light or dark colours; 'system' follows the phone's setting. */
   mode: 'dark' | 'light' | 'system';
+  /** Offer Warhammer Legends datasheets in Add unit (imported lists keep theirs either way). */
+  legends: 'hidden' | 'shown';
 }
 
 const KEY = 'emperorslist.appearance';
-const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', layout: 'auto', mode: 'dark' };
+const DEFAULTS: Appearance = { themeMode: 'faction', fixedTheme: '', textSize: 'normal', titleFont: 'gothic', labelStyle: 'dotted', layout: 'auto', mode: 'dark', legends: 'hidden' };
 
 function load(): Appearance {
   try {
