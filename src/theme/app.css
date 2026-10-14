@@ -1555,3 +1555,14 @@ textarea.input {
   margin-right: 6px;
   font-size: 0.9em;
 }
+
+.rule-chips {
+  margin: 4px 0 8px;
+}
+.rule-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 4px 0;
+}
