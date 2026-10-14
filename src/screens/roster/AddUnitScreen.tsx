@@ -8,6 +8,7 @@ import { datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { allyName, choiceRole, ROLES } from '@/engine/rules/roles';
 import { setShowOptions, showOptions } from '@/engine/rules/config';
+import { legendsFit } from '@/engine/rules/legends';
 import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
@@ -88,9 +89,12 @@ export function AddUnitScreen() {
   }, [engine?.index, roster?.catalogueId, configKey]);
   const needsOf = useMemo(() => new Map(extras.filter((a) => a.needs.length).map((a) => [a.choice.root.key, a.needs])), [extras]);
   const choices = useMemo(() => {
-    const own = engine?.unitChoices() ?? [];
+    if (!engine) return [];
+    // Allies the army can take without Legends: Legends from other allies stay out.
+    const allowedAllies = new Set(extras.filter((a) => a.ally && !a.legends).map((a) => a.ally!));
+    const own = engine.unitChoices();
     const have = new Set(own.map((c) => c.root.key));
-    return [...own, ...extras.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)];
+    return [...own, ...extras.filter((a) => !have.has(a.choice.root.key)).map((a) => a.choice)].filter((c) => legendsFit(engine, c, allowedAllies));
   }, [engine, extras]);
   const allyOf = useMemo(() => new Map(extras.filter((a) => a.ally).map((a) => [a.choice.root.key, a.ally!])), [extras]);
   const list = useMemo(() => {

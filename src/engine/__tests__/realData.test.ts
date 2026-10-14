@@ -14,6 +14,7 @@ import { newUnit, refreshCaches, setOptionCount } from '../rules/edit';
 import { unitModels } from '../rules/models';
 import { computeWeaponGrid } from '../weaponGrid';
 import type { Roster } from '../types';
+import { legendsFit } from '../rules/legends';
 import { configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '../rules/config';
 
 const dir = resolve(process.env.EL_DATA ?? join(__dirname, '../../../../data-cache'));
@@ -188,6 +189,23 @@ describe.skipIf(!have)('real 11th edition data', () => {
     console.log(`${choices.length} units; problems:\n${report.join('\n')}`);
     expect(report.length).toBeLessThan(choices.length * 0.1);
   });
+  it('charges the extra cost from the third copy of a unit, not the second', () => {
+    const sb = roots.find((r) => r.node.name === 'Sword Brethren Squad')!;
+    let r = blank(btId);
+    const price = () => new RosterEngine(index, r, roots).unitChoices().find((c) => c.root.key === sb.key)!.points;
+    const base = price();
+    const pts: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const e = new RosterEngine(index, r, roots);
+      if (i === 2) expect(price()).toBe(base + 20);
+      else expect(price()).toBe(base);
+      r = { ...r, units: [...r.units, newUnit(e, sb.key)] };
+    }
+    const e = new RosterEngine(index, r, roots);
+    r.units.forEach((u) => pts.push(e.unitPoints(u.id)));
+    expect(pts).toEqual([base, base, base + 20]);
+  });
+
   it('hides rules retired in this edition (Templar Vows)', () => {
     expect([...index.rules.values()].some((r) => r.name === 'Templar Vows')).toBe(false);
   });
@@ -200,6 +218,11 @@ describe.skipIf(!have)('real 11th edition data', () => {
     const names = new RosterEngine(index, setShowOptions(e, r, { [leg.key]: true }), roots).unitChoices().map((c) => c.name);
     expect(names).toContain('Kratos [Legends]');
     expect(names).not.toContain('Blood Slaughterer [Legends]');
+    const e2 = new RosterEngine(index, setShowOptions(e, r, { [leg.key]: true }), roots);
+    const fit = e2.unitChoices().filter((c) => legendsFit(e2, c, new Set(['Imperial Agents', 'Agents of the Imperium']))).map((c) => c.name);
+    expect(fit).toContain('Kratos [Legends]');
+    expect(fit).not.toContain('Ambull [Legends]');
+    expect(fit).not.toContain('Chaplain Kastiel [Legends]');
   });
 });
 

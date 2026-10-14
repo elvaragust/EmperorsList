@@ -62,6 +62,16 @@ function allied(engine: RosterEngine, ids: Iterable<string>): boolean {
   return factions.length > 0 && !factions.some((f) => own.has(f));
 }
 
+/**
+ * A datasheet tied to a different chapter or faction than the army's own
+ * (e.g. a Blood Ravens character offered to Black Templars through Space Marines).
+ */
+export function foreignKeyword(engine: RosterEngine, node: { categoryIds: string[]; targetId: string }): boolean {
+  const own = ownFactions(engine);
+  if (!own.size) return false;
+  return catsOf(engine, node).some((id) => isFaction(engine, id) && !own.has(id));
+}
+
 /** Section of a unit choice (Add unit). */
 export function choiceRole(engine: RosterEngine, node: { categoryIds: string[]; targetId: string }, primary?: string): Role {
   if (allied(engine, catsOf(engine, node))) return 'Allied units';
