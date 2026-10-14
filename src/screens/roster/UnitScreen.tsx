@@ -56,6 +56,27 @@ export function UnitScreen() {
   const pts = engine?.unitPoints(unit.id) ?? unit.points;
   const together = attached.reduce((s, a) => s + (engine?.unitPoints(a.id) ?? a.points), pts);
   const targets = engine?.attachTargets(unit.id) ?? [];
+  const otherTargets = engine?.otherAttachTargets(unit.id) ?? [];
+  const attachRow = (tid: string, forced: boolean) => {
+    const body = roster.units.find((u) => u.id === tid)!;
+    const already = roster.units.filter((u) => u.leaderOf === tid).map((u) => u.name);
+    return (
+      <button
+        key={tid}
+        className="menu-item"
+        onClick={() => {
+          setLeadPicker(false);
+          save((r) => ({ ...r, units: r.units.map((x) => (x.id === unit.id ? { ...x, leaderOf: tid, leaderForced: forced || undefined } : x)) }));
+        }}
+      >
+        <span style={{ flex: 1 }}>
+          {body.nickname || body.name}
+          {forced && <span className="tag legends-tag">LIKELY NOT SUPPORTED</span>}
+          {already.length > 0 && <div className="muted small">Already led by {already.join(', ')}</div>}
+        </span>
+      </button>
+    );
+  };
   const unitIssues = engine?.issues().filter((i) => i.unitId === unit.id) ?? [];
   const total = engine?.totalPoints() ?? 0;
   const limit = engine?.pointsLimit() ?? roster.pointsLimit;
@@ -271,7 +292,7 @@ export function UnitScreen() {
                 <span className="muted small">Led by </span>
                 <strong>{a.nickname || a.name}</strong>
               </Link>
-              <button className="btn btn-sm btn-ghost" onClick={() => save((r) => ({ ...r, units: r.units.map((x) => (x.id === a.id ? { ...x, leaderOf: undefined } : x)) }))}>
+              <button className="btn btn-sm btn-ghost" onClick={() => save((r) => ({ ...r, units: r.units.map((x) => (x.id === a.id ? { ...x, leaderOf: undefined, leaderForced: undefined } : x)) }))}>
                 Detach
               </button>
             </div>
@@ -300,26 +321,16 @@ export function UnitScreen() {
 
 
       <Sheet open={leadPicker} onClose={() => setLeadPicker(false)} title="Attach to">
-        {targets.length === 0 && <p className="muted">No unit in this list can take this character. Add one of the units its Leader ability lists.</p>}
-        {targets.map((tid) => {
-          const body = roster.units.find((u) => u.id === tid)!;
-          const already = roster.units.filter((u) => u.leaderOf === tid).map((u) => u.name);
-          return (
-            <button
-              key={tid}
-              className="menu-item"
-              onClick={() => {
-                setLeadPicker(false);
-                save((r) => ({ ...r, units: r.units.map((x) => (x.id === unit.id ? { ...x, leaderOf: tid } : x)) }));
-              }}
-            >
-              <span style={{ flex: 1 }}>
-                {body.nickname || body.name}
-                {already.length > 0 && <div className="muted small">Already led by {already.join(', ')}</div>}
-              </span>
-            </button>
-          );
-        })}
+        {targets.length === 0 && <p className="muted">No unit in this list is on this character's Leader list in the game data.</p>}
+        {targets.map((tid) => attachRow(tid, false))}
+        {otherTargets.length > 0 && (
+          <Collapse title="Other units (likely not supported)" right={<span className="muted small num">{otherTargets.length}</span>} defaultOpen={targets.length === 0}>
+            <p className="small muted" style={{ marginTop: 0 }}>
+              The game data doesn't list these for this character, but it's sometimes behind the current rules. You can attach anyway; the list shows a reminder.
+            </p>
+            {otherTargets.map((tid) => attachRow(tid, true))}
+          </Collapse>
+        )}
       </Sheet>
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={unit.name}>
@@ -339,7 +350,7 @@ export function UnitScreen() {
           Duplicate unit
         </button>
         {unit.leaderOf && (
-          <button className="menu-item" onClick={() => (saveUnit({ ...unit, leaderOf: undefined }), setMenu(false))}>
+          <button className="menu-item" onClick={() => (saveUnit({ ...unit, leaderOf: undefined, leaderForced: undefined }), setMenu(false))}>
             Detach from {leading?.name}
           </button>
         )}

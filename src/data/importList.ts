@@ -118,6 +118,11 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     if (body) unit.leaderOf = body.id;
   }
   roster = { ...roster, units };
+  // The official app allowed these attachments; where the game data doesn't list them yet, keep them as by-hand ones.
+  {
+    const e = new RosterEngine(index, roster, roots);
+    for (const u of units) if (u.leaderOf && !e.attachTargets(u.id).includes(u.leaderOf)) u.leaderForced = true;
+  }
   // Points that differ from the list come from the game data version, not the import.
   const final = new RosterEngine(index, roster, roots);
   pairs.forEach(({ pu, u }) => {

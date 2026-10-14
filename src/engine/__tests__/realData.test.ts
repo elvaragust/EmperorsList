@@ -213,6 +213,23 @@ describe.skipIf(!have)('real 11th edition data', () => {
     expect(names).not.toContain('Paragon Blade');
   });
 
+  it('lets a character be attached by hand to a unit the data does not list, as a reminder not an error', () => {
+    const key = (n: string) => roots.find((r) => r.node.name === n)!.key;
+    let r = blank(btId);
+    const e0 = new RosterEngine(index, r, roots);
+    const marshal = newUnit(e0, key('Marshal'));
+    const raider = newUnit(e0, key('Land Raider'));
+    r = { ...r, units: [marshal, raider] };
+    let e = new RosterEngine(index, r, roots);
+    expect(e.canLead(marshal.id)).toBe(true);
+    expect(e.attachTargets(marshal.id)).not.toContain(raider.id);
+    expect(e.otherAttachTargets(marshal.id)).toContain(raider.id);
+    r = { ...r, units: [{ ...marshal, leaderOf: raider.id, leaderForced: true }, raider] };
+    e = new RosterEngine(index, r, roots);
+    const issue = e.issues().find((i) => i.unitId === marshal.id && /lead/i.test(i.title));
+    expect(issue?.severity).toBe('advice');
+  });
+
   it('hides rules retired in this edition (Templar Vows)', () => {
     expect([...index.rules.values()].some((r) => r.name === 'Templar Vows')).toBe(false);
   });
