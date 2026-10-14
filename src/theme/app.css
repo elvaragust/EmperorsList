@@ -1549,3 +1549,9 @@ textarea.input {
     margin-top: 0;
   }
 }
+
+.pinned-mark {
+  color: var(--accent);
+  margin-right: 6px;
+  font-size: 0.9em;
+}

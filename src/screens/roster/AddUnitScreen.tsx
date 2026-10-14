@@ -13,7 +13,7 @@ import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
 import { AbilityList, StatLine } from '@/ui/DatasheetView';
-import { PinButton, pinId } from '@/ui/PinButton';
+import { PinButton, pinId, usePinnedNames } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
@@ -129,6 +129,9 @@ export function AddUnitScreen() {
 
   const inList = (key: string) => roster?.units.filter((u) => u.entryId === key).length ?? 0;
 
+  const pinned = usePinnedNames('datasheet');
+  const isPinned = (name: string) => pinned.has(name.toLowerCase());
+  const pinnedList = list.filter((c) => isPinned(c.name));
   const row = (c: (typeof list)[number]) => {
     const n = inList(c.root.key);
     return (
@@ -146,6 +149,7 @@ export function AddUnitScreen() {
           </span>
           <span className="num muted">{c.points}</span>
         </button>
+        <PinButton small pin={{ id: pinId('datasheet', c.name), kind: 'datasheet', name: c.name, route: `/reference/unit/${roster?.catalogueId}/${c.root.key}`, source: `${c.points} pts` }} />
         <button className="icon-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)} style={{ color: 'var(--accent)', fontSize: 24 }}>
           +
         </button>
@@ -164,6 +168,13 @@ export function AddUnitScreen() {
         ))}
       </div>
       {!engine && <p className="muted">Loading units…</p>}
+      {pinnedList.length > 0 && !q.trim() && (
+        <>
+          <div className="section-label">Pinned</div>
+          <div className="card">{pinnedList.map(row)}</div>
+          <div className="section-label">{role === 'All' ? 'All units' : (SHORT[role] ?? role)}</div>
+        </>
+      )}
       {role === 'Allied units' && !q.trim() ? (
         allyGroups.map(([ally, units]) => (
           <Collapse key={ally} title={ally} right={<span className="muted small num">{units.length}</span>}>
