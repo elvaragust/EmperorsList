@@ -102,3 +102,41 @@
 [data-theme='aeldari'] { --bg: #0a0d10; --bg-deep: #05070a; --surface: #11171c; --raised: #182028; --line: #26323d; --line-soft: #1d262f; --text: #ebeff2; --text-muted: #96a1ab; --accent: #e6c35c; --accent-strong: #1f6f78; --on-accent-strong: #fff; --font-title: 'Cinzel', serif; }
 [data-theme='drukhari'] { --bg: #08090a; --bg-deep: #040405; --surface: #0f1113; --raised: #16191c; --line: #24292e; --line-soft: #1a1e22; --text: #e6eaec; --text-muted: #8f989e; --accent: #4fc0a8; --accent-strong: #1f5a50; --on-accent-strong: #fff; }
 [data-theme='votann'] { --bg: #100d09; --bg-deep: #080605; --surface: #1a1610; --raised: #241e16; --line: #3a3124; --line-soft: #2b251b; --text: #f0e9dc; --text-muted: #a69c88; --accent: #f0a83a; --accent-strong: #8a5a1a; --on-accent-strong: #fff; }
+
+/*
+ * Light mode (Settings → Appearance). Higher specificity than the faction themes,
+ * so it replaces their dark base but keeps each faction's accent and button colour.
+ */
+:root[data-mode='light'] {
+  --bg: #f3eee4;
+  --bg-deep: #e7dfd0;
+  --surface: #fffcf6;
+  --raised: #efe8da;
+  --line: #d3c8b3;
+  --line-soft: #e3dacb;
+  --text: #1d1712;
+  --text-muted: #675d4f;
+  --danger: #b3261e;
+  --ok: #1d7a4c;
+  --rule-core: #4a5a70;
+  --rule-datasheet: #1f5fae;
+  --rule-stratagem: #9a6400;
+  --rule-enhancement: #6a4bc4;
+  --rule-detachment: #0f7f70;
+  --rule-army: #4450b8;
+  --rule-ability: #b0306f;
+  --rule-keyword: #1d7a4c;
+  --rule-weaponAbility: #b05312;
+  color-scheme: light;
+}
+:root[data-mode='dark'] {
+  color-scheme: dark;
+}
+/* Faction accents are picked for dark backgrounds (gold, bone…): darken them on light.
+   Two steps so the mix can read the theme's own accent. */
+:root[data-mode='light'] body {
+  --accent-src: var(--accent);
+}
+:root[data-mode='light'] body > * {
+  --accent: color-mix(in oklab, var(--accent-src) 68%, black);
+}
