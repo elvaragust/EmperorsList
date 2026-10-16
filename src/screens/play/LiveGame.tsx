@@ -320,6 +320,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
         label={myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`}
         phase={PHASE_NAMES[state.phase]}
         vp={`${totalScore(state.vp[myTeam])}–${totalScore(state.vp[otherTeam(myTeam)])}`}
+        onSwitch={mayAdvance ? () => dispatch({ t: 'turn' }) : undefined}
       />
       <div className="filters" style={{ marginTop: 6 }} aria-label="Look at a phase (only on your screen)">
         {PHASES.map((p) => (

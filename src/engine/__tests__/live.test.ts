@@ -57,6 +57,17 @@ describe('live game reducer', () => {
     expect(s.vp.B.secondary[0]).toBe(4);
   });
 
+  it('tapping the turn banner hands the turn over', () => {
+    let s = newLiveState('R', p('h', 'Host'));
+    s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
+    s = reduce(s, { t: 'start' }, 'h');
+    s = reduce(s, { t: 'phase', phase: 'shooting' }, 'h');
+    s = reduce(s, { t: 'turn' }, 'h');
+    expect(s).toMatchObject({ turn: 'B', phase: 'command' });
+    // The team whose turn it is can hand it back.
+    expect(reduce(s, { t: 'turn' }, 'g').turn).toBe('A');
+  });
+
   it('makes readable room codes', () => {
     expect(makeRoomCode()).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   });

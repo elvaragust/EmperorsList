@@ -1600,6 +1600,10 @@ textarea.input {
 
 /* Whose turn: impossible to miss */
 .turn-banner {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1639,4 +1643,12 @@ textarea.input {
   background: repeating-linear-gradient(135deg, var(--raised) 0 10px, var(--surface) 10px 20px);
   color: var(--text);
   border-color: var(--line);
+}
+
+.turn-banner:disabled {
+  cursor: default;
+}
+.turn-banner-swap {
+  font-size: 18px;
+  opacity: 0.8;
 }

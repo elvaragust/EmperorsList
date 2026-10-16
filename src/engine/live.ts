@@ -77,6 +77,8 @@ export type LiveAction =
   | { t: 'prev' }
   | { t: 'phase'; phase: Phase }
   | { t: 'round'; round: number }
+  /** Hand the turn to the other team (tapping the turn banner). */
+  | { t: 'turn' }
   | { t: 'cp'; id: string; value: number }
   | { t: 'vp'; team: Team; kind: 'primary' | 'secondary'; round: number; value: number }
   | { t: 'strat'; name: string; cost: number }
@@ -196,6 +198,11 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       // Jump to the start of a battle round (first player's Command phase).
       if (!canAdvance(s, from) || a.round < 1 || a.round > ROUNDS || a.round === s.round) return s;
       return bump(log({ ...s, round: a.round, turn: s.firstTurn, phase: 'command' }, `Moved to round ${a.round}`));
+    case 'turn': {
+      if (!canAdvance(s, from)) return s;
+      const turn = s.turn === 'A' ? 'B' : 'A';
+      return bump(log({ ...s, turn, phase: 'command' }, `Turn handed to ${teamNames(s, turn)}`));
+    }
     case 'cp':
       // Each player changes only their own CP.
       if (!local && from !== a.id) return s;
