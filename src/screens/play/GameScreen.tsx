@@ -279,7 +279,12 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
       <div className="game-layout">
       <div className="game-controls">
       <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
-      <TurnBanner mine={game.turn === 'me'} label={game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`} phase={PHASE_NAMES[game.phase]} vp={`${totalScore(game.vp.me)}–${totalScore(game.vp.them)}`} />
+      <TurnBanner mine={game.turn === 'me'} label={game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`} phase={PHASE_NAMES[game.phase]} vp={`${totalScore(game.vp.me)}–${totalScore(game.vp.them)}`}
+        onSwitch={() => {
+          const turn = game.turn === 'me' ? 'them' : 'me';
+          void save(withLog({ ...game, turn, phase: 'command' }, `Switched to ${turn === 'me' ? 'your' : `${who('them')}'s`} turn`, 'phase'));
+        }}
+      />
       <div className="filters" style={{ marginTop: 6 }}>
         {PHASES.map((p) => (
           <button key={p} className={`filter ${game.phase === p ? 'on' : ''}`} onClick={() => save({ ...game, phase: p })}>
