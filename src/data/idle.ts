@@ -13,7 +13,7 @@ export async function endIdleGames(now = Date.now()): Promise<number> {
   const games = await db.games.toArray();
   let n = 0;
   for (const g of games) {
-    if (g.stage === 'done' || g.idle) continue;
+    if (g.stage === 'done' || g.idle || g.practice) continue;
     if (now - lastActive(g) < IDLE_MS) continue;
     const idle: SavedGame['idle'] = { at: now, stage: g.stage, unlinked: g.live?.unlinked };
     // Hang up a live game first so the room can't write over the ended copy.

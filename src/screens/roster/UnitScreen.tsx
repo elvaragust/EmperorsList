@@ -21,6 +21,7 @@ import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { OptionList } from './WargearEditor';
 import { combinedModels } from './combined';
+import { useUnitDetachmentRules } from '@/screens/play/detachmentRules';
 
 /**
  * One page per unit, laid out like the official app: the unit and its points,
@@ -46,6 +47,15 @@ export function UnitScreen() {
   const ownModels = useMemo(() => (engine ? unitModels(engine, unitId) : undefined), [engine, unitId]);
   const types = useMemo(() => (engine ? modelTypes(engine, unitId) : []), [engine, unitId]);
 
+  // Detachment rules that concern this unit or the characters leading it.
+  const sheetsForRules = useMemo(() => {
+    if (!engine || !unit) return [];
+    return [unit, ...attached].flatMap((x) => {
+      const i = engine.unitInst(x.id);
+      return i ? [datasheet(engine, i)] : [];
+    });
+  }, [engine, unit, attached]);
+  const unitDetRules = useUnitDetachmentRules(engine, sheetsForRules);
   if (!roster || !unit) return <Screen title="Unit" back>{roster && !unit ? <p className="muted">This unit was removed.</p> : null}</Screen>;
 
   const save = (fn: (r: Roster) => Roster) => saveRoster(index, fn(roster));
@@ -303,7 +313,7 @@ export function UnitScreen() {
       {sheet && ownModels && (
         <div id="datasheet" style={{ marginTop: 14 }}>
           <div className="section-label">Datasheet{attached.length ? ` · with ${attached.map((a) => a.nickname || a.name).join(' & ')}` : ''}</div>
-          <DatasheetView sheet={sheet} weapons={[...(engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels).weapons.values()]} index={index} attached={leaderSheets} />
+          <DatasheetView sheet={sheet} weapons={[...(engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels).weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} />
         </div>
       )}
 

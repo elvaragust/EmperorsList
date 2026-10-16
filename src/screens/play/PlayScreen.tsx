@@ -18,7 +18,7 @@ import { showToast } from '@/ui/Toast';
 
 /** War Journal: games in progress and finished games. */
 export function PlayScreen() {
-  const games = useLiveQuery(() => db.games.orderBy('startedAt').reverse().toArray(), []);
+  const games = useLiveQuery(() => db.games.orderBy('startedAt').reverse().filter((g) => !g.practice).toArray(), []);
   const live = games?.filter((g) => g.stage !== 'done' || g.idle) ?? [];
   const done = games?.filter((g) => g.stage === 'done' && !g.idle) ?? [];
   const [menu, setMenu] = useState<SavedGame | null>(null);

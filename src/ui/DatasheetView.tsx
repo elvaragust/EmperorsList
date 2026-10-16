@@ -7,6 +7,7 @@ import type { WeaponProfile } from '@/engine/types';
 import type { ReactNode } from 'react';
 import { Collapse } from './Collapse';
 import { RulesText, Term } from './RulesText';
+import { useRulePopup } from './RulePopup';
 
 const STAT_ORDER = ['M', 'T', 'SV', 'W', 'LD', 'OC'];
 
@@ -145,14 +146,10 @@ const isAttachRule = (a: RawProfile) => /^(leader|support)$/i.test(a.name);
  */
 export function RuleChips({ rules, index }: { rules: { name: string }[]; index?: DataIndex }) {
   const kind = (n: string) => (index ? lookupRule(index, n)?.kind : undefined);
-  const faction = (n: string) => kind(n) === 'army';
-  // Weapon abilities (Pistol, Anti-, Extra Attacks…) are shown on the weapons themselves.
-  rules = rules.filter((r) => kind(r.name) !== 'weaponAbility');
+  // Weapon abilities (Pistol, Anti-, Extra Attacks…) are on the weapons; army rules are in the Rules tab.
+  rules = rules.filter((r) => kind(r.name) !== 'weaponAbility' && kind(r.name) !== 'army');
   if (!rules.length) return null;
-  const groups: [string, { name: string }[]][] = [
-    ['Core', rules.filter((r) => !faction(r.name))],
-    ['Faction', rules.filter((r) => faction(r.name))],
-  ];
+  const groups: [string, { name: string }[]][] = [['Core', rules]];
   return (
     <div className="rule-chips">
       {groups
@@ -165,6 +162,22 @@ export function RuleChips({ rules, index }: { rules: { name: string }[]; index?:
             ))}
           </div>
         ))}
+    </div>
+  );
+}
+
+/** Detachment rules that concern this unit, tappable like the other rules. */
+export function DetachmentRuleChips({ rules, index }: { rules: { name: string; text: string; detachment: string }[]; index?: DataIndex }) {
+  const popup = useRulePopup();
+  if (!rules.length) return null;
+  return (
+    <div className="rule-chip-row">
+      <span className="small muted">Detachment:</span>
+      {rules.map((r) => (
+        <button key={r.detachment + r.name} className="kw" onClick={() => popup.openDef({ name: r.name, text: r.text, kind: 'detachment', source: r.detachment }, index)}>
+          {r.name}
+        </button>
+      ))}
     </div>
   );
 }
@@ -182,7 +195,10 @@ export function DatasheetView({
   attached = [],
   showWeapons = true,
   top,
+  detachmentRules = [],
 }: {
+  /** The list's detachment rules that concern this unit. */
+  detachmentRules?: { name: string; text: string; detachment: string }[];
   sheet: Datasheet;
   weapons: WeaponProfile[];
   index?: DataIndex;
@@ -212,6 +228,7 @@ export function DatasheetView({
       )}
       <div className="section-label">Abilities</div>
       <RuleChips rules={rules} index={index} />
+      <DetachmentRuleChips rules={detachmentRules} index={index} />
       {abilities.map(({ a, from }) => {
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const buffs = from && /while this model is leading|this model's unit|the unit this model is leading|models in this model's unit|bodyguard/i.test(text);

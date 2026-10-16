@@ -6,6 +6,7 @@ import { useRosterEngine } from '@/data/gameData';
 import { datasheet } from '@/engine/rules/models';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
+import { useUnitDetachmentRules } from './detachmentRules';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
 import { combinedModels } from '../roster/combined';
@@ -21,6 +22,8 @@ export function GameUnitScreen() {
   const unit = roster?.units.find((u) => u.id === unitId);
   const group = useMemo(() => (unit && roster ? [unit, ...roster.units.filter((u) => u.leaderOf === unit.id)] : []), [unit, roster]);
   const models = useMemo(() => (engine && group.length ? combinedModels(engine, group) : undefined), [engine, group]);
+  const sheetsForRules = useMemo(() => (engine ? group.flatMap((x) => { const i = engine.unitInst(x.id); return i ? [datasheet(engine, i)] : []; }) : []), [engine, group]);
+  const detRules = useUnitDetachmentRules(engine, sheetsForRules);
   if (!game || !unit || !models || !engine) return <Screen title="Unit" back>{null}</Screen>;
   const dead = Object.entries(game.casualties).flatMap(([uid, ids]) => ids.map((m) => `${uid}/${m}`));
   const toggle = (prefixed: string, alive: boolean) => {
@@ -74,6 +77,7 @@ export function GameUnitScreen() {
           sheet={sheet}
           weapons={[...models.weapons.values()]}
           index={index}
+          detachmentRules={detRules}
           attached={group.slice(1).flatMap((l) => {
             const li = engine.unitInst(l.id);
             return li ? [{ name: l.nickname || l.name, sheet: datasheet(engine, li) }] : [];

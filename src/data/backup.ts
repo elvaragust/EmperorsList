@@ -2,7 +2,7 @@ import { db } from './db';
 
 /** Everything the user made (lists, games, collection, layouts, imported extra rules). No downloaded game data. */
 export async function exportBackup(): Promise<string> {
-  const [rosters, games, collection, imported, layouts, pins] = await Promise.all([db.rosters.toArray(), db.games.toArray(), db.collection.toArray(), db.imported.toArray(), db.layouts.toArray(), db.pins.toArray()]);
+  const [rosters, games, collection, imported, layouts, pins] = await Promise.all([db.rosters.toArray(), db.games.filter((g) => !g.practice).toArray(), db.collection.toArray(), db.imported.toArray(), db.layouts.toArray(), db.pins.toArray()]);
   return JSON.stringify({ app: 'emperorslist', kind: 'backup', version: 3, exportedAt: new Date().toISOString(), rosters, games, collection, imported, layouts, pins });
 }
 

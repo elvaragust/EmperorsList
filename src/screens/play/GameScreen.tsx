@@ -13,9 +13,10 @@ import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
-import { saveGame, withLog } from './games';
+import { practiceId, saveGame, startPractice, withLog } from './games';
+import { ViewToggle } from '@/ui/ViewToggle';
 import { useSessionState } from '@/ui/useSessionState';
-import { NotesPanel, PhasePanel, RoundBar, RulesPanel } from './panels';
+import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner } from './panels';
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
@@ -218,7 +219,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
   );
 }
 
-function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
+export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; index?: RosterEngine['index'] }) {
   const navigate = useNavigate();
   const [tab, setTab] = useSessionState<'phase' | 'missions' | 'rules' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [ending, setEnding] = useState(false);
@@ -264,23 +265,21 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
   return (
     <Screen
       title={`Round ${game.round}`}
-      back
+      back={!game.practice}
       actions={
-        <button className="btn btn-sm btn-ghost" onClick={() => setEnding(true)}>
-          End
-        </button>
+        game.practice ? (
+          <ViewToggle rosterId={game.rosterId} current="play" />
+        ) : (
+          <button className="btn btn-sm btn-ghost" onClick={() => setEnding(true)}>
+            End
+          </button>
+        )
       }
     >
       <div className="game-layout">
       <div className="game-controls">
       <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontWeight: 600 }}>{game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`}</span>
-        <span className="spacer" />
-        <span className="num">
-          VP {totalScore(game.vp.me)}–{totalScore(game.vp.them)}
-        </span>
-      </div>
+      <TurnBanner mine={game.turn === 'me'} label={game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`} phase={PHASE_NAMES[game.phase]} vp={`${totalScore(game.vp.me)}–${totalScore(game.vp.them)}`} />
       <div className="filters" style={{ marginTop: 6 }}>
         {PHASES.map((p) => (
           <button key={p} className={`filter ${game.phase === p ? 'on' : ''}`} onClick={() => save({ ...game, phase: p })}>
@@ -425,7 +424,15 @@ function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngine; inde
       </div>
       </div>
 
-      <Sheet open={ending} onClose={() => setEnding(false)} title="End the game?">
+      <Sheet open={ending && Boolean(game.practice)} onClose={() => setEnding(false)} title="Practice game over">
+        <p>
+          Final score {totalScore(game.vp.me)}–{totalScore(game.vp.them)}. Practice games aren't kept.
+        </p>
+        <button className="btn btn-primary btn-block" onClick={() => void db.rosters.get(game.rosterId).then((r) => r && startPractice(r)).then(() => setEnding(false))}>
+          Start over
+        </button>
+      </Sheet>
+      <Sheet open={ending && !game.practice} onClose={() => setEnding(false)} title="End the game?">
         <p>
           Final score {totalScore(game.vp.me)}–{totalScore(game.vp.them)}.
         </p>
@@ -521,4 +528,19 @@ function Result({ game }: { game: SavedGame }) {
       </div>
     </Screen>
   );
+}
+
+/** The list builder's Play view: the battle screen on a throwaway game for this list. */
+export function PracticeScreen() {
+  const { id = '' } = useParams();
+  const found = useLiveQuery(() => db.games.get(practiceId(id)).then((g) => g ?? null), [id]);
+  const roster = useLiveQuery(() => db.rosters.get(id), [id]);
+  const { engine, index } = useRosterEngine(roster);
+  useFactionTheme(roster?.factionName);
+  // Opened directly (or after a reload): start a fresh one.
+  useEffect(() => {
+    if (found === null && roster) void startPractice(roster);
+  }, [found, roster]);
+  if (!found) return <Screen title="Play" back><Loading what="the battle screen" /></Screen>;
+  return <Battle game={found} engine={engine} index={index} />;
 }

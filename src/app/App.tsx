@@ -15,7 +15,7 @@ import { FactionScreen } from '@/screens/reference/FactionScreen';
 import { RefUnitScreen } from '@/screens/reference/RefUnitScreen';
 import { PlayScreen } from '@/screens/play/PlayScreen';
 import { NewGameScreen } from '@/screens/play/NewGameScreen';
-import { GameScreen } from '@/screens/play/GameScreen';
+import { GameScreen, PracticeScreen } from '@/screens/play/GameScreen';
 import { GameUnitScreen } from '@/screens/play/GameUnitScreen';
 import { OpponentUnitScreen } from '@/screens/play/OpponentUnits';
 import { JoinScreen } from '@/screens/play/JoinScreen';
@@ -57,6 +57,7 @@ export function App() {
             <Route path="unit/:unitId" element={<UnitScreen />} />
           </Route>
           <Route path="/roster/:id/print" element={<PrintScreen />} />
+          <Route path="/roster/:id/play" element={<PracticeScreen />} />
           <Route path="/reference" element={<ReferenceScreen />} />
           <Route path="/reference/core" element={<CoreRulesScreen />} />
           <Route path="/reference/pinned" element={<PinnedScreen />} />
