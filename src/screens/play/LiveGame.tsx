@@ -15,7 +15,7 @@ import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
 import { ScoreRow } from './GameScreen';
-import { PhasePanel, RoundBar, RulesPanel, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
+import { PhasePanel, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
@@ -315,15 +315,12 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       <div className="game-layout">
       <div className="game-controls">
       <RoundBar round={state.round} disabled={!mayAdvance} onPick={(r) => dispatch({ t: 'round', round: r })} />
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontWeight: 600 }}>
-          {myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`} · {PHASE_NAMES[state.phase]}
-        </span>
-        <span className="spacer" />
-        <span className="num">
-          VP {totalScore(state.vp[myTeam])}–{totalScore(state.vp[otherTeam(myTeam)])}
-        </span>
-      </div>
+      <TurnBanner
+        mine={myTurn}
+        label={myTurn ? `Your ${state.mode === '2v2' ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`}
+        phase={PHASE_NAMES[state.phase]}
+        vp={`${totalScore(state.vp[myTeam])}–${totalScore(state.vp[otherTeam(myTeam)])}`}
+      />
       <div className="filters" style={{ marginTop: 6 }} aria-label="Look at a phase (only on your screen)">
         {PHASES.map((p) => (
           <button key={p} className={`filter ${viewPhase === p ? 'on' : ''}`} onClick={() => setViewPhase(p)}>

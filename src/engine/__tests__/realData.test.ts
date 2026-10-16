@@ -230,6 +230,26 @@ describe.skipIf(!have)('real 11th edition data', () => {
     expect(issue?.severity).toBe('advice');
   });
 
+  it('takes off enhancements the new detachment does not offer', () => {
+    let r = blank(btId);
+    const ch = configChoices(new RosterEngine(index, r, roots));
+    const det = (n: string) => ch.detachments.find((d) => d.name === n)!.key;
+    r = setDetachments(new RosterEngine(index, r, roots), r, [det('Gladius Task Force')]);
+    const e0 = new RosterEngine(index, r, roots);
+    let marshal = newUnit(e0, roots.find((x) => x.node.name === 'Marshal')!.key);
+    r = { ...r, units: [marshal] };
+    let e = new RosterEngine(index, r, roots);
+    const flat = (v: import('../rules/rosterEngine').OptionView): import('../rules/rosterEngine').OptionView[] => (v.kind === 'entry' ? [v] : v.hidden ? [] : v.children.flatMap(flat));
+    const groups = e.optionsUnder(e.unitInst(marshal.id)!).filter((v) => v.kind === 'group' && /enhancement/i.test(v.name));
+    const pick = groups.flatMap((g) => g.children.flatMap(flat)).find((o) => !o.hidden)!;
+    marshal = setOptionCount(e, marshal, [], pick.node.key, 1);
+    r = { ...r, units: [marshal] };
+    e = new RosterEngine(index, r, roots);
+    expect(e.enhancementOf(marshal.id)).toBeTruthy();
+    r = setDetachments(e, r, [det('Ironstorm Spearhead')]);
+    expect(new RosterEngine(index, r, roots).enhancementOf(marshal.id)).toBeUndefined();
+  });
+
   it('hides rules retired in this edition (Templar Vows)', () => {
     expect([...index.rules.values()].some((r) => r.name === 'Templar Vows')).toBe(false);
   });

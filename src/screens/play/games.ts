@@ -25,6 +25,20 @@ export function newGame(roster: Roster): SavedGame {
   };
 }
 
+/** Id of a list's practice game (the Play view in the list builder). */
+export const practiceId = (rosterId: string) => `practice-${rosterId}`;
+
+/** A fresh practice game for a list: straight into round 1, nothing set up, against "Opponent". */
+export async function startPractice(roster: Roster) {
+  const g: SavedGame = { ...newGame(roster), id: practiceId(roster.id), practice: true, opponentName: 'Opponent', stage: 'battle', firstTurn: 'me', cp: { me: 1, them: 1 } };
+  await db.games.put(g);
+}
+
+/** Throw a list's practice game away. */
+export async function endPractice(rosterId: string) {
+  await db.games.delete(practiceId(rosterId));
+}
+
 export async function saveGame(g: SavedGame) {
   await db.games.put(g);
 }

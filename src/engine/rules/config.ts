@@ -4,7 +4,7 @@ import type { BattleSize, Roster, Selection } from '../types';
 import { PTS } from './evaluate';
 import { virtualChild, type Inst } from './instance';
 import { childNodes, infoOf, offeredEntries, ruleText, type OptNode } from './nodes';
-import { DP, type RootOption, type RosterEngine } from './rosterEngine';
+import { DP, RosterEngine, type OptionView, type RootOption } from './rosterEngine';
 
 /** Force Disposition category ids (a detachment's categories say which it suits). */
 export const DISPOSITION_CATEGORIES: Record<string, string> = {
@@ -139,7 +139,31 @@ export function setDetachments(engine: RosterEngine, roster: Roster, keys: strin
       picked.length ? { entryId: root.key, count: 1, children: picked.map((d) => ({ entryId: d.key, count: 1, children: [] })) } : undefined,
     );
   }
-  return next;
+  return dropUnavailableEnhancements(new RosterEngine(engine.index, next, [...engine.roots.values()]), next);
+}
+
+/**
+ * Enhancements belong to a detachment: after a detachment change, take off any
+ * the new detachments don't offer (the data hides them) so they don't linger.
+ */
+export function dropUnavailableEnhancements(engine: RosterEngine, roster: Roster): Roster {
+  const strip = (list: Selection[], key: string): Selection[] => list.filter((s) => s.entryId !== key).map((s) => ({ ...s, children: strip(s.children, key) }));
+  // Selected entries sitting in a hidden group (the data hides other detachments' enhancement groups).
+  const stranded = (v: OptionView, hiddenAbove: boolean): string[] =>
+    v.kind === 'entry' ? (v.selected > 0 && (hiddenAbove || v.hidden) ? [v.node.key] : []) : v.children.flatMap((c) => stranded(c, hiddenAbove || v.hidden));
+  let changed = false;
+  const units = roster.units.map((u) => {
+    const root = engine.unitInst(u.id);
+    if (!root || !engine.enhancementOf(u.id)) return u;
+    const keys = engine
+      .optionsUnder(root)
+      .filter((v) => v.kind === 'group' && /enhancement/i.test(v.name))
+      .flatMap((g) => stranded(g, g.hidden));
+    if (!keys.length) return u;
+    changed = true;
+    return { ...u, selections: keys.reduce((sel, k) => strip(sel, k), u.selections) };
+  });
+  return changed ? { ...roster, units } : roster;
 }
 
 export function setDisposition(engine: RosterEngine, roster: Roster, key: string | undefined): Roster {

@@ -251,3 +251,14 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
     </div>
   );
 }
+
+/** Big bar saying whose turn it is: your colour on your turn, a cold grey on theirs. */
+export function TurnBanner({ mine, label, phase, vp }: { mine: boolean; label: string; phase: string; vp: string }) {
+  return (
+    <div className={`turn-banner ${mine ? 'mine' : 'theirs'}`} role="status" aria-live="polite">
+      <span className="turn-banner-who">{label}</span>
+      <span className="turn-banner-phase">{phase}</span>
+      <span className="turn-banner-vp num">VP {vp}</span>
+    </div>
+  );
+}

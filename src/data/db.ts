@@ -96,6 +96,8 @@ export interface SavedGame {
   log: GameLogEntry[];
   result?: 'win' | 'loss' | 'draw';
   notes?: string;
+  /** The list builder's Play view: a throwaway game, never listed or kept. */
+  practice?: boolean;
   /** Set for games played live across phones. The shared state comes from the host. */
   live?: { room: string; role: 'host' | 'guest'; myId: string; myName: string; me: LivePlayer; state?: LiveState; unlinked?: boolean };
   /** Last time anything in the game changed (set automatically on every save). */
