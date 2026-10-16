@@ -228,7 +228,6 @@ export function DatasheetView({
       )}
       <div className="section-label">Abilities</div>
       <RuleChips rules={rules} index={index} />
-      <DetachmentRuleChips rules={detachmentRules} index={index} />
       {abilities.map(({ a, from }) => {
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const buffs = from && /while this model is leading|this model's unit|the unit this model is leading|models in this model's unit|bodyguard/i.test(text);
@@ -249,6 +248,20 @@ export function DatasheetView({
           <RulesText text={p.characteristics?.map((c) => `${c.name}: ${c.$text ?? ''}`).join('\n') ?? ''} index={index} />
         </div>
       ))}
+      {detachmentRules.length > 0 && (
+        <>
+          <div className="section-label">Detachment rules</div>
+          {detachmentRules.map((r) => (
+            <div key={r.detachment + r.name} className="ability">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <strong>{r.name}</strong>
+                <span className="tag from-tag">{r.detachment.toUpperCase()}</span>
+              </div>
+              <RulesText text={r.text} index={index} />
+            </div>
+          ))}
+        </>
+      )}
       <Collapse title={attachRules.length ? 'Leader / Support & keywords' : 'Keywords'} tone="plain">
         {top}
         {attachRules.map(({ a, from }) => (
