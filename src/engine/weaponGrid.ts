@@ -28,6 +28,8 @@ export interface GridRow {
   modelIds: string[];
   /** Total for the row per column: every living model of the row together ("" when they lack that weapon). */
   cells: string[];
+  /** One model's value per column, when the row has more than one model ("" otherwise). */
+  each: string[];
 }
 
 export interface GridGroup {
@@ -134,6 +136,11 @@ export function computeWeaponGrid(
         const k = occurrences(l, w.id) * living.length;
         return k === 0 ? '' : k === 1 ? w.attacks : sumAttacks([{ attacks: w.attacks, count: k }]);
       }),
+      each: ordered.map((w) => {
+        const k = occurrences(l, w.id);
+        if (k === 0 || living.length < 2) return '';
+        return k === 1 ? w.attacks : sumAttacks([{ attacks: w.attacks, count: k }]);
+      }),
     });
   });
 
@@ -145,13 +152,19 @@ function occurrences(l: ModelLoadout, weaponId: string): number {
   return l.weaponIds.reduce((n, id) => (id === weaponId ? n + 1 : n), 0);
 }
 
-/** How many of each weapon the living models carry in total (for "2×" next to a weapon). */
+/**
+ * Weapons one model carries more than once (a Land Raider Redeemer's two
+ * flamestorm cannons): weapon id -> copies on one model. Weapons spread over
+ * several models aren't counted — that's in the grid.
+ */
 export function weaponCounts(loadouts: ModelLoadout[], models: ModelInstance[]): Map<string, number> {
   const out = new Map<string, number>();
-  const per = new Map(loadouts.map((l) => [l.key, l]));
-  for (const m of models) {
-    if (m.alive === false) continue;
-    for (const id of per.get(m.loadoutKey)?.weaponIds ?? []) out.set(id, (out.get(id) ?? 0) + 1);
+  const used = new Set(models.filter((m) => m.alive !== false).map((m) => m.loadoutKey));
+  for (const l of loadouts) {
+    if (!used.has(l.key)) continue;
+    const per = new Map<string, number>();
+    for (const id of l.weaponIds) per.set(id, (per.get(id) ?? 0) + 1);
+    per.forEach((n, id) => n > (out.get(id) ?? 1) && out.set(id, n));
   }
   return out;
 }

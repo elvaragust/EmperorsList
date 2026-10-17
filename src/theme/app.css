@@ -1142,6 +1142,29 @@ textarea.input {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  /* Stays in view when the grid is scrolled sideways. */
+  position: sticky;
+  left: 8px;
+  width: max-content;
+  max-width: calc(100vw - 48px);
+}
+.model-line .model-name {
+  min-width: 64px;
+}
+.grid td {
+  white-space: nowrap;
+}
+.grid td.name {
+  white-space: normal;
+}
+.grid td .each {
+  font-size: 0.7em;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.grid-help {
+  margin: 8px 2px 12px;
+  line-height: 1.45;
 }
 .wounds {
   display: inline-flex;
@@ -1652,29 +1675,13 @@ textarea.input {
   opacity: 0.8;
 }
 
-/* ---------- Abilities coloured by what they do ---------- */
-.ability[class*='cat-'] {
-  margin: 8px 0;
-  padding: 9px 12px 10px;
-  border: 1px solid color-mix(in srgb, var(--cat) 42%, var(--line-soft));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--cat) 15%, var(--surface));
-}
-.cat-attack { --cat: var(--cat-attack); }
-.cat-debuff { --cat: var(--cat-debuff); }
-.cat-defence { --cat: var(--cat-defence); }
-.cat-move { --cat: var(--cat-move); }
-.cat-utility { --cat: var(--cat-utility); }
-.kind-label {
+/* ---------- Ability hint icons (what it does), top right of each ability ---------- */
+.kind-icon {
   margin-left: auto;
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--cat) 85%, var(--text));
+  display: inline-flex;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
-
 /* Detachment rules: their own colour, folded away */
 .det-rules {
   --cat: var(--cat-detachment);
@@ -1768,4 +1775,40 @@ tr.pulse > td {
 }
 .screen-header {
   border-bottom: 1px solid color-mix(in srgb, var(--accent-strong) 25%, transparent);
+}
+
+/* Saves strip: invulnerable / Feel No Pain at a glance, above the stats */
+.saves-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.save-chip {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  font-family: var(--font-ui);
+}
+.save-kind {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.save-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.save-note {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-muted);
 }
