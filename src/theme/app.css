@@ -1444,7 +1444,6 @@ textarea.input {
    Settings → Layout → "Phone column" keeps the old centred column. */
 .unit-row.active {
   background: color-mix(in srgb, var(--accent-strong) 18%, transparent);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 .split-empty {
   margin: auto;
@@ -1655,12 +1654,11 @@ textarea.input {
 
 /* ---------- Abilities coloured by what they do ---------- */
 .ability[class*='cat-'] {
-  border-top: 0;
   margin: 8px 0;
-  padding: 8px 10px 8px 12px;
-  border-left: 3px solid var(--cat);
-  border-radius: 0 10px 10px 0;
-  background: color-mix(in srgb, var(--cat) 7%, transparent);
+  padding: 9px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--cat) 42%, var(--line-soft));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cat) 15%, var(--surface));
 }
 .cat-attack { --cat: var(--cat-attack); }
 .cat-debuff { --cat: var(--cat-debuff); }
@@ -1668,15 +1666,13 @@ textarea.input {
 .cat-move { --cat: var(--cat-move); }
 .cat-utility { --cat: var(--cat-utility); }
 .kind-label {
+  margin-left: auto;
   font-family: var(--font-ui);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--cat);
-  border: 1px solid color-mix(in srgb, var(--cat) 55%, transparent);
-  border-radius: 6px;
-  padding: 0 6px;
+  color: color-mix(in srgb, var(--cat) 85%, var(--text));
 }
 
 /* Detachment rules: their own colour, folded away */
@@ -1684,8 +1680,7 @@ textarea.input {
   --cat: var(--cat-detachment);
 }
 .det-rules .collapse.bar .collapse-head {
-  border-color: color-mix(in srgb, var(--cat) 55%, var(--line));
-  border-left-color: var(--cat);
+  border-color: color-mix(in srgb, var(--cat) 45%, var(--line));
   background: color-mix(in srgb, var(--cat) 12%, var(--raised));
   color: color-mix(in srgb, var(--cat) 70%, var(--text));
 }
@@ -1695,10 +1690,10 @@ textarea.input {
 .det-rules .ability {
   border-top: 0;
   margin: 8px 0;
-  padding: 8px 10px 8px 12px;
-  border-left: 3px solid var(--cat);
-  border-radius: 0 10px 10px 0;
-  background: color-mix(in srgb, var(--cat) 7%, transparent);
+  padding: 9px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--cat) 42%, var(--line-soft));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cat) 15%, var(--surface));
 }
 
 /* Weapon codes in the unit grid jump to the weapon's profile, which pulses */
@@ -1743,8 +1738,7 @@ tr.pulse > td {
 }
 .collapse.bar .collapse-head {
   background: color-mix(in srgb, var(--accent-strong) 10%, var(--raised));
-  border-color: color-mix(in srgb, var(--accent-strong) 28%, var(--line));
-  border-left: 3px solid color-mix(in srgb, var(--accent-strong) 70%, var(--line));
+  border-color: color-mix(in srgb, var(--accent-strong) 30%, var(--line));
 }
 .collapse.bar.open .collapse-head {
   border-radius: 10px 10px 0 0;
