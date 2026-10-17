@@ -234,9 +234,9 @@ export function SavesStrip({ items }: { items: Protection[] }) {
     <div className="saves-box">
       {sorted.map((p, i) => (
         <div key={i} className="save-row">
-          <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invuln'}</span>
+          <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invulnerable save'}</span>
           <span className="save-value num">{p.value}</span>
-          <span className="save-note">{[p.against ? `vs ${p.against}` : '', p.only ? `${p.only} only` : 'whole unit'].filter(Boolean).join(' · ')}</span>
+          <span className="save-note">{[p.against ? `against ${p.against}` : '', p.only ? `${p.only} only` : 'whole unit'].filter(Boolean).join(' · ')}</span>
         </div>
       ))}
     </div>
