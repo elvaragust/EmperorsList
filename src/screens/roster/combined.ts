@@ -8,8 +8,13 @@ import type { RosterUnit } from '@/engine/types';
  * Model ids are prefixed with their unit id ("unitId/path#n") so casualties
  * are stored against the right unit.
  */
-export function combinedModels(engine: RosterEngine, units: RosterUnit[]): UnitModels {
-  const out: UnitModels = { loadouts: [], models: [], weapons: new Map() };
+export interface CombinedModels extends UnitModels {
+  /** Each unit's weapons (ids in `weapons`), for listing them unit by unit. */
+  byUnit: { name: string; ids: string[] }[];
+}
+
+export function combinedModels(engine: RosterEngine, units: RosterUnit[]): CombinedModels {
+  const out: CombinedModels = { loadouts: [], models: [], weapons: new Map(), byUnit: [] };
   const sig = new Map<string, string>();
   for (const u of units) {
     const m = unitModels(engine, u.id, `${u.id}/`);
@@ -26,6 +31,7 @@ export function combinedModels(engine: RosterEngine, units: RosterUnit[]): UnitM
     });
     m.loadouts.forEach((l) => out.loadouts.push({ ...l, key: `${u.id}|${l.key}`, weaponIds: l.weaponIds.map((w) => remap.get(w) ?? w), group: units.length > 1 && l.group === l.name && u !== units[0] ? u.nickname || l.group : l.group }));
     m.models.forEach((x) => out.models.push({ ...x, loadoutKey: `${u.id}|${x.loadoutKey}` }));
+    out.byUnit.push({ name: u.nickname || u.name, ids: [...new Set([...m.weapons.keys()].map((id) => remap.get(id) ?? id))] });
   }
   return out;
 }

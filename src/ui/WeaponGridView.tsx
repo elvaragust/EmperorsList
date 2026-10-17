@@ -43,6 +43,8 @@ export function WeaponGridView({
   const live = useMemo(() => models.map((m) => ({ ...m, alive: !deadSet.has(m.id) })), [models, deadSet]);
   const grid = useMemo(() => computeWeaponGrid(loadouts, live, weapons), [loadouts, live, weapons]);
   const firstMelee = grid.columns.findIndex((c) => c.melee);
+  // Columns where some row shows "(one model)": every row reserves that space so the totals line up.
+  const hasEach = grid.columns.map((_, i) => grid.groups.some((g) => g.rows.some((r) => r.each[i])));
   // Two different weapons can share a code (e.g. two master-crafted power weapons): number them.
   const shorts = grid.columns.map((c, i) => {
     const same = grid.columns.filter((x) => x.short === c.short);
@@ -104,8 +106,8 @@ export function WeaponGridView({
                     </td>
                     {r.cells.map((v, i) => (
                       <td key={i} className={i === firstMelee ? 'melee-start' : undefined}>
-                        {v}
-                        {r.each[i] && <span className="each"> ({r.each[i]})</span>}
+                        <span className="cell-main">{v}</span>
+                        {hasEach[i] && <span className="each">{r.each[i] ? `(${r.each[i]})` : ''}</span>}
                       </td>
                     ))}
                   </tr>

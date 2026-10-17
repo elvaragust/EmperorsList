@@ -7,7 +7,7 @@ import type { RawProfile } from '@/engine/bsdata/raw';
 import type { Datasheet } from '@/engine/rules/models';
 import { ruleText } from '@/engine/rules/nodes';
 import type { WeaponProfile } from '@/engine/types';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Collapse } from './Collapse';
 import { RulesText, Term } from './RulesText';
 import { useRulePopup } from './RulePopup';
@@ -35,8 +35,55 @@ export function StatLine({ profile }: { profile: RawProfile }) {
   );
 }
 
-export function WeaponTable({ weapons, index, melee, counts }: { weapons: WeaponProfile[]; index?: DataIndex; melee: boolean; counts?: Map<string, number> }) {
+export function WeaponTable({
+  weapons,
+  index,
+  melee,
+  counts,
+  groups,
+}: {
+  weapons: WeaponProfile[];
+  index?: DataIndex;
+  melee: boolean;
+  counts?: Map<string, number>;
+  /** Weapons unit by unit (a squad and the characters leading it): listed with a divider between units. */
+  groups?: { name: string; ids: string[] }[];
+}) {
   if (!weapons.length) return null;
+  const byId = new Map(weapons.map((w) => [w.id, w]));
+  const sections = (groups ?? [])
+    .map((g) => ({ name: g.name, list: g.ids.map((id) => byId.get(id)).filter((w): w is WeaponProfile => Boolean(w)) }))
+    .filter((g) => g.list.length);
+  const split = sections.length > 1;
+  const seen = new Set<string>();
+  const row = (w: WeaponProfile, k: string) => {
+    const first = !seen.has(w.id);
+    seen.add(w.id);
+    return (
+      <tr key={k} id={first ? `weapon-${w.id}` : undefined}>
+        <td>
+          {(counts?.get(w.id) ?? 0) > 1 && <span className="weapon-count">{counts!.get(w.id)}×</span>}
+          {w.name}
+          {w.keywords.length > 0 && (
+            <div className="wkw">
+              {w.keywords.map((kw, i) => (
+                <span key={kw}>
+                  {i > 0 && ', '}
+                  <Term term={kw} index={index} />
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
+        <td>{w.range}</td>
+        <td>{w.attacks}</td>
+        <td>{w.skill}</td>
+        <td>{w.strength}</td>
+        <td>{w.ap}</td>
+        <td>{w.damage}</td>
+      </tr>
+    );
+  };
   return (
     <table className="wtable">
       <thead>
@@ -51,30 +98,16 @@ export function WeaponTable({ weapons, index, melee, counts }: { weapons: Weapon
         </tr>
       </thead>
       <tbody>
-        {weapons.map((w) => (
-          <tr key={w.id} id={`weapon-${w.id}`}>
-            <td>
-              {(counts?.get(w.id) ?? 0) > 1 && <span className="weapon-count">{counts!.get(w.id)}×</span>}
-              {w.name}
-              {w.keywords.length > 0 && (
-                <div className="wkw">
-                  {w.keywords.map((k, i) => (
-                    <span key={k}>
-                      {i > 0 && ', '}
-                      <Term term={k} index={index} />
-                    </span>
-                  ))}
-                </div>
-              )}
-            </td>
-            <td>{w.range}</td>
-            <td>{w.attacks}</td>
-            <td>{w.skill}</td>
-            <td>{w.strength}</td>
-            <td>{w.ap}</td>
-            <td>{w.damage}</td>
-          </tr>
-        ))}
+        {split
+          ? sections.map((g) => (
+              <Fragment key={g.name}>
+                <tr className="wgroup">
+                  <td colSpan={7}>{g.name}</td>
+                </tr>
+                {g.list.map((w) => row(w, `${g.name}-${w.id}`))}
+              </Fragment>
+            ))
+          : weapons.map((w) => row(w, w.id))}
       </tbody>
     </table>
   );
@@ -104,10 +137,14 @@ export function AbilityList({ abilities, index, highlight }: { abilities: RawPro
 /** Unit profiles as one table: a row per kind of model, identical rows merged. */
 export function StatTable({ profiles }: { profiles: { name: string; profile: RawProfile }[] }) {
   const rows: { names: string[]; chars: { k: string; v: string }[] }[] = [];
+  // The data keeps invulnerable saves in an "InSv" characteristic: show it as an INV column when anyone has one.
+  const invOf = (p: RawProfile) => p.characteristics?.find((c) => /^(insv|inv(ulnerable)?( save)?)$/i.test(c.name))?.$text?.trim() ?? '';
+  const anyInv = profiles.some((x) => invOf(x.profile));
   for (const { name, profile } of profiles) {
     const chars = profile.characteristics ?? [];
     const ordered = STAT_ORDER.map((k) => chars.find((c) => c.name.toUpperCase() === k)).filter(Boolean);
     const list = (ordered.length >= 4 ? ordered : chars.slice(0, 6)).map((c) => ({ k: c!.name.toUpperCase(), v: c!.$text ?? '' }));
+    if (anyInv) list.push({ k: 'INV', v: invOf(profile) || '–' });
     const sig = list.map((c) => `${c.k}=${c.v}`).join('|');
     const same = rows.find((r) => r.chars.map((c) => `${c.k}=${c.v}`).join('|') === sig);
     if (same) {
@@ -197,11 +234,7 @@ export function SavesStrip({ items }: { items: Protection[] }) {
         <div key={i} className="save-chip">
           <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invulnerable save'}</span>
           <span className="save-value num">{p.value}</span>
-          {(p.against || p.only) && (
-            <span className="save-note">
-              {[p.against ? `against ${p.against}` : '', p.only ? `${p.only} only` : ''].filter(Boolean).join(' · ')}
-            </span>
-          )}
+          <span className="save-note">{[p.against ? `against ${p.against}` : '', p.only ? `${p.only} only` : 'whole unit'].filter(Boolean).join(' · ')}</span>
         </div>
       ))}
     </div>
@@ -223,7 +256,10 @@ export function DatasheetView({
   top,
   detachmentRules = [],
   weaponCounts,
+  weaponGroups,
 }: {
+  /** The unit's and each leader's weapons, for dividers in the weapon tables. */
+  weaponGroups?: { name: string; ids: string[] }[];
   /** How many of each weapon the unit carries ("2×" next to the name). */
   weaponCounts?: Map<string, number>;
   /** The list's detachment rules that concern this unit. */
@@ -240,22 +276,20 @@ export function DatasheetView({
   const all = [{ name: sheet.name, sheet, own: true }, ...attached.map((a) => ({ ...a, own: false }))];
   const profiles = all.flatMap((x) => x.sheet.stats.map((p) => ({ name: p.name, profile: p })));
   const rules = [...new Map(all.flatMap((x) => x.sheet.rules).map((r) => [r.name, r])).values()];
-  // Plain "Invulnerable Save 4+" / "Feel No Pain 5+" entries are in the saves strip at the top.
-  const plainSave = (a: RawProfile) => /^\*?(invulnerable save|feel no pain)\b/i.test(a.name);
-  const abilities = all.flatMap((x) => x.sheet.abilities.filter((a) => !isAttachRule(a) && !plainSave(a)).map((a) => ({ a, from: x.own ? undefined : x.name })));
+  const abilities = all.flatMap((x) => x.sheet.abilities.filter((a) => !isAttachRule(a)).map((a) => ({ a, from: x.own ? undefined : x.name })));
   const attachRules = all.flatMap((x) => x.sheet.abilities.filter(isAttachRule).map((a) => ({ a, from: x.name })));
   const other = all.flatMap((x) => x.sheet.other.map((p) => ({ p, from: x.name })));
   const keywords = [...new Set(all.flatMap((x) => x.sheet.keywords))];
   const factionKeywords = [...new Set(all.flatMap((x) => x.sheet.factionKeywords))];
   return (
     <div className="datasheet">
-      <SavesStrip items={protections(all.map((x) => ({ name: x.name, own: x.own, abilities: x.sheet.abilities, rules: x.sheet.rules })))} />
+      <SavesStrip items={protections(all.map((x) => ({ name: x.name, own: x.own, abilities: x.sheet.abilities, rules: x.sheet.rules, stats: x.sheet.stats })))} />
       <StatTable profiles={profiles} />
       {showWeapons && (
         <>
-          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} counts={weaponCounts} />
+          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} counts={weaponCounts} groups={weaponGroups} />
           <div style={{ height: 8 }} />
-          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee counts={weaponCounts} />
+          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee counts={weaponCounts} groups={weaponGroups} />
         </>
       )}
       <div className="section-label">Abilities</div>
@@ -269,6 +303,9 @@ export function DatasheetView({
               <strong>{a.name}</strong>
               {from && <span className="tag from-tag">{from.toUpperCase()}</span>}
               {buffs && <span className="tag">BUFFS THE UNIT</span>}
+              {/invulnerable save|feel no pain/i.test(`${a.name} ${text}`) && (
+                <span className="tag save-scope">{from && !buffs ? `${from.toUpperCase()} ONLY` : 'WHOLE UNIT'}</span>
+              )}
               <KindIcon kind={abilityKind(a.name, text)} />
             </div>
             <RulesText text={text} index={index} />

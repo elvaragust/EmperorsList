@@ -316,7 +316,7 @@ export function UnitScreen() {
           <div className="section-label">Datasheet{attached.length ? ` · with ${attached.map((a) => a.nickname || a.name).join(' & ')}` : ''}</div>
           {(() => {
             const m = engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels;
-            return <DatasheetView sheet={sheet} weapons={[...m.weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} weaponCounts={weaponCounts(m.loadouts, m.models)} />;
+            return <DatasheetView sheet={sheet} weapons={[...m.weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} weaponCounts={weaponCounts(m.loadouts, m.models)} weaponGroups={(m as { byUnit?: { name: string; ids: string[] }[] }).byUnit} />;
           })()}
         </div>
       )}
