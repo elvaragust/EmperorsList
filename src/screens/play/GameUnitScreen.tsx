@@ -6,6 +6,7 @@ import { useRosterEngine } from '@/data/gameData';
 import { datasheet } from '@/engine/rules/models';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
+import { Collapse } from '@/ui/Collapse';
 import { weaponCounts } from '@/engine/weaponGrid';
 import { useUnitDetachmentRules } from './detachmentRules';
 import { Screen } from '@/ui/Screen';
@@ -72,18 +73,21 @@ export function GameUnitScreen() {
         </div>
       )}
       <WeaponGridView loadouts={models.loadouts} models={models.models} weapons={models.weapons} dead={dead} onToggle={toggle} wounds={wounds} onWound={setWound} />
+      <Collapse title="How to read this table" tone="plain">
       <div className="grid-help small muted">
-        <strong>How to read this table:</strong> each column is a weapon (tap its code to jump to its profile below). The big number on top is the
+        Each column is a weapon (tap its code to jump to its profile below). The big number on top is the
         whole unit's shots or attacks with that weapon right now. Each row is a kind of model: <em>4×</em> means four models carry the same gear,
         and the number is what those models make together, with one model's value in brackets — <em>12 (3)</em>. Tap a row to see each model:
         − / + tracks its wounds, and losing the last wound or ✕ Remove takes it out, so every total drops.
       </div>
+      </Collapse>
       {sheet && (
         <DatasheetView
           sheet={sheet}
           weapons={[...models.weapons.values()]}
           index={index}
           detachmentRules={detRules}
+          weaponGroups={models.byUnit}
           weaponCounts={weaponCounts(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
           attached={group.slice(1).flatMap((l) => {
             const li = engine.unitInst(l.id);

@@ -1157,7 +1157,16 @@ textarea.input {
 .grid td.name {
   white-space: normal;
 }
+.grid td .cell-main {
+  display: inline-block;
+  min-width: 1.4em;
+  text-align: right;
+}
 .grid td .each {
+  display: inline-block;
+  min-width: 2.4em;
+  margin-left: 3px;
+  text-align: left;
   font-size: 0.7em;
   font-weight: 500;
   color: var(--text-muted);
@@ -1811,4 +1820,21 @@ tr.pulse > td {
   flex-basis: 100%;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Weapon tables: a divider line and the unit's name between a squad and the characters leading it */
+.wtable tr.wgroup td {
+  padding: 10px 2px 4px;
+  border-top: 2px solid color-mix(in srgb, var(--accent-strong) 35%, var(--line));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+}
+.wtable tbody tr.wgroup:first-child td {
+  border-top: 0;
+  padding-top: 6px;
 }
