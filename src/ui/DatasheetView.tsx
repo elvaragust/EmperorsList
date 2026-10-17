@@ -1,4 +1,6 @@
-import { ABILITY_KIND_LABEL, abilityKind, type AbilityKind } from '@/engine/rules/abilityKind';
+import { abilityKind } from '@/engine/rules/abilityKind';
+import { protections, type Protection } from '@/engine/rules/protections';
+import { KindIcon } from './KindIcon';
 import { lookupRule } from '@/engine/rules/glossary';
 import type { DataIndex } from '@/engine/bsdata/index';
 import type { RawProfile } from '@/engine/bsdata/raw';
@@ -85,10 +87,10 @@ export function AbilityList({ abilities, index, highlight }: { abilities: RawPro
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const tag = highlight?.(a);
         return (
-          <div key={a.id + a.name} className={`ability cat-${abilityKind(a.name, text)}`}>
+          <div key={a.id + a.name} className="ability">
             <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <strong>{a.name}</strong>
-              <KindLabel kind={abilityKind(a.name, text)} />
+              <KindIcon kind={abilityKind(a.name, text)} />
               {tag && <span className="tag">{tag}</span>}
             </div>
             <RulesText text={text} index={index} />
@@ -185,9 +187,25 @@ export function DetachmentRuleChips({ rules, index }: { rules: { name: string; t
   );
 }
 
-/** Small coloured label saying what kind of ability this is. */
-export function KindLabel({ kind }: { kind: AbilityKind }) {
-  return <span className={`kind-label cat-${kind}`}>{ABILITY_KIND_LABEL[kind]}</span>;
+
+/** Invulnerable saves and Feel No Pain, said plainly, above the stats. */
+export function SavesStrip({ items }: { items: Protection[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="saves-strip">
+      {items.map((p, i) => (
+        <div key={i} className="save-chip">
+          <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invulnerable save'}</span>
+          <span className="save-value num">{p.value}</span>
+          {(p.against || p.only) && (
+            <span className="save-note">
+              {[p.against ? `against ${p.against}` : '', p.only ? `${p.only} only` : ''].filter(Boolean).join(' · ')}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -222,13 +240,16 @@ export function DatasheetView({
   const all = [{ name: sheet.name, sheet, own: true }, ...attached.map((a) => ({ ...a, own: false }))];
   const profiles = all.flatMap((x) => x.sheet.stats.map((p) => ({ name: p.name, profile: p })));
   const rules = [...new Map(all.flatMap((x) => x.sheet.rules).map((r) => [r.name, r])).values()];
-  const abilities = all.flatMap((x) => x.sheet.abilities.filter((a) => !isAttachRule(a)).map((a) => ({ a, from: x.own ? undefined : x.name })));
+  // Plain "Invulnerable Save 4+" / "Feel No Pain 5+" entries are in the saves strip at the top.
+  const plainSave = (a: RawProfile) => /^\*?(invulnerable save|feel no pain)\b/i.test(a.name);
+  const abilities = all.flatMap((x) => x.sheet.abilities.filter((a) => !isAttachRule(a) && !plainSave(a)).map((a) => ({ a, from: x.own ? undefined : x.name })));
   const attachRules = all.flatMap((x) => x.sheet.abilities.filter(isAttachRule).map((a) => ({ a, from: x.name })));
   const other = all.flatMap((x) => x.sheet.other.map((p) => ({ p, from: x.name })));
   const keywords = [...new Set(all.flatMap((x) => x.sheet.keywords))];
   const factionKeywords = [...new Set(all.flatMap((x) => x.sheet.factionKeywords))];
   return (
     <div className="datasheet">
+      <SavesStrip items={protections(all.map((x) => ({ name: x.name, own: x.own, abilities: x.sheet.abilities, rules: x.sheet.rules })))} />
       <StatTable profiles={profiles} />
       {showWeapons && (
         <>
@@ -243,12 +264,12 @@ export function DatasheetView({
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const buffs = from && /while this model is leading|this model's unit|the unit this model is leading|models in this model's unit|bodyguard/i.test(text);
         return (
-          <div key={(from ?? '') + a.id + a.name} className={`ability cat-${abilityKind(a.name, text)}`}>
+          <div key={(from ?? '') + a.id + a.name} className="ability">
             <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <strong>{a.name}</strong>
-              <KindLabel kind={abilityKind(a.name, text)} />
               {from && <span className="tag from-tag">{from.toUpperCase()}</span>}
               {buffs && <span className="tag">BUFFS THE UNIT</span>}
+              <KindIcon kind={abilityKind(a.name, text)} />
             </div>
             <RulesText text={text} index={index} />
           </div>

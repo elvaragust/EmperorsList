@@ -105,6 +105,7 @@ export function WeaponGridView({
                     {r.cells.map((v, i) => (
                       <td key={i} className={i === firstMelee ? 'melee-start' : undefined}>
                         {v}
+                        {r.each[i] && <span className="each"> ({r.each[i]})</span>}
                       </td>
                     ))}
                   </tr>
@@ -116,7 +117,7 @@ export function WeaponGridView({
                         <tr key={id}>
                           <td className="name muted" colSpan={grid.columns.length + 1}>
                             <div className="model-line">
-                              <span style={{ flex: 1 }}>Model {n + 1}</span>
+                              <span className="model-name">Model {n + 1}</span>
                               {onWound && w > 1 && <WoundStepper left={w - lost} max={w} label={`${r.name} ${n + 1}`} onChange={(left) => onWound(id, w - left, w)} />}
                               <button className="btn btn-sm btn-ghost btn-danger" onClick={() => onToggle?.(id, false)} aria-label={`Remove ${r.name} ${n + 1}`}>
                                 ✕ Remove

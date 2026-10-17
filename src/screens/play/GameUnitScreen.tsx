@@ -72,7 +72,12 @@ export function GameUnitScreen() {
         </div>
       )}
       <WeaponGridView loadouts={models.loadouts} models={models.models} weapons={models.weapons} dead={dead} onToggle={toggle} wounds={wounds} onWound={setWound} />
-      <p className="small muted">Tap a row to see each model: − / + tracks its wounds (losing the last one removes it).</p>
+      <div className="grid-help small muted">
+        <strong>How to read this table:</strong> each column is a weapon (tap its code to jump to its profile below). The big number on top is the
+        whole unit's shots or attacks with that weapon right now. Each row is a kind of model: <em>4×</em> means four models carry the same gear,
+        and the number is what those models make together, with one model's value in brackets — <em>12 (3)</em>. Tap a row to see each model:
+        − / + tracks its wounds, and losing the last wound or ✕ Remove takes it out, so every total drops.
+      </div>
       {sheet && (
         <DatasheetView
           sheet={sheet}
