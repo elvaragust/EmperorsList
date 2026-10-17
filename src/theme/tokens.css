@@ -33,12 +33,13 @@
   --rule-weaponAbility: #fba463;
 
   /* What an ability does (abilities are tinted by these). */
-  --cat-attack: #f2994a;
-  --cat-debuff: #c084fc;
-  --cat-defence: #60a5fa;
-  --cat-move: #4ade80;
-  --cat-utility: #cbbf9a;
-  --cat-detachment: #2dd4bf;
+  /* Muted, painted-miniature tones: hot brass, warp violet, gunmetal, verdigris, bone, aged gold. */
+  --cat-attack: #c47a3d;
+  --cat-debuff: #9a7bb0;
+  --cat-defence: #8197aa;
+  --cat-move: #7f9e7a;
+  --cat-utility: #a99a7a;
+  --cat-detachment: #b8963e;
 
   --radius: 14px;
   --tap: 44px;
@@ -137,12 +138,12 @@
   --rule-ability: #b0306f;
   --rule-keyword: #1d7a4c;
   --rule-weaponAbility: #b05312;
-  --cat-attack: #b45309;
-  --cat-debuff: #7e22ce;
-  --cat-defence: #1d4ed8;
-  --cat-move: #15803d;
-  --cat-utility: #7a6a3a;
-  --cat-detachment: #0f766e;
+  --cat-attack: #9a4f1c;
+  --cat-debuff: #6b4a85;
+  --cat-defence: #4b6478;
+  --cat-move: #4f6e4a;
+  --cat-utility: #6f6248;
+  --cat-detachment: #85661d;
   color-scheme: light;
 }
 :root[data-mode='dark'] {
