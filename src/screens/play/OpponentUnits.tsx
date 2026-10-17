@@ -8,6 +8,7 @@ import { datasheet } from '@/engine/rules/models';
 import { fromPayload } from '@/engine/share';
 import type { Roster } from '@/engine/types';
 import { DatasheetView } from '@/ui/DatasheetView';
+import { weaponCounts } from '@/engine/weaponGrid';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView } from '@/ui/WeaponGridView';
 import { combinedModels } from '../roster/combined';
@@ -82,7 +83,7 @@ export function OpponentUnitScreen() {
         return sheet ? (
           <div key={u.id}>
             {group.length > 1 && <div className="section-label">{u.name}</div>}
-            <DatasheetView sheet={sheet} weapons={[...models.weapons.values()]} index={index} />
+            <DatasheetView sheet={sheet} weapons={[...models.weapons.values()]} index={index} weaponCounts={weaponCounts(models.loadouts, models.models)} />
           </div>
         ) : null;
       })}

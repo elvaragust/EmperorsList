@@ -21,6 +21,7 @@ import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { OptionList } from './WargearEditor';
 import { combinedModels } from './combined';
+import { weaponCounts } from '@/engine/weaponGrid';
 import { useUnitDetachmentRules } from '@/screens/play/detachmentRules';
 
 /**
@@ -313,7 +314,10 @@ export function UnitScreen() {
       {sheet && ownModels && (
         <div id="datasheet" style={{ marginTop: 14 }}>
           <div className="section-label">Datasheet{attached.length ? ` · with ${attached.map((a) => a.nickname || a.name).join(' & ')}` : ''}</div>
-          <DatasheetView sheet={sheet} weapons={[...(engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels).weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} />
+          {(() => {
+            const m = engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels;
+            return <DatasheetView sheet={sheet} weapons={[...m.weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} weaponCounts={weaponCounts(m.loadouts, m.models)} />;
+          })()}
         </div>
       )}
 

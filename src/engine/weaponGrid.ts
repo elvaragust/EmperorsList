@@ -15,6 +15,8 @@ export interface GridColumn {
   melee: boolean;
   /** Total across living models, e.g. "15" or "2D3+4". */
   total: string;
+  /** Most copies of this weapon one model carries (a Land Raider's 2 flamestorm cannons). */
+  perModel: number;
 }
 
 export interface GridRow {
@@ -24,7 +26,7 @@ export interface GridRow {
   count: number;
   /** Ids of those models, so the UI can remove a single one. */
   modelIds: string[];
-  /** Per-model value per column ("" when the model lacks that weapon). */
+  /** Total for the row per column: every living model of the row together ("" when they lack that weapon). */
   cells: string[];
 }
 
@@ -110,6 +112,7 @@ export function computeWeaponGrid(
         count: occurrences(l, w.id) * (byLoadout.get(l.key)?.length ?? 0),
       })),
     ),
+    perModel: Math.max(1, ...loadouts.filter((l) => byLoadout.get(l.key)?.length).map((l) => occurrences(l, w.id))),
   }));
 
   const groups: GridGroup[] = [];
@@ -128,7 +131,7 @@ export function computeWeaponGrid(
       count: living.length,
       modelIds: living.map((m) => m.id),
       cells: ordered.map((w) => {
-        const k = occurrences(l, w.id);
+        const k = occurrences(l, w.id) * living.length;
         return k === 0 ? '' : k === 1 ? w.attacks : sumAttacks([{ attacks: w.attacks, count: k }]);
       }),
     });
@@ -140,4 +143,15 @@ export function computeWeaponGrid(
 /** How many of a weapon one model of this loadout carries (e.g. two bolt pistols). */
 function occurrences(l: ModelLoadout, weaponId: string): number {
   return l.weaponIds.reduce((n, id) => (id === weaponId ? n + 1 : n), 0);
+}
+
+/** How many of each weapon the living models carry in total (for "2×" next to a weapon). */
+export function weaponCounts(loadouts: ModelLoadout[], models: ModelInstance[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const per = new Map(loadouts.map((l) => [l.key, l]));
+  for (const m of models) {
+    if (m.alive === false) continue;
+    for (const id of per.get(m.loadoutKey)?.weaponIds ?? []) out.set(id, (out.get(id) ?? 0) + 1);
+  }
+  return out;
 }

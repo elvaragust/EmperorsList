@@ -8,6 +8,7 @@ import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { blankRoster } from '@/search/buildDocs';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
+import { weaponCounts } from '@/engine/weaponGrid';
 import { Screen } from '@/ui/Screen';
 import { Composition } from '@/ui/Composition';
 import { PinButton, pinId } from '@/ui/PinButton';
@@ -41,7 +42,7 @@ export function RefUnitScreen() {
       </div>
       <div className="section-label">Default models</div>
       <Composition models={data.models} />
-      <DatasheetView sheet={data.sheet} weapons={[...data.models.weapons.values()]} index={index} />
+      <DatasheetView sheet={data.sheet} weapons={[...data.models.weapons.values()]} index={index} weaponCounts={weaponCounts(data.models.loadouts, data.models.models)} />
     </Screen>
   );
 }

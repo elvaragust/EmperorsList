@@ -195,15 +195,6 @@ export function MissionsPanel({
               }}
               footer={
                 <div className="btn-row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => {
-                      put(scoreTactical(t, n, round));
-                      showToast(`${n} marked achieved`);
-                    }}
-                  >
-                    Achieved
-                  </button>
                   <button className="btn btn-sm" onClick={() => (put(discardTactical(t, n)), showToast(`${n} discarded`))}>
                     Discard
                   </button>

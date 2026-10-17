@@ -25,6 +25,15 @@ describe('computeWeaponGrid — the paper sketch', () => {
     expect(grid.aliveModels).toBe(10);
   });
 
+  it("shows each row's total, not one model's characteristic", () => {
+    const grid = computeWeaponGrid(sketchLoadouts, sketchModels(), sketchWeapons);
+    const nc = grid.columns.findIndex((c) => c.short === 'NC');
+    const neo = grid.groups.find((g) => g.label === 'Neophytes')!;
+    // Rows add up to the column total.
+    const sum = neo.rows.reduce((n, r) => n + Number(r.cells[nc] || 0), 0);
+    expect(sum).toBe(16);
+  });
+
   it('puts ranged columns before melee', () => {
     const grid = computeWeaponGrid(sketchLoadouts, sketchModels(), sketchWeapons);
     const firstMelee = grid.columns.findIndex((c) => c.melee);

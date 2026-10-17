@@ -139,7 +139,12 @@ export function setDetachments(engine: RosterEngine, roster: Roster, keys: strin
       picked.length ? { entryId: root.key, count: 1, children: picked.map((d) => ({ entryId: d.key, count: 1, children: [] })) } : undefined,
     );
   }
-  return dropUnavailableEnhancements(new RosterEngine(engine.index, next, [...engine.roots.values()]), next);
+  next = dropUnavailableEnhancements(new RosterEngine(engine.index, next, [...engine.roots.values()]), next);
+  // Keep the Force Disposition one the new detachments allow.
+  const e2 = new RosterEngine(engine.index, next, [...engine.roots.values()]);
+  const allowed = allowedDispositions(e2);
+  if (allowed.length && !allowed.some((d) => d.name === next.forceDisposition)) next = setDisposition(e2, next, allowed[0]!.key);
+  return next;
 }
 
 /**
@@ -164,6 +169,15 @@ export function dropUnavailableEnhancements(engine: RosterEngine, roster: Roster
     return { ...u, selections: keys.reduce((sel, k) => strip(sel, k), u.selections) };
   });
   return changed ? { ...roster, units } : roster;
+}
+
+/** Force Dispositions the chosen detachments allow (all of them while no detachment is chosen). */
+export function allowedDispositions(engine: RosterEngine): ConfigOption[] {
+  const c = configChoices(engine);
+  const chosen = c.detachments.filter((d) => engine.roster.detachmentIds.includes(d.key));
+  const names = new Set(chosen.flatMap((d) => d.dispositions));
+  const visible = c.dispositions.filter((d) => !d.hidden);
+  return names.size ? visible.filter((d) => names.has(d.name)) : visible;
 }
 
 export function setDisposition(engine: RosterEngine, roster: Roster, key: string | undefined): Roster {

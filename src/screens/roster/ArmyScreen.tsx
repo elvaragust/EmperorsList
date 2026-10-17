@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
-import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
+import { allowedDispositions, configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import type { BattleSize, Roster } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
@@ -70,8 +70,7 @@ export function ArmyScreen() {
 
       <div className="section-label">Force Disposition</div>
       <div className="card">
-        {choices.dispositions
-          .filter((d) => !d.hidden)
+        {allowedDispositions(engine)
           .map((d) => (
             <button key={d.key} className="choice" role="radio" aria-checked={roster.forceDisposition === d.name} onClick={() => save(setDisposition(engine, roster, d.key))}>
               <span className="mark" />

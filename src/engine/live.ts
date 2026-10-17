@@ -142,10 +142,11 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       const existing = s.players.find((p) => p.id === a.player.id);
       if (existing) return bump({ ...s, players: s.players.map((p) => (p.id === a.player.id ? { ...a.player, team: p.team, primary: p.primary, disposition: p.disposition ?? a.player.disposition, list: a.player.list ?? p.list } : p)) });
       if (s.stage !== 'lobby') return s; // no new players mid-game; rejoining is handled above
-      const max = s.mode === '2v2' ? 4 : 2;
-      if (s.players.length >= max) return s;
-      const player = { ...a.player, team: pickTeam(s) };
-      return bump(log({ ...s, players: [...s.players, player], cp: { ...s.cp, [player.id]: 0 } }, `${player.name} joined`));
+      if (s.players.length >= 4) return s;
+      // A third player turns the lobby into a 2v2.
+      const base = s.mode === '1v1' && s.players.length >= 2 ? log({ ...s, mode: '2v2' as const }, 'Three players joined: switched to 2v2') : s;
+      const player = { ...a.player, team: pickTeam(base) };
+      return bump(log({ ...base, players: [...base.players, player], cp: { ...base.cp, [player.id]: 0 } }, `${player.name} joined`));
     }
     case 'leave':
       if (!isHost && from !== a.id) return s;
