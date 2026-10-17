@@ -228,13 +228,15 @@ export function DetachmentRuleChips({ rules, index }: { rules: { name: string; t
 /** Invulnerable saves and Feel No Pain, said plainly, above the stats. */
 export function SavesStrip({ items }: { items: Protection[] }) {
   if (!items.length) return null;
+  // Invulnerable saves first, then Feel No Pain; one box, a row each.
+  const sorted = [...items].sort((a, b) => Number(a.kind === 'Feel No Pain') - Number(b.kind === 'Feel No Pain'));
   return (
-    <div className="saves-strip">
-      {items.map((p, i) => (
-        <div key={i} className="save-chip">
-          <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invulnerable save'}</span>
+    <div className="saves-box">
+      {sorted.map((p, i) => (
+        <div key={i} className="save-row">
+          <span className="save-kind">{p.kind === 'Feel No Pain' ? 'Feel No Pain' : 'Invuln'}</span>
           <span className="save-value num">{p.value}</span>
-          <span className="save-note">{[p.against ? `against ${p.against}` : '', p.only ? `${p.only} only` : 'whole unit'].filter(Boolean).join(' · ')}</span>
+          <span className="save-note">{[p.against ? `vs ${p.against}` : '', p.only ? `${p.only} only` : 'whole unit'].filter(Boolean).join(' · ')}</span>
         </div>
       ))}
     </div>
