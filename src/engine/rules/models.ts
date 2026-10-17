@@ -49,8 +49,10 @@ export function unitModels(engine: RosterEngine, unitId: string, prefix = ''): U
   const groupLabel = (parent: Inst, inst: Inst): string => {
     if (!parent.node || !inst.node) return engine.ev.name(inst);
     const offered = findOffered(index, parent.node, inst.node.key);
-    const g = offered?.groups[offered.groups.length - 1];
-    if (g && !childNodes(index, g).some((c: OptNode) => c.kind === 'group')) return g.name;
+    // Groups that only carry a limit ("Max 2 per 10 models") aren't model groups.
+    const limitOnly = (g: OptNode) => /\b(max|min|up to|per \d+ models?)\b/i.test(g.name);
+    const g = [...(offered?.groups ?? [])].reverse().find((x) => !limitOnly(x));
+    if (g && !childNodes(index, g).some((c: OptNode) => c.kind === 'group' && !limitOnly(c))) return g.name;
     return engine.ev.name(inst);
   };
 

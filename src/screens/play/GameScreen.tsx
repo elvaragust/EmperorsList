@@ -20,6 +20,7 @@ import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner } from './pane
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
+import { allowedDispositions } from '@/engine/rules/config';
 import { MissionsPanel, SecondarySetup } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
 import { importListText } from '@/data/importList';
@@ -156,7 +157,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
       {step === 2 && (
         <>
-          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist, disposition: game.disposition }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} />
+          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist, disposition: game.disposition }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} allowed={engine ? allowedDispositions(engine).map((d) => d.name) : undefined} />
           <div className="section-label">Attacker or Defender?</div>
           <p className="small muted" style={{ marginTop: 0 }}>Roll off after the deployment card: the winner decides.</p>
           <div className="seg" role="radiogroup">

@@ -6,6 +6,7 @@ import { db, type SavedGame } from '@/data/db';
 import { nextPhase, PHASE_NAMES, PHASES, ROUNDS, totalScore } from '@/engine/game';
 import { canAdvance, LOCAL, otherTeam, reduce, teamNames, type LiveAction, type LiveState, type Team } from '@/engine/live';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
+import { allowedDispositions } from '@/engine/rules/config';
 import { closeRoom, joinUrl, type Room } from '@/sync/room';
 import { useRoom } from '@/sync/useRoom';
 import { Screen } from '@/ui/Screen';
@@ -66,7 +67,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
       </Screen>
     );
   }
-  if (state.stage === 'lobby') return <Lobby game={game} state={state} room={room} dispatch={dispatch} />;
+  if (state.stage === 'lobby') return <Lobby game={game} state={state} room={room} dispatch={dispatch} allowed={engine ? allowedDispositions(engine).map((d) => d.name) : undefined} />;
   if (state.stage === 'battle') return <LiveBattle game={game} state={state} room={room} engine={engine} dispatch={dispatch} />;
   return <LiveResult game={game} state={state} room={room} dispatch={dispatch} />;
 }
@@ -88,7 +89,7 @@ function Status({ room }: { room?: Room }) {
   );
 }
 
-function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveState; room?: Room; dispatch: (a: LiveAction) => void }) {
+function Lobby({ game, state, room, dispatch, allowed }: { game: SavedGame; state: LiveState; room?: Room; dispatch: (a: LiveAction) => void; allowed?: string[] }) {
   const isHost = game.live?.role === 'host';
   const myId = game.live!.myId;
   const url = joinUrl(state.room);
@@ -172,6 +173,7 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
               dispatch({ t: 'setPrimary', mission: v.mission, disposition: v.disposition });
             }}
             disposition={me?.disposition}
+            allowed={allowed}
           />
           <PrimariesList state={state} />
           <div className="section-label">Goes first</div>
@@ -191,7 +193,7 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
       ) : (
         <>
           <MissionFields readOnly value={{ deployment: state.deployment, twist: state.twist }} onChange={() => undefined} />
-          <MissionFields primaryOnly value={{ mission: me?.primary, disposition: me?.disposition }} onChange={(v) => dispatch({ t: 'setPrimary', mission: v.mission, disposition: v.disposition })} disposition={me?.disposition} />
+          <MissionFields primaryOnly value={{ mission: me?.primary, disposition: me?.disposition }} onChange={(v) => dispatch({ t: 'setPrimary', mission: v.mission, disposition: v.disposition })} disposition={me?.disposition} allowed={allowed} />
           <PrimariesList state={state} />
           <p className="small">First turn: {teamNames(state, state.firstTurn)}</p>
         </>

@@ -23,7 +23,22 @@ export function randomMission(disposition?: string): MissionValue {
 }
 
 /** Mission, deployment and twist from the current mission deck, each with its card text, plus saved layouts. */
-export function MissionFields({ value, onChange, disposition: listDisposition, readOnly, primaryOnly }: { value: MissionValue; onChange: (v: MissionValue) => void; disposition?: string; readOnly?: boolean; primaryOnly?: boolean }) {
+export function MissionFields({
+  value,
+  onChange,
+  disposition: listDisposition,
+  readOnly,
+  primaryOnly,
+  allowed,
+}: {
+  value: MissionValue;
+  onChange: (v: MissionValue) => void;
+  disposition?: string;
+  readOnly?: boolean;
+  primaryOnly?: boolean;
+  /** Force Dispositions your list's detachments allow (all when unknown). */
+  allowed?: string[];
+}) {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const layouts = useLiveQuery(() => db.layouts.toArray(), []);
   const cards = useMissionCards();
@@ -55,7 +70,7 @@ export function MissionFields({ value, onChange, disposition: listDisposition, r
         <span>Your Force Disposition{listDisposition && value.disposition && value.disposition !== listDisposition ? ` (your list: ${listDisposition})` : ''}</span>
         <select className="input" value={disposition ?? ''} onChange={(e) => onChange({ ...value, disposition: e.target.value || undefined, mission: ownPrimaries(e.target.value).includes(value.mission ?? '') ? value.mission : undefined })}>
           <option value="">Choose…</option>
-          {DISPOSITIONS.map((d) => (
+          {DISPOSITIONS.filter((d) => !allowed?.length || allowed.includes(d) || d === disposition).map((d) => (
             <option key={d} value={d}>
               {d}
             </option>
