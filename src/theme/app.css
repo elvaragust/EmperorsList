@@ -1652,3 +1652,126 @@ textarea.input {
   font-size: 18px;
   opacity: 0.8;
 }
+
+/* ---------- Abilities coloured by what they do ---------- */
+.ability[class*='cat-'] {
+  border-top: 0;
+  margin: 8px 0;
+  padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--cat);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--cat) 7%, transparent);
+}
+.cat-attack { --cat: var(--cat-attack); }
+.cat-debuff { --cat: var(--cat-debuff); }
+.cat-defence { --cat: var(--cat-defence); }
+.cat-move { --cat: var(--cat-move); }
+.cat-utility { --cat: var(--cat-utility); }
+.kind-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cat);
+  border: 1px solid color-mix(in srgb, var(--cat) 55%, transparent);
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+/* Detachment rules: their own colour, folded away */
+.det-rules {
+  --cat: var(--cat-detachment);
+}
+.det-rules .collapse.bar .collapse-head {
+  border-color: color-mix(in srgb, var(--cat) 55%, var(--line));
+  border-left-color: var(--cat);
+  background: color-mix(in srgb, var(--cat) 12%, var(--raised));
+  color: color-mix(in srgb, var(--cat) 70%, var(--text));
+}
+.det-rules .collapse.bar.open > .collapse-body {
+  border-color: color-mix(in srgb, var(--cat) 40%, var(--line));
+}
+.det-rules .ability {
+  border-top: 0;
+  margin: 8px 0;
+  padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--cat);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--cat) 7%, transparent);
+}
+
+/* Weapon codes in the unit grid jump to the weapon's profile, which pulses */
+.grid th.grid-weapon {
+  cursor: pointer;
+}
+.grid th.grid-weapon:hover {
+  color: var(--accent);
+}
+.per-model {
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+}
+.weapon-count {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--accent-strong);
+  color: var(--on-accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+@keyframes weapon-pulse {
+  0%, 100% { background: transparent; }
+  25%, 75% { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  50% { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+}
+tr.pulse > td {
+  animation: weapon-pulse 1.2s ease-in-out 2;
+}
+
+/* ---------- Clearer sections: a little more colour at the edges ---------- */
+.section-label {
+  color: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line-soft));
+  padding-bottom: 4px;
+}
+.card {
+  border-color: color-mix(in srgb, var(--accent-strong) 22%, var(--line));
+}
+.collapse.bar .collapse-head {
+  background: color-mix(in srgb, var(--accent-strong) 10%, var(--raised));
+  border-color: color-mix(in srgb, var(--accent-strong) 28%, var(--line));
+  border-left: 3px solid color-mix(in srgb, var(--accent-strong) 70%, var(--line));
+}
+.collapse.bar.open .collapse-head {
+  border-radius: 10px 10px 0 0;
+}
+.collapse.bar.open > .collapse-body {
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 18%, var(--line));
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  padding: 8px 12px 10px;
+}
+.wtable thead th {
+  background: color-mix(in srgb, var(--accent-strong) 12%, var(--surface));
+  color: color-mix(in srgb, var(--accent) 45%, var(--text-muted));
+}
+.wtable thead th:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.wtable thead th:last-child {
+  border-radius: 0 8px 8px 0;
+}
+.grid thead th {
+  background: color-mix(in srgb, var(--accent-strong) 10%, var(--surface));
+}
+.grid tr.group td {
+  background: color-mix(in srgb, var(--accent-strong) 16%, var(--raised));
+  color: color-mix(in srgb, var(--accent) 60%, var(--text));
+}
+.screen-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-strong) 25%, transparent);
+}

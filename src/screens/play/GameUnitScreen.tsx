@@ -6,6 +6,7 @@ import { useRosterEngine } from '@/data/gameData';
 import { datasheet } from '@/engine/rules/models';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
+import { weaponCounts } from '@/engine/weaponGrid';
 import { useUnitDetachmentRules } from './detachmentRules';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
@@ -78,6 +79,7 @@ export function GameUnitScreen() {
           weapons={[...models.weapons.values()]}
           index={index}
           detachmentRules={detRules}
+          weaponCounts={weaponCounts(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
           attached={group.slice(1).flatMap((l) => {
             const li = engine.unitInst(l.id);
             return li ? [{ name: l.nickname || l.name, sheet: datasheet(engine, li) }] : [];

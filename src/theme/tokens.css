@@ -32,6 +32,14 @@
   --rule-keyword: #72e3a0;
   --rule-weaponAbility: #fba463;
 
+  /* What an ability does (abilities are tinted by these). */
+  --cat-attack: #f2994a;
+  --cat-debuff: #c084fc;
+  --cat-defence: #60a5fa;
+  --cat-move: #4ade80;
+  --cat-utility: #cbbf9a;
+  --cat-detachment: #2dd4bf;
+
   --radius: 14px;
   --tap: 44px;
 }
@@ -129,6 +137,12 @@
   --rule-ability: #b0306f;
   --rule-keyword: #1d7a4c;
   --rule-weaponAbility: #b05312;
+  --cat-attack: #b45309;
+  --cat-debuff: #7e22ce;
+  --cat-defence: #1d4ed8;
+  --cat-move: #15803d;
+  --cat-utility: #7a6a3a;
+  --cat-detachment: #0f766e;
   color-scheme: light;
 }
 :root[data-mode='dark'] {

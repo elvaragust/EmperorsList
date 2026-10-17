@@ -8,8 +8,10 @@ describe('live game reducer', () => {
     let s = newLiveState('ROOM42', p('h', 'Host'));
     s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
     expect(s.players.map((x) => x.team)).toEqual(['A', 'B']);
-    // Full in 1v1
-    expect(reduce(s, { t: 'join', player: p('x', 'Extra') }, 'x')).toBe(s);
+    // A third player turns the lobby into a 2v2
+    const three = reduce(s, { t: 'join', player: p('x', 'Extra') }, 'x');
+    expect(three.mode).toBe('2v2');
+    expect(three.players).toHaveLength(3);
     // Only the host starts
     expect(reduce(s, { t: 'start' }, 'g')).toBe(s);
     s = reduce(s, { t: 'start' }, 'h');

@@ -1,3 +1,4 @@
+import { ABILITY_KIND_LABEL, abilityKind, type AbilityKind } from '@/engine/rules/abilityKind';
 import { lookupRule } from '@/engine/rules/glossary';
 import type { DataIndex } from '@/engine/bsdata/index';
 import type { RawProfile } from '@/engine/bsdata/raw';
@@ -32,7 +33,7 @@ export function StatLine({ profile }: { profile: RawProfile }) {
   );
 }
 
-export function WeaponTable({ weapons, index, melee }: { weapons: WeaponProfile[]; index?: DataIndex; melee: boolean }) {
+export function WeaponTable({ weapons, index, melee, counts }: { weapons: WeaponProfile[]; index?: DataIndex; melee: boolean; counts?: Map<string, number> }) {
   if (!weapons.length) return null;
   return (
     <table className="wtable">
@@ -49,8 +50,9 @@ export function WeaponTable({ weapons, index, melee }: { weapons: WeaponProfile[
       </thead>
       <tbody>
         {weapons.map((w) => (
-          <tr key={w.id}>
+          <tr key={w.id} id={`weapon-${w.id}`}>
             <td>
+              {(counts?.get(w.id) ?? 0) > 1 && <span className="weapon-count">{counts!.get(w.id)}×</span>}
               {w.name}
               {w.keywords.length > 0 && (
                 <div className="wkw">
@@ -83,9 +85,10 @@ export function AbilityList({ abilities, index, highlight }: { abilities: RawPro
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const tag = highlight?.(a);
         return (
-          <div key={a.id + a.name} style={{ padding: '10px 0', borderTop: '1px solid var(--line-soft)' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+          <div key={a.id + a.name} className={`ability cat-${abilityKind(a.name, text)}`}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <strong>{a.name}</strong>
+              <KindLabel kind={abilityKind(a.name, text)} />
               {tag && <span className="tag">{tag}</span>}
             </div>
             <RulesText text={text} index={index} />
@@ -182,6 +185,11 @@ export function DetachmentRuleChips({ rules, index }: { rules: { name: string; t
   );
 }
 
+/** Small coloured label saying what kind of ability this is. */
+export function KindLabel({ kind }: { kind: AbilityKind }) {
+  return <span className={`kind-label cat-${kind}`}>{ABILITY_KIND_LABEL[kind]}</span>;
+}
+
 /**
  * One datasheet, the same everywhere (list builder, reference, battle,
  * opponent): profiles, weapons, then every ability in one list — the unit's
@@ -196,7 +204,10 @@ export function DatasheetView({
   showWeapons = true,
   top,
   detachmentRules = [],
+  weaponCounts,
 }: {
+  /** How many of each weapon the unit carries ("2×" next to the name). */
+  weaponCounts?: Map<string, number>;
   /** The list's detachment rules that concern this unit. */
   detachmentRules?: { name: string; text: string; detachment: string }[];
   sheet: Datasheet;
@@ -221,9 +232,9 @@ export function DatasheetView({
       <StatTable profiles={profiles} />
       {showWeapons && (
         <>
-          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} />
+          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} counts={weaponCounts} />
           <div style={{ height: 8 }} />
-          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee />
+          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee counts={weaponCounts} />
         </>
       )}
       <div className="section-label">Abilities</div>
@@ -232,9 +243,10 @@ export function DatasheetView({
         const text = a.characteristics?.map((c) => c.$text ?? '').join('\n') ?? '';
         const buffs = from && /while this model is leading|this model's unit|the unit this model is leading|models in this model's unit|bodyguard/i.test(text);
         return (
-          <div key={(from ?? '') + a.id + a.name} className="ability">
+          <div key={(from ?? '') + a.id + a.name} className={`ability cat-${abilityKind(a.name, text)}`}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <strong>{a.name}</strong>
+              <KindLabel kind={abilityKind(a.name, text)} />
               {from && <span className="tag from-tag">{from.toUpperCase()}</span>}
               {buffs && <span className="tag">BUFFS THE UNIT</span>}
             </div>
@@ -249,18 +261,19 @@ export function DatasheetView({
         </div>
       ))}
       {detachmentRules.length > 0 && (
-        <>
-          <div className="section-label">Detachment rules</div>
-          {detachmentRules.map((r) => (
-            <div key={r.detachment + r.name} className="ability">
-              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <strong>{r.name}</strong>
-                <span className="tag from-tag">{r.detachment.toUpperCase()}</span>
+        <div className="det-rules">
+          <Collapse title={`Detachment rules · ${detachmentRules.length}`}>
+            {detachmentRules.map((r) => (
+              <div key={r.detachment + r.name} className="ability">
+                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <strong>{r.name}</strong>
+                  <span className="tag from-tag">{r.detachment.toUpperCase()}</span>
+                </div>
+                <RulesText text={r.text} index={index} />
               </div>
-              <RulesText text={r.text} index={index} />
-            </div>
-          ))}
-        </>
+            ))}
+          </Collapse>
+        </div>
       )}
       <Collapse title={attachRules.length ? 'Leader / Support & keywords' : 'Keywords'} tone="plain">
         {top}

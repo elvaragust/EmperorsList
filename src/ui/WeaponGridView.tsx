@@ -2,6 +2,17 @@ import { Fragment, useMemo, useState } from 'react';
 import { computeWeaponGrid } from '@/engine/weaponGrid';
 import type { ModelInstance, ModelLoadout, WeaponProfile } from '@/engine/types';
 
+/** Scroll to a weapon's row in the profile tables below and make it pulse. */
+export function jumpToWeapon(weaponId: string) {
+  const row = document.getElementById(`weapon-${weaponId}`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('pulse');
+  void (row as HTMLElement).offsetWidth; // restart the animation
+  row.classList.add('pulse');
+  window.setTimeout(() => row.classList.remove('pulse'), 2400);
+}
+
 /**
  * The unit grid from the paper sketch: weapons as columns with total shots or
  * attacks in the header, one row per kind of model ("3×"), grouped by model
@@ -59,7 +70,8 @@ export function WeaponGridView({
               <span className="unit">{grid.aliveModels} MODELS</span>
             </th>
             {grid.columns.map((c, i) => (
-              <th key={c.weaponId} className={i === firstMelee ? 'melee-start' : undefined} title={c.name}>
+              <th key={c.weaponId} className={`grid-weapon ${i === firstMelee ? 'melee-start' : ''}`} title={`${c.name} — tap to see its profile`} onClick={() => jumpToWeapon(c.weaponId)}>
+                {c.perModel > 1 && <span className="per-model">{c.perModel}×</span>}
                 {shorts[i]}
                 <span className="total">{c.total}</span>
                 <span className="unit">{c.melee ? 'ATK' : 'SHOTS'}</span>

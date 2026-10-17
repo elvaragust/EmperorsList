@@ -201,7 +201,7 @@ function Lobby({ game, state, room, dispatch }: { game: SavedGame; state: LiveSt
       <div className="seg" role="radiogroup">
         {(['attacker', 'defender'] as const).map((r) => (
           <button key={r} role="radio" aria-checked={myRole === r} className={myRole === r ? 'on' : undefined} disabled={!me} onClick={() => me && dispatch({ t: 'setAttacker', team: r === 'attacker' ? me.team : otherTeam(me.team) })}>
-            {r === 'attacker' ? 'We attack' : 'We defend'}
+            {state.mode === '2v2' ? (r === 'attacker' ? 'We attack' : 'We defend') : r === 'attacker' ? 'I attack' : 'I defend'}
           </button>
         ))}
       </div>

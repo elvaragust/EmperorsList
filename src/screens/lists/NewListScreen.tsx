@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
 import { rootsFor, saveRoster, useIndex } from '@/data/gameData';
-import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition } from '@/engine/rules/config';
+import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition , allowedDispositions } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import type { BattleSize, Roster } from '@/engine/types';
@@ -207,8 +207,7 @@ export function NewListScreen() {
         <>
           <p className="muted small">The Force Disposition decides which missions you play. Detachments tagged with it are listed beside each.</p>
           <div className="card">
-            {choices.dispositions
-              .filter((d) => !d.hidden)
+            {allowedDispositions(engine)
               .map((d) => {
                 const tagged = choices.detachments.filter((x) => roster.detachmentIds.includes(x.key) && x.dispositions.includes(d.name));
                 return (

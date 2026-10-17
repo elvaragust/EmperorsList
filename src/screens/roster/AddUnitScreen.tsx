@@ -13,6 +13,7 @@ import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
 import { Composition } from '@/ui/Composition';
 import { AbilityList, RuleChips, StatLine, WeaponTable } from '@/ui/DatasheetView';
+import { weaponCounts } from '@/engine/weaponGrid';
 import { PinButton, pinId, usePinnedNames } from '@/ui/PinButton';
 import { Term } from '@/ui/RulesText';
 import { showToast } from '@/ui/Toast';
@@ -225,8 +226,8 @@ export function AddUnitScreen() {
             <Composition models={previewData.models} />
             {previewData.defaults.length > 0 && (
               <Collapse title="Weapons" right={<span className="muted small num">{previewData.defaults.length}</span>}>
-                <WeaponTable weapons={previewData.defaults.filter((w) => !w.melee)} index={engine?.index} melee={false} />
-                <WeaponTable weapons={previewData.defaults.filter((w) => w.melee)} index={engine?.index} melee />
+                <WeaponTable weapons={previewData.defaults.filter((w) => !w.melee)} index={engine?.index} melee={false} counts={weaponCounts(previewData.models.loadouts, previewData.models.models)} />
+                <WeaponTable weapons={previewData.defaults.filter((w) => w.melee)} index={engine?.index} melee counts={weaponCounts(previewData.models.loadouts, previewData.models.models)} />
               </Collapse>
             )}
             {previewData.options.length > 0 && (
