@@ -1786,23 +1786,23 @@ tr.pulse > td {
   border-bottom: 1px solid color-mix(in srgb, var(--accent-strong) 25%, transparent);
 }
 
-/* Saves strip: invulnerable / Feel No Pain at a glance, above the stats */
-.saves-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* Saves box: invulnerable / Feel No Pain at a glance, one row each, above the stats */
+.saves-box {
   margin: 8px 0 10px;
-}
-.save-chip {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--raised);
   font-family: var(--font-ui);
+}
+.save-row {
+  display: grid;
+  grid-template-columns: 7.5em 2.6em 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+}
+.save-row + .save-row {
+  border-top: 1px solid var(--line-soft);
 }
 .save-kind {
   font-size: 12px;
@@ -1812,13 +1812,12 @@ tr.pulse > td {
   color: var(--text-muted);
 }
 .save-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--accent);
 }
 .save-note {
-  flex-basis: 100%;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
