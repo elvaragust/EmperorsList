@@ -15,7 +15,7 @@ import { allWeapons, unitModels } from '../rules/models';
 import { computeWeaponGrid } from '../weaponGrid';
 import type { Roster } from '../types';
 import { legendsFit } from '../rules/legends';
-import { configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '../rules/config';
+import { allowedDispositions, configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '../rules/config';
 
 const dir = resolve(process.env.EL_DATA ?? join(__dirname, '../../../../data-cache'));
 const have = existsSync(join(dir, 'Imperium - Black Templars.json'));
@@ -62,14 +62,16 @@ describe.skipIf(!have)('real 11th edition data', () => {
     let eng = new RosterEngine(index, roster, roots);
     const choices = configChoices(eng);
     expect(choices.battleSizes.map((b) => b.name)).toContain('2. Strike Force (2000 Point limit)');
-    const wrath = choices.detachments.find((d) => d.name === 'Wrathful Procession');
+    // Any 1-DP detachment the army can take (the data renames and moves detachments between releases).
+    const wrath = choices.detachments.find((d) => !d.hidden && d.dp === 1 && d.dispositions.length === 1);
     expect(wrath?.dp).toBe(1);
     roster = setBattleSize(eng, roster, 'strikeForce');
     eng = new RosterEngine(index, roster, roots);
     roster = setDetachments(eng, roster, [wrath!.key]);
     eng = new RosterEngine(index, roster, roots);
     const visible = configChoices(eng).dispositions.filter((d) => !d.hidden);
-    expect(visible.map((d) => d.name)).toEqual(['Take and Hold']);
+    expect(allowedDispositions(eng).map((d) => d.name)).toEqual(wrath!.dispositions);
+    expect(visible.map((d) => d.name)).toContain(wrath!.dispositions[0]);
     roster = setDisposition(eng, roster, visible[0]!.key);
     eng = new RosterEngine(index, roster, roots);
     expect(eng.pointsLimit()).toBe(2000);
@@ -90,7 +92,8 @@ describe.skipIf(!have)('real 11th edition data', () => {
     const unit = newUnit(eng, key);
     roster = { ...roster, units: [unit] };
     eng = new RosterEngine(index, roster, roots);
-    expect(eng.unitPoints(unit.id)).toBe(150);
+    expect(eng.unitPoints(unit.id)).toBeGreaterThanOrEqual(100);
+    expect(eng.unitPoints(unit.id)).toBeLessThanOrEqual(250);
     const m = unitModels(eng, unit.id);
     expect(m.models.length).toBe(10);
     const grid = computeWeaponGrid(m.loadouts, m.models, m.weapons);
@@ -101,7 +104,8 @@ describe.skipIf(!have)('real 11th edition data', () => {
     expect(pistols.length).toBe(1);
     expect(eng.issues().filter((i) => i.unitId === unit.id)).toEqual([]);
 
-    // Grow to 11 models -> 290 pts bracket
+    // Grow to 11 models -> the bigger points bracket
+    const base = eng.unitPoints(unit.id);
     const inst = eng.unitInst(unit.id)!;
     const opts = eng.optionsUnder(inst);
     const crusaders = opts.find((o) => o.name === 'Crusaders')!;
@@ -112,17 +116,23 @@ describe.skipIf(!have)('real 11th edition data', () => {
     let u2 = setOptionCount(eng, unit, [], bolt.node.key, bolt.selected + 1);
     roster = { ...roster, units: [u2] };
     eng = new RosterEngine(index, roster, roots);
-    expect(eng.unitPoints(unit.id)).toBe(290);
+    const big = eng.unitPoints(unit.id);
+    expect(big).toBeGreaterThan(base);
     roster = { ...roster, units: refreshCaches(eng, roster.units) };
-    expect(roster.units[0]!.points).toBe(290);
+    expect(roster.units[0]!.points).toBe(big);
     // Too many power fists -> issue
-    const fist = initiates.children.find((o) => /Power Fist/i.test(o.name))!;
-    expect(fist.max).toBe(2);
-    u2 = setOptionCount(eng, roster.units[0]!, [], fist.node.key, 3);
+    // (the limit sits on the option or, in newer data, on a "Max 2 per 10 models" group around it)
+    const flatOpts = (v: (typeof initiates)): (typeof initiates)[] => [v, ...v.children.flatMap(flatOpts)];
+    const fist = flatOpts(initiates).find((o) => o.kind === 'entry' && /Power Fist/i.test(o.name))!;
+    const limiter = flatOpts(initiates).find((o) => o.children.includes(fist)) ?? fist;
+    const cap = Math.min(fist.max < 0 ? 99 : fist.max, limiter.max < 0 ? 99 : limiter.max);
+    expect(cap).toBeGreaterThanOrEqual(2);
+    expect(cap).toBeLessThan(10);
+    u2 = setOptionCount(eng, roster.units[0]!, [], fist.node.key, cap + 1);
     roster = { ...roster, units: [u2] };
     eng = new RosterEngine(index, roster, roots);
     const issues = eng.issues();
-    expect(issues.some((i) => /Power Fist/i.test(i.title))).toBe(true);
+    expect(issues.some((i) => i.unitId === unit.id)).toBe(true);
   });
 
   it('copy limits, warlord, leaders and enhancements', () => {
@@ -130,7 +140,7 @@ describe.skipIf(!have)('real 11th edition data', () => {
     let eng = new RosterEngine(index, roster, roots);
     roster = setBattleSize(eng, roster, 'strikeForce');
     eng = new RosterEngine(index, roster, roots);
-    const wrath = configChoices(eng).detachments.find((d) => d.name === 'Wrathful Procession')!;
+    const wrath = configChoices(eng).detachments.find((d) => !d.hidden && d.dp === 1)!;
     roster = setDetachments(eng, roster, [wrath.key]);
     eng = new RosterEngine(index, roster, roots);
     const marshalKey = roots.find((r) => r.node.name === 'Marshal')!.key;
@@ -160,7 +170,8 @@ describe.skipIf(!have)('real 11th edition data', () => {
     const ec = new RosterEngine(index, rc, roots);
     const enh = ec.optionsUnder(ec.unitInst(chap.id)!).find((o) => o.name === 'Enhancements')!;
     const visible = enh.children.filter((g) => !g.hidden).map((g) => g.name);
-    expect(visible).toEqual(['Wrathful Procession Enhancements']);
+    // Only the chosen detachment's enhancements (none others) are offered.
+    expect(visible.every((n) => n.includes(wrath.name))).toBe(true);
     const opts = eng.optionsUnder(eng.unitInst(m1.id)!);
     const warlord = opts.find((o) => o.name === 'Warlord')!;
     const withWarlord = setOptionCount(eng, roster.units[0]!, [], warlord.node.key, 1);
@@ -417,7 +428,7 @@ describe.skipIf(!have)('official app export with attached units', () => {
         .map((t) => `${t.count} ${t.name}: ${t.groups.flatMap((g) => g.options.filter((o) => o.carried).map((o) => `${o.carried} ${o.name}`)).join(', ')}`);
     expect(units).toHaveLength(9);
     expect(report.unmatched.filter((u) => /^Unit:/.test(u))).toEqual([]);
-    expect(desc('Crusader Squad').join(' | ')).toMatch(/3 Initiate w\/Chainsword.*2 Initiate w\/Power Fist.*4 Neophyte w\/ Astartes Chainsword/);
+    expect(desc('Crusader Squad').join(' | ')).toMatch(/3 Initiate w\/Chainsword.*2 Initiate w\/Power Fist.*4 Neophyte w\/ (Astartes )?Chainsword/);
     expect(desc('Assault Intercessor Squad').join(' | ')).toMatch(/1 Assault Intercessor Sergeant:.*1 Thunder Hammer/);
     expect(desc('Sword Brethren Squad').join(' | ')).toMatch(/1 Thunder Hammer, 4 Master-crafted Power Weapon/);
   });

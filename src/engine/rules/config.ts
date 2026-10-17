@@ -174,10 +174,13 @@ export function dropUnavailableEnhancements(engine: RosterEngine, roster: Roster
 /** Force Dispositions the chosen detachments allow (all of them while no detachment is chosen). */
 export function allowedDispositions(engine: RosterEngine): ConfigOption[] {
   const c = configChoices(engine);
-  const chosen = c.detachments.filter((d) => engine.roster.detachmentIds.includes(d.key));
-  const names = new Set(chosen.flatMap((d) => d.dispositions));
-  const visible = c.dispositions.filter((d) => !d.hidden);
-  return names.size ? visible.filter((d) => names.has(d.name)) : visible;
+  // By id, or by name when the data's ids changed since the list was made.
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const names = new Set((engine.roster.detachmentNames ?? []).map(norm));
+  const chosen = c.detachments.filter((d) => engine.roster.detachmentIds.includes(d.key) || names.has(norm(d.name)));
+  const allowed = new Set(chosen.flatMap((d) => d.dispositions));
+  const visible = c.dispositions.filter((d) => !d.hidden || allowed.has(d.name));
+  return allowed.size ? visible.filter((d) => allowed.has(d.name)) : visible;
 }
 
 export function setDisposition(engine: RosterEngine, roster: Roster, key: string | undefined): Roster {
