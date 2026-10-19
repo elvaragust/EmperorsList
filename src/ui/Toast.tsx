@@ -10,7 +10,7 @@ let current: ToastMsg | null = null;
 let seq = 0;
 const listeners = new Set<() => void>();
 
-/** Show a short message at the bottom of the screen. */
+/** Show a short message at the top of the screen (clear of the buttons at the bottom). */
 export function showToast(text: string, action?: ToastMsg['action']) {
   current = { id: ++seq, text, action };
   listeners.forEach((l) => l());
@@ -32,11 +32,11 @@ export function ToastHost() {
   if (!visible) return null;
   return (
     <div className="toast-pop" role="status" aria-live="polite">
-      {visible.text}
+      <span className="toast-text">{visible.text}</span>
       {visible.action && (
         <button
           className="btn btn-sm btn-ghost"
-          style={{ minHeight: 28, padding: '0 0 0 10px', color: 'var(--accent-strong)' }}
+          style={{ minHeight: 36, padding: '0 8px', color: 'var(--accent)' }}
           onClick={() => {
             setVisible(null);
             navigate(visible.action!.to);

@@ -120,7 +120,7 @@ export function SettingsScreen() {
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6, padding: 14 }}>
           <div className="small muted">Colour theme</div>
-          <Choice k="themeMode" value={look.themeMode} options={[['faction', 'Follow the open army'], ['fixed', 'Always one theme']]} />
+          <Choice k="themeMode" value={look.themeMode} options={[['faction', 'Follow my army (the last one I opened)'], ['fixed', 'Always one theme']]} />
           {look.themeMode === 'fixed' && (
             <select className="input" value={look.fixedTheme} onChange={(e) => setAppearance({ fixedTheme: e.target.value })} aria-label="Theme">
               {THEME_CHOICES.map((t) => (

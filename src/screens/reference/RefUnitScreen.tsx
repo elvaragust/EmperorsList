@@ -18,7 +18,7 @@ export function RefUnitScreen() {
   const { catalogueId = '', key = '' } = useParams();
   const { index, error } = useIndex(catalogueId);
   const cat = index?.catalogues.get(catalogueId);
-  useFactionTheme(cat?.name);
+  useFactionTheme(cat?.name, false);
   const data = useMemo(() => {
     if (!index) return undefined;
     const roots = rootsFor(index, catalogueId);
