@@ -12,7 +12,7 @@ import { weaponCounts } from '@/engine/weaponGrid';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView } from '@/ui/WeaponGridView';
 import { combinedModels } from '../roster/combined';
-import { unitsLeft } from './panels';
+import { unitName, unitsLeft } from './panels';
 
 /** Another player's army: shared in a live game, or read from the list pasted at setup. */
 export function opponentRosterOf(game: SavedGame | undefined, playerId: string): Roster | undefined {
@@ -46,7 +46,7 @@ export function OpponentUnits({ game, playerId, summary }: { game: SavedGame; pl
                 {alive}/{u.total} models{s || playerId === 'local' ? '' : ' (no casualty info yet)'}
               </div>
             </span>
-            <span className="muted small">VIEW</span>
+            <span className="num muted small">{u.points} pts</span>
           </Link>
         );
       })}
@@ -74,7 +74,7 @@ export function OpponentUnitScreen() {
   return (
     <Screen title={target.name} back>
       <p className="small muted" style={{ marginTop: 0 }}>
-        {owner}'s unit · read only{s ? ` · ${s.alive}/${s.total} models left` : ''}
+        {owner}'s unit · {target.points} pts · read only{s ? ` · ${s.alive}/${s.total} models left` : ''}
       </p>
       <WeaponGridView loadouts={models.loadouts} models={models.models} weapons={models.weapons} dead={[]} />
       {group.map((u) => {
@@ -82,7 +82,7 @@ export function OpponentUnitScreen() {
         const sheet = inst ? datasheet(engine, inst) : undefined;
         return sheet ? (
           <div key={u.id}>
-            {group.length > 1 && <div className="section-label">{u.name}</div>}
+            {group.length > 1 && <div className="section-label">{unitName(engine, u)}</div>}
             <DatasheetView sheet={sheet} weapons={[...models.weapons.values()]} index={index} weaponCounts={weaponCounts(models.loadouts, models.models)} />
           </div>
         ) : null;

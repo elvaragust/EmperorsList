@@ -115,7 +115,41 @@ const matcherCache = new WeakMap<DataIndex, { v: number; m: TermMatcher }>();
 let coreSections: { num: string; title: string; text: string }[] = [];
 let coreVersion = 0;
 const GENERIC = new Set(['books', 'introduction', 'basic rules', 'armies', 'dice', 'datasheets', 'terrain', 'objectives', 'stratagems', 'actions', 'aircraft', 'transports', 'moving', 'reference', 'muster armies', 'other concepts', 'core abilities', 'other rules and abilities']);
-const stem = (s: string) => s.toLowerCase().replace(/[^a-z ]/g, '').replace(/\b(\w{3,})s\b/g, '$1').replace(/\s+/g, ' ').trim();
+const stem = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/-/g, ' ')
+    .replace(/[^a-z ]/g, '')
+    .replace(/\b(\w{3,})s\b/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+/** Rules text says what a unit did; the Core Rules name the move ("fell back" -> "Fall-Back Move"). */
+const ALIASES: Record<string, string> = {
+  'fell back': 'fall back move',
+  'fall back': 'fall back move',
+  advanced: 'advance move',
+  advance: 'advance move',
+  'remained stationary': 'remain stationary',
+  'pile in': 'pile in move',
+  'piled in': 'pile in move',
+  consolidate: 'consolidation move',
+  consolidated: 'consolidation move',
+  'normal move': 'normal move',
+  charged: 'charge move',
+  'battle shocked': 'battle shock roll',
+  'battle shock': 'battle shock roll',
+  'battle shock test': 'battle shock roll',
+  'leadership test': 'leadership test',
+  'mortal wound': 'mortal wound',
+  'critical hit': 'critical hit and critical wound',
+  'critical wound': 'critical hit and critical wound',
+  'engagement range': 'engagement',
+  'fire overwatch': 'fire overwatch',
+  overwatch: 'fire overwatch',
+  'strategic reserve': 'placing unit in strategic reserve',
+  'objective control': 'level of control',
+  'objective marker': 'terrain objective',
+};
 
 export function setCoreSections(list: { num: string; title: string; text: string }[]) {
   coreSections = list;
@@ -125,11 +159,15 @@ export function setCoreSections(list: { num: string; title: string; text: string
 /** The Core Rules section for a term ("surge move" -> "Surge Moves 21.02"). */
 export function findCoreSection(term: string): { num: string; title: string; text: string } | undefined {
   if (!coreSections.length) return undefined;
-  const t = stem(term);
-  if (!t) return undefined;
+  const raw = stem(term);
+  if (!raw) return undefined;
   const withText = coreSections.filter((s) => s.text);
+  const alias = ALIASES[raw];
+  const t = alias && withText.some((s) => stem(s.title) === alias) ? alias : raw;
+  // Two sections with the same name ("Surge Moves" intro, "Surge Move" rule): the fuller one.
+  const exact = withText.filter((s) => stem(s.title) === t).sort((a, b) => b.text.length - a.text.length);
   return (
-    withText.find((s) => stem(s.title) === t) ??
+    exact[0] ??
     withText.find((s) => stem(s.title).startsWith(t) || t.startsWith(stem(s.title))) ??
     withText.find((s) => s.num.includes('.') && stem(s.title).includes(t))
   );

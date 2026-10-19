@@ -37,3 +37,22 @@ describe('cards whose action has the same name', () => {
     expect(p.tags).toEqual(expect.arrayContaining(['attacker', 'defender']));
   });
 });
+
+describe('card edges', () => {
+  it('keeps the Mirrored World table, spaces out OR, and stops before quoted core rules', () => {
+    const html = `<div class="ca7Name">MIRRORED WORLD</div><p>As destinies converge, rival warlords find themselves on parallel paths.</p>
+<div>Roll a D6 and consult the table below.</div><div class="caPmBlock"><div class="caPmScore"><span><span class="tt">Battlefield</span> <span class="tt">Dominance</span></span><span class="caPmVP"><div class="cruD1"></div></span></div><div class="caPmScore"><span>(Roll again)</span><span class="caPmVP"><div class="cruD6"></div></span></div></div>
+<div class="ca7Name">CLEANSE</div><p>Your forces have identified a series of tainted objectives in this area.</p><div>ANY BATTLE ROUND</div>
+<div class="caPmScore"><span>One objective was cleansed.</span><span class="caPmVP">2VP</span></div><div class="caPmScore"><span class="caPmOr">OR</span><span>Two or more objectives were cleansed.</span><span class="caPmVP">5VP</span></div>
+<div class="tooltip_templates"><span><div class="tooltip_header">06.01 Visibility</div><p>Line of sight is used to determine visibility between models.</p></span></div>`;
+    const cards = parseMissionDeck(html);
+    const mw = cards.find((c: { name: string }) => c.name === 'Mirrored World');
+    expect(mw.text).toContain('1: Battlefield Dominance');
+    expect(mw.text).toContain('6: (Roll again)');
+    // The table row didn't start a Battlefield Dominance card.
+    expect(cards.find((c: { name: string }) => c.name === 'Battlefield Dominance')).toBeUndefined();
+    const cl = cards.find((c: { name: string }) => c.name === 'Cleanse');
+    expect(cl.text).toContain('OR Two or more objectives');
+    expect(cl.text).not.toContain('Visibility');
+  });
+});

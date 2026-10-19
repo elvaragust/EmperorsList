@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeWeaponGrid, sumAttacks } from '../weaponGrid';
+import { computeWeaponGrid, goneWeapons, sumAttacks } from '../weaponGrid';
 import { sketchLoadouts, sketchModels, sketchWeapons } from './sketchFixture';
 
 describe('sumAttacks', () => {
@@ -54,11 +54,16 @@ describe('computeWeaponGrid — the paper sketch', () => {
     ]);
   });
 
-  it('updates totals and drops empty columns when models die', () => {
+  it('updates totals and greys out a weapon only removed models carried', () => {
     const models = sketchModels().map((m) => (m.loadoutKey === 'ip' ? { ...m, alive: false } : m));
     const grid = computeWeaponGrid(sketchLoadouts, models, sketchWeapons);
-    expect(totals(grid).PF).toBeUndefined();
+    expect(totals(grid).PF).toBe('0');
+    expect(grid.columns.find((c) => c.short === 'PF')!.gone).toBe(true);
+    expect(grid.columns.find((c) => c.short === 'HBP')!.gone).toBeUndefined();
     expect(totals(grid).HBP).toBe('4');
     expect(grid.aliveModels).toBe(8);
+    expect([...goneWeapons(sketchLoadouts, models)].map((id) => sketchWeapons.get(id)!.short)).toEqual(['PF']);
+    // Back to life: back in play.
+    expect(goneWeapons(sketchLoadouts, sketchModels()).size).toBe(0);
   });
 });

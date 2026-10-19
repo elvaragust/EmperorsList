@@ -575,6 +575,56 @@ textarea.input {
   font-size: 12px;
   color: var(--text-muted);
 }
+/* A weapon no living model carries any more. */
+.wtable tr.gone td {
+  opacity: 0.4;
+}
+.wtable tr.gone td:first-child {
+  text-decoration: line-through;
+}
+.gone-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+/* Tap a weapon's name to write a note under it. */
+.weapon-name-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.weapon-name-btn .note-pen {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.weapon-note {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.weapon-note::before {
+  content: '✎ ';
+  font-weight: 400;
+}
+.wtable tr.note-row td {
+  border-top: 0;
+  padding: 0 0 8px;
+}
+.grid th.gone {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
 
 .unit-row {
   display: flex;
@@ -997,6 +1047,31 @@ textarea.input {
   font-weight: 500;
   opacity: 0.85;
 }
+/* One model with several weapon variants: the model's band, then each variant indented under it. */
+.model-band.variant-head + .model-band.variant,
+.model-band.variant {
+  margin-top: 0;
+  margin-left: 0;
+  padding-left: 14px;
+  border-left: 4px solid color-mix(in srgb, var(--accent-strong) 55%, var(--surface));
+  background: var(--raised);
+  font-size: 15px;
+  font-weight: 600;
+}
+.model-band.variant.empty {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.model-band.variant + .collapse,
+.model-band.variant ~ .gear-box {
+  margin-left: 4px;
+}
+.unit-row .composition {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
 .gear-box {
   border-radius: 10px;
   overflow: hidden;
@@ -1189,31 +1264,42 @@ textarea.input {
 .wounds .num.hurt {
   color: var(--danger);
 }
+.wounds .num.boosted {
+  color: var(--ok);
+}
 .wound-tag {
   margin-left: 6px;
   font-size: 11px;
   font-weight: 700;
   color: var(--danger);
 }
+.wound-tag.boosted {
+  color: var(--ok);
+}
 
 /* Scoring a mission card */
 .score-card {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
-  padding: 10px 12px;
-  margin: 6px 0 10px;
-  font-size: 14px;
+  padding: 10px 12px 12px;
+  margin: 8px 0 12px;
+  font-size: 15px;
+  line-height: 1.45;
 }
 .score-card.struck {
   opacity: 0.5;
+}
+.score-card.is-done {
+  border-color: var(--ok);
 }
 .score-card-head {
   appearance: none;
   background: none;
   border: 0;
-  padding: 0;
+  padding: 2px 0;
   width: 100%;
+  min-height: var(--tap);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -1221,10 +1307,66 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+}
+.score-card-name {
+  flex: 1;
+  font-size: 17px;
+}
+.card-kind {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+.score-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ok);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+}
+.card-flavour {
+  font-style: italic;
+  color: var(--text-muted);
+  margin: 2px 0 8px;
+}
+.card-rules {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--line);
+  color: var(--text);
 }
 .score-section {
-  margin: 6px 0;
+  margin: 10px 0 4px;
+}
+.score-section.later {
+  opacity: 0.62;
+}
+.score-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.now-tag {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--accent);
+}
+.score-when {
+  margin: 2px 0 4px;
+  color: var(--text-muted);
 }
 .round-pill {
   display: inline-block;
@@ -1235,7 +1377,7 @@ textarea.input {
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent);
-  color: var(--on-accent-strong, #fff);
+  color: var(--bg);
   margin: 4px 0;
 }
 .round-pill.dim {
@@ -1247,20 +1389,47 @@ textarea.input {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: var(--tap);
   border: 0;
   border-top: 1px solid var(--line-soft);
   background: none;
   padding: 8px 0;
   text-align: left;
   color: inherit;
+  font: inherit;
   cursor: pointer;
 }
-.score-line .vp {
-  display: inline-block;
-  margin-left: 6px;
+.score-line.static {
+  cursor: default;
+}
+.score-line .score-text {
+  flex: 1;
+  min-width: 0;
+}
+.vp-chip {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
   font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--raised);
+  border: 1px solid var(--line);
   color: var(--accent);
   white-space: nowrap;
+}
+.or-tag {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 2px 0;
+}
+.score-add {
+  margin-top: 10px;
 }
 .link-btn {
   border: 0;
@@ -1836,4 +2005,62 @@ tr.pulse > td {
 .wtable tbody tr.wgroup:first-child td {
   border-top: 0;
   padding-top: 6px;
+}
+
+/* Force Dispositions you can play and the primary each gives against your opponent's */
+.disp-table {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 6px 0 10px;
+  background: var(--surface);
+}
+.disp-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.disp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.disp-row:first-of-type {
+  border-top: 0;
+}
+.disp-row .disp-name {
+  flex: 1;
+  font-weight: 600;
+}
+.disp-row .disp-primary {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: right;
+}
+.disp-row.on {
+  background: color-mix(in srgb, var(--accent-strong) 35%, var(--surface));
+}
+.disp-row.on .disp-primary {
+  color: var(--text);
+  font-weight: 600;
+}
+.disp-table .small.muted:last-child {
+  padding: 8px 12px;
+  margin: 0;
+}
+/* Someone else's missions, read only */
+.opp-missions {
+  margin-top: 18px;
+  padding-top: 6px;
+  border-top: 2px dashed var(--line);
 }

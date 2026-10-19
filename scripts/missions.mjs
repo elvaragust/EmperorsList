@@ -16,7 +16,9 @@ import { htmlToLines } from './core-rules.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** Card names come from src/engine/missions.ts so there is one list to update. */
-export function deckNames(src = readFileSync(join(here, '../src/engine/missions.ts'), 'utf8')) {
+export function deckNames(raw = readFileSync(join(here, '../src/engine/missions.ts'), 'utf8')) {
+  // Windows checkouts may have CRLF line endings.
+  const src = raw.replace(/\r\n/g, '\n');
   const block = (key) => {
     const m = src.match(new RegExp(`${key}:\\s*([\\[{][\\s\\S]*?[\\]}])\\s*(?:as [^,]+)?,\\n`));
     return m ? [...m[1].matchAll(/'((?:[^'\\]|\\.)*)'|"([^"]*)"/g)].map((x) => (x[1] ?? x[2]).replace(/\\'/g, "'")) : [];
@@ -46,7 +48,12 @@ const norm = (s) =>
  * or section heading. The first occurrence with real text wins.
  */
 export function parseMissionDeck(html, names = deckNames()) {
-  const marked = html.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, __, t) => `\n@@H ${t.replace(/<[^>]+>/g, ' ')}\n`);
+  const marked = html
+    // Mirrored World's D6 table lists card names: write each row as "1: Battlefield Dominance" so it doesn't start a card.
+    .replace(/<div class="caPmScore"><span>((?:(?!<div class="caPmScore">|<\/div>)[\s\S])*?)<\/span><span class="caPmVP"><div class="cruD(\d)"><\/div><\/span><\/div>/g, (_, t, d) => `<div>${d}: ${t.replace(/<[^>]+>/g, '').trim()}</div>`)
+    // "OR" in front of an alternative scoring line.
+    .replace(/<span class="caPmOr">OR<\/span>/g, 'OR ')
+    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, __, t) => `\n@@H ${t.replace(/<[^>]+>/g, ' ')}\n`);
   const lines = htmlToLines(marked);
   const kindOf = new Map();
   for (const [kind, list] of Object.entries(names)) for (const n of list) kindOf.set(norm(n), { kind, name: n });
@@ -88,6 +95,11 @@ export function parseMissionDeck(html, names = deckNames()) {
       continue;
     }
     if (!cur) continue;
+    // The page footer and the core rules quoted in tooltips are not part of any card.
+    if (/^(this datasheet does not meet|contents$|©)|^\d{2}(\.\d{2})+\s+\S/i.test(line)) {
+      flush();
+      continue;
+    }
     if (LABEL.test(line) && line.length < 120) {
       if (/attacker/i.test(line)) cur.tags.add('attacker');
       if (/defender/i.test(line)) cur.tags.add('defender');

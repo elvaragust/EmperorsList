@@ -72,10 +72,10 @@ export function WeaponGridView({
               <span className="unit">{grid.aliveModels} MODELS</span>
             </th>
             {grid.columns.map((c, i) => (
-              <th key={c.weaponId} className={`grid-weapon ${i === firstMelee ? 'melee-start' : ''}`} title={`${c.name} — tap to see its profile`} onClick={() => jumpToWeapon(c.weaponId)}>
+              <th key={c.weaponId} className={`grid-weapon ${i === firstMelee ? 'melee-start' : ''} ${c.gone ? 'gone' : ''}`} title={c.gone ? `${c.name} — no model carrying it is left` : `${c.name} — tap to see its profile`} onClick={() => jumpToWeapon(c.weaponId)}>
                 {c.perModel > 1 && <span className="per-model">{c.perModel}×</span>}
                 {shorts[i]}
-                <span className="total">{c.total}</span>
+                <span className="total">{c.gone ? '–' : c.total}</span>
                 <span className="unit">{c.melee ? 'ATK' : 'SHOTS'}</span>
               </th>
             ))}
@@ -101,7 +101,7 @@ export function WeaponGridView({
                       {r.name}
                       {(() => {
                         const lost = r.modelIds.reduce((n, id) => n + (wounds?.[id] ?? 0), 0);
-                        return lost > 0 ? <span className="wound-tag">−{lost}W</span> : null;
+                        return lost > 0 ? <span className="wound-tag">−{lost}W</span> : lost < 0 ? <span className="wound-tag boosted">+{-lost}W</span> : null;
                       })()}
                     </td>
                     {r.cells.map((v, i) => (
@@ -120,7 +120,7 @@ export function WeaponGridView({
                           <td className="name muted" colSpan={grid.columns.length + 1}>
                             <div className="model-line">
                               <span className="model-name">Model {n + 1}</span>
-                              {onWound && w > 1 && <WoundStepper left={w - lost} max={w} label={`${r.name} ${n + 1}`} onChange={(left) => onWound(id, w - left, w)} />}
+                              {onWound && w >= 1 && <WoundStepper left={w - lost} max={w} label={`${r.name} ${n + 1}`} onChange={(left) => onWound(id, w - left, w)} />}
                               <button className="btn btn-sm btn-ghost btn-danger" onClick={() => onToggle?.(id, false)} aria-label={`Remove ${r.name} ${n + 1}`}>
                                 ✕ Remove
                               </button>
@@ -161,18 +161,21 @@ export function WeaponGridView({
   );
 }
 
-/** Wounds left on one model: − takes a wound, + heals one. */
+/**
+ * Wounds left on one model: − takes a wound, + heals one. + keeps going past
+ * full health (5/4) for rules that add wounds or a model that got extra ones.
+ */
 export function WoundStepper({ left, max, label, onChange }: { left: number; max: number; label: string; onChange: (left: number) => void }) {
   return (
     <span className="wounds" aria-label={`${label}: ${left} of ${max} wounds left`}>
       <button className="btn btn-sm" onClick={() => onChange(Math.max(0, left - 1))} aria-label={`${label}: lose a wound`}>
         −
       </button>
-      <span className={`num ${left < max ? 'hurt' : ''}`}>
+      <span className={`num ${left < max ? 'hurt' : left > max ? 'boosted' : ''}`}>
         {left}/{max}
         <span className="unit"> W</span>
       </span>
-      <button className="btn btn-sm" disabled={left >= max} onClick={() => onChange(Math.min(max, left + 1))} aria-label={`${label}: heal a wound`}>
+      <button className="btn btn-sm" onClick={() => onChange(left + 1)} aria-label={left >= max ? `${label}: add a wound above full` : `${label}: heal a wound`}>
         +
       </button>
     </span>

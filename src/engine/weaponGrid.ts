@@ -17,6 +17,8 @@ export interface GridColumn {
   total: string;
   /** Most copies of this weapon one model carries (a Land Raider's 2 flamestorm cannons). */
   perModel: number;
+  /** Only removed models carry it: the column stays, greyed out, until one comes back. */
+  gone?: boolean;
 }
 
 export interface GridRow {
@@ -75,6 +77,14 @@ export function sumAttacks(parts: { attacks: string; count: number }[]): string 
   return diceText || String(flat);
 }
 
+/** Weapons that only removed models carry (greyed out until a model comes back). */
+export function goneWeapons(loadouts: ModelLoadout[], models: ModelInstance[]): Set<string> {
+  const alive = new Set(models.filter((m) => m.alive !== false).map((m) => m.loadoutKey));
+  const all = new Set(models.map((m) => m.loadoutKey));
+  const carried = new Set(loadouts.filter((l) => alive.has(l.key)).flatMap((l) => l.weaponIds));
+  return new Set(loadouts.filter((l) => all.has(l.key)).flatMap((l) => l.weaponIds).filter((id) => !carried.has(id)));
+}
+
 export function computeWeaponGrid(
   loadouts: ModelLoadout[],
   models: ModelInstance[],
@@ -88,11 +98,12 @@ export function computeWeaponGrid(
     byLoadout.set(m.loadoutKey, list);
   });
 
-  // Columns: weapons carried by any living model, ranged first, in loadout order.
+  // Columns: weapons carried by any model (living or removed), ranged first, in loadout order.
+  const used = new Set(models.map((m) => m.loadoutKey));
   const seen = new Set<string>();
   const ordered: WeaponProfile[] = [];
   loadouts.forEach((l) => {
-    if (!byLoadout.get(l.key)?.length) return;
+    if (!used.has(l.key)) return;
     l.weaponIds.forEach((id) => {
       const w = weapons.get(id);
       if (w && !seen.has(id)) {
@@ -115,6 +126,7 @@ export function computeWeaponGrid(
       })),
     ),
     perModel: Math.max(1, ...loadouts.filter((l) => byLoadout.get(l.key)?.length).map((l) => occurrences(l, w.id))),
+    gone: !loadouts.some((l) => byLoadout.get(l.key)?.length && occurrences(l, w.id) > 0) || undefined,
   }));
 
   const groups: GridGroup[] = [];
