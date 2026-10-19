@@ -67,12 +67,12 @@ export function OpponentUnitScreen() {
   const target = left[Number(idx)];
   const group = useMemo(() => (engine && target ? [engine.roster.units.find((u) => u.id === target.id)!, ...engine.roster.units.filter((u) => u.leaderOf === target.id)] : []), [engine, target]);
   const models = useMemo(() => (engine && group.length ? combinedModels(engine, group) : undefined), [engine, group]);
-  if (!game || !engine || !target || !models) return <Screen title="Unit" back>{!roster ? <p className="muted">Their list isn't available.</p> : <p className="muted">Loading…</p>}</Screen>;
+  if (!game || !engine || !target || !models) return <Screen title="Unit" back={`/play/${gameId}`}>{!roster ? <p className="muted">Their list isn't available.</p> : <p className="muted">Loading…</p>}</Screen>;
   const summary = playerId === 'local' ? undefined : game.live?.state?.units[playerId];
   const s = summary?.find((x) => x.name === target.name) ?? summary?.[Number(idx)];
   const owner = playerId === 'local' ? game.opponentName || 'Opponent' : game.live?.state?.players.find((x) => x.id === playerId)?.name ?? 'Opponent';
   return (
-    <Screen title={target.name} back>
+    <Screen title={target.name} back={`/play/${gameId}`}>
       <p className="small muted" style={{ marginTop: 0 }}>
         {owner}'s unit · {target.points} pts · read only{s ? ` · ${s.alive}/${s.total} models left` : ''}
       </p>

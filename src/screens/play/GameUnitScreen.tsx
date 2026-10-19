@@ -26,7 +26,7 @@ export function GameUnitScreen() {
   const models = useMemo(() => (engine && group.length ? combinedModels(engine, group) : undefined), [engine, group]);
   const sheetsForRules = useMemo(() => (engine ? group.flatMap((x) => { const i = engine.unitInst(x.id); return i ? [datasheet(engine, i)] : []; }) : []), [engine, group]);
   const detRules = useUnitDetachmentRules(engine, sheetsForRules);
-  if (!game || !unit || !models || !engine) return <Screen title="Unit" back>{null}</Screen>;
+  if (!game || !unit || !models || !engine) return <Screen title="Unit" back={`/play/${gameId}`}>{null}</Screen>;
   const dead = Object.entries(game.casualties).flatMap(([uid, ids]) => ids.map((m) => `${uid}/${m}`));
   const toggle = (prefixed: string, alive: boolean) => {
     const [uid, ...rest] = prefixed.split('/');

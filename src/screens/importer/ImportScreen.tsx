@@ -74,7 +74,7 @@ export function ImportScreen() {
   };
 
   return (
-    <Screen title="Import list" back>
+    <Screen title="Import list" back="/lists">
       {error && <p className="issue-title">{error}</p>}
       {busy && <p className="muted">{busy}</p>}
 

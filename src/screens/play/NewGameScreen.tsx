@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { WizardSteps } from '@/ui/WizardSteps';
 import { db } from '@/data/db';
 import type { Roster } from '@/engine/types';
 import { Screen } from '@/ui/Screen';
@@ -46,12 +47,8 @@ export function NewGameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, rosters]);
   return (
-    <Screen title={live ? 'Host a live game' : 'New game · Army'} back>
-      <div className="wizard-steps" aria-hidden="true">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <span key={i} className={i === 0 ? 'done' : undefined} />
-        ))}
-      </div>
+    <Screen title={live ? 'Host a live game' : 'New game'} back="/play">
+      {!live && <WizardSteps titles={['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle']} step={0} />}
       {live && (
         <label className="field">
           <span>Your name (shown to the other players)</span>
@@ -73,7 +70,20 @@ export function NewGameScreen() {
           </button>
         ))}
       </div>
-      {rosters?.length === 0 && <p className="muted">Make a list first.</p>}
+      {rosters?.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-title">No army yet</div>
+          <p className="muted">A game needs one of your lists.</p>
+          <div className="btn-row">
+            <Link className="btn btn-primary btn-block" to="/new">
+              New list
+            </Link>
+            <Link className="btn btn-block" to="/import">
+              Import a list
+            </Link>
+          </div>
+        </div>
+      )}
     </Screen>
   );
 }

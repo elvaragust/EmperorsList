@@ -14,6 +14,8 @@ import { keepStorage, useStorageInfo } from '@/data/storage';
 import { setAppearance, useAppearance, type Appearance } from '@/theme/appearance';
 import { THEME_CHOICES } from '@/theme/themes';
 import { RuleLabel } from '@/ui/RuleLabel';
+import { Collapse } from '@/ui/Collapse';
+import { ConfirmSheet } from '@/ui/Sheet';
 
 function Choice<K extends keyof Appearance>({ k, options, value }: { k: K; options: [Appearance[K], string][]; value: Appearance[K] }) {
   return (
@@ -94,11 +96,16 @@ export function SettingsScreen() {
     downloadText(`emperorslist-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportBackup());
     setBackupStatus('Backup downloaded.');
   };
+  const [pendingRestore, setPendingRestore] = useState<{ name: string; text: string } | null>(null);
   const restore = async (list: FileList | null) => {
     const file = list?.[0];
     if (!file) return;
+    setPendingRestore({ name: file.name, text: await file.text() });
+    if (restoreInput.current) restoreInput.current.value = '';
+  };
+  const doRestore = async (text: string) => {
     try {
-      const r = await restoreBackup(await file.text());
+      const r = await restoreBackup(text);
       setBackupStatus(`Restored ${r.rosters} lists, ${r.games} games, ${r.collection} collection entries.`);
     } catch (e) {
       setBackupStatus(e instanceof Error ? e.message : 'Restore failed');
@@ -135,10 +142,6 @@ export function SettingsScreen() {
             Title font
           </div>
           <Choice k="titleFont" value={look.titleFont} options={[['gothic', 'Gothic'], ['serif', 'Engraved'], ['plain', 'Plain']]} />
-          <div className="small muted" style={{ marginTop: 8 }}>
-            Rule labels <RuleLabel kind="stratagem" />
-          </div>
-          <Choice k="labelStyle" value={look.labelStyle} options={[['dotted', 'Dotted box'], ['bold', 'Bold'], ['underline', 'Underline']]} />
           <div className="small muted" style={{ marginTop: 8 }}>
             Legends units in Add unit (imported lists keep theirs)
           </div>
@@ -185,6 +188,34 @@ export function SettingsScreen() {
           {sync.error && <div className="small issue-title">{sync.error}</div>}
           {status && <div className="small">{status}</div>}
         </div>
+      </div>
+
+      <div className="section-label">Backup</div>
+      <div className="card">
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
+          <div className="small">Save all your lists, games and collection to a file, or load them on another device. Game data is not included.</div>
+          <input ref={restoreInput} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files)} />
+          <div className="btn-row" style={{ margin: 0 }}>
+            <button className="btn btn-sm" onClick={backup}>
+              Download backup
+            </button>
+            <button className="btn btn-sm" onClick={() => restoreInput.current?.click()}>
+              Restore from file
+            </button>
+          </div>
+          {backupStatus && <div className="small">{backupStatus}</div>}
+        </div>
+      </div>
+
+      <div className="section-label">Advanced</div>
+      <Collapse title="For troubleshooting and forks">
+        <div className="card">
+          <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6, padding: 14 }}>
+          <div className="small muted" style={{ marginTop: 0 }}>
+            Rule labels <RuleLabel kind="stratagem" />
+          </div>
+          <Choice k="labelStyle" value={look.labelStyle} options={[['dotted', 'Dotted box'], ['bold', 'Bold'], ['underline', 'Underline']]} />
+          </div>
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
           <label className="field" style={{ margin: 0 }}>
             <span>Source repository (for forks)</span>
@@ -199,9 +230,8 @@ export function SettingsScreen() {
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="section-label">Extra rules (Wahapedia)</div>
+        </div>
+      <div className="section-label" style={{ marginTop: 14 }}>Extra rules (Wahapedia)</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
           <div className="small">Stratagems, enhancements and detachment rules from Wahapedia are built into the app and load by themselves. The Core Rules are included too, so tapping a rule shows its text. If they're missing (for example when running the app locally), import the CSV files or a saved Core Rules web page by hand.</div>
@@ -225,7 +255,7 @@ export function SettingsScreen() {
         </div>
       </div>
 
-      <div className="section-label">Live games</div>
+      <div className="section-label" style={{ marginTop: 14 }}>Live games</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
           <div className="small">
@@ -238,22 +268,16 @@ export function SettingsScreen() {
         </div>
       </div>
 
-      <div className="section-label">Backup</div>
-      <div className="card">
-        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
-          <div className="small">Save all your lists, games and collection to a file, or load them on another device. Game data is not included.</div>
-          <input ref={restoreInput} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files)} />
-          <div className="btn-row" style={{ margin: 0 }}>
-            <button className="btn btn-sm" onClick={backup}>
-              Download backup
-            </button>
-            <button className="btn btn-sm" onClick={() => restoreInput.current?.click()}>
-              Restore from file
-            </button>
-          </div>
-          {backupStatus && <div className="small">{backupStatus}</div>}
-        </div>
-      </div>
+      </Collapse>
+
+      <ConfirmSheet
+        open={Boolean(pendingRestore)}
+        onClose={() => setPendingRestore(null)}
+        title="Restore this backup?"
+        message={<>Lists, games and collection from <strong>{pendingRestore?.name}</strong> are added to this device. Anything with the same name from an earlier copy of the backup is replaced; everything else stays.</>}
+        confirm="Restore"
+        onConfirm={() => pendingRestore && void doRestore(pendingRestore.text)}
+      />
 
       <div className="section-label">About</div>
       <p className="small muted">
