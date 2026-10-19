@@ -14,6 +14,8 @@ export interface ScoreItem {
   bonus?: boolean;
   /** Line only applies when secondaries are used Fixed / Tactical. */
   mode?: 'fixed' | 'tactical';
+  /** "OR …": an alternative to the line(s) above it; only one of them scores. */
+  or?: boolean;
 }
 
 export interface CardSection {
@@ -74,14 +76,30 @@ export function parseCard(text: string): ParsedCard {
     }
     const vp = line.match(/^(\+?)(.*?)\s*(?:—\s*)?\+?(\d+)\s*VP(.*)$/i);
     if (vp && /\d+\s*VP/i.test(line)) {
-      const body = vp[2]!.replace(/^\+/, '').trim();
-      // Suffix tags glued on by the source: "3VPFIXED", "+1VPFIXEDCUMULATIVE", "VP · CUMULATIVE".
-      let rest = vp[4]!;
-      const tags: string[] = [];
-      for (let m; (m = rest.match(/^[\s·]*(FIXED|TACTICAL|CUMULATIVE)/i)); rest = rest.slice(m[0].length)) tags.push(m[1]!.toLowerCase());
-      const cap = rest.match(/up to\s*(\d+)\s*VP/i);
-      const mode = tags.includes('fixed') ? 'fixed' : tags.includes('tactical') ? 'tactical' : undefined;
-      cur.items.push({ text: body, vp: Number(vp[3]), each: /^for (each|every)\b/i.test(plain(body)), cap: cap ? Number(cap[1]) : undefined, bonus: vp[1] === '+' || /^\+/.test(line) || tags.includes('cumulative'), mode });
+      // "OR Two or more…" (older imports glue it on: "ORTwo or more…").
+      const orMatch = vp[2]!.match(/^OR(?:\s+|(?=[A-Z]))/);
+      const body = vp[2]!.slice(orMatch?.[0].length ?? 0).replace(/^\+/, '').trim();
+      const each = /^for (each|every)\b/i.test(plain(body));
+      const bonusLine = vp[1] === '+' || /^\+/.test(line);
+      // One or more values, each with its tags: "2VP", "3VPFIXED", "+1VPFIXEDCUMULATIVE",
+      // "4VP · FIXED — 5VP · TACTICAL(UP TO 5VP)" (a different value per way of playing).
+      const values: { vp: number; tags: string[]; cap?: number }[] = [];
+      let rest = `${vp[3]}VP${vp[4]}`;
+      for (let m; (m = rest.match(/^[\s—+]*(\d+)\s*VP/i)); ) {
+        rest = rest.slice(m[0].length);
+        const tags: string[] = [];
+        for (let t; (t = rest.match(/^[\s·]*(FIXED|TACTICAL|CUMULATIVE)/i)); rest = rest.slice(t[0].length)) tags.push(t[1]!.toLowerCase());
+        const cap = rest.match(/^\s*\(?\s*up to\s*(\d+)\s*VP\s*\)?/i);
+        if (cap) rest = rest.slice(cap[0].length);
+        values.push({ vp: Number(m[1]), tags, cap: cap ? Number(cap[1]) : undefined });
+      }
+      // A cap written once at the end of the line applies to every value when there's only one.
+      const tailCap = rest.match(/up to\s*(\d+)\s*VP/i);
+      for (const v of values) {
+        const mode = v.tags.includes('fixed') ? 'fixed' : v.tags.includes('tactical') ? 'tactical' : undefined;
+        const cap = v.cap ?? (tailCap && values.length === 1 ? Number(tailCap[1]) : undefined);
+        cur.items.push({ text: body, vp: v.vp, each, cap, bonus: bonusLine || v.tags.includes('cumulative'), mode, or: orMatch ? true : undefined });
+      }
       continue;
     }
     cur.lines.push(line);

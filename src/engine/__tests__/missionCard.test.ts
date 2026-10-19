@@ -61,4 +61,34 @@ One or more enemy CHARACTER models were destroyed this turn. — 5VPTACTICAL`);
     expect(items[0]!.each).toBe(true);
     expect(p.sections[0]!.lines).toHaveLength(0);
   });
+  it('gives a line with a Fixed and a Tactical value one item per way of playing', () => {
+    const p = parseCard(`Probe their lines.
+ANY BATTLE ROUND
+**WHEN:** End of your turn.
+You have a **presence** in three table quarters. — 2VP · FIXED — 3VP · TACTICAL
+OR You have a **presence** in four table quarters. — 4VP · FIXED — 5VP · TACTICAL
+For each enemy unit with a **starting strength** of 13+ **destroyed** this turn. — 4VP · FIXED — 5VP · TACTICAL(UP TO 5VP)`);
+    const items = p.sections[0]!.items;
+    expect(items.map((i) => [i.vp, i.mode, Boolean(i.or), i.cap])).toEqual([
+      [2, 'fixed', false, undefined],
+      [3, 'tactical', false, undefined],
+      [4, 'fixed', true, undefined],
+      [5, 'tactical', true, undefined],
+      [4, 'fixed', false, undefined],
+      [5, 'tactical', false, 5],
+    ]);
+    expect(items[2]!.text).toBe('You have a **presence** in four table quarters.');
+  });
+  it('reads "OR" alternatives, also when glued to the text', () => {
+    const p = parseCard('x\nANY BATTLE ROUND\nOne objective was cleansed. — 2VP\nORTwo or more objectives were cleansed. — 5VP');
+    expect(p.sections[0]!.items.map((i) => [i.text, Boolean(i.or)])).toEqual([
+      ['One objective was cleansed.', false],
+      ['Two or more objectives were cleansed.', true],
+    ]);
+  });
+  it('keeps two sections with the same heading apart', () => {
+    const p = parseCard('x\nANY BATTLE ROUND\n**WHEN:** End of your turn.\nMore units. — 2VP\nANY BATTLE ROUND\n**WHEN:** End of your opponent’s turn.\nMore units. — 5VP');
+    expect(p.sections).toHaveLength(2);
+    expect(p.sections.map((s) => s.when)).toEqual(['End of your turn.', 'End of your opponent’s turn.']);
+  });
 });

@@ -9,6 +9,7 @@ import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { ROLES, roleOfCategory, unitRole, type Role } from '@/engine/rules/roles';
+import { compositionLine, modelTypes } from '@/engine/rules/modelTypes';
 import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
@@ -31,6 +32,17 @@ export function RosterScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const issues = useMemo(() => engine?.issues() ?? [], [engine]);
+  // What each unit is made of ("1 Sword Brother · 6 Initiate · 4 Neophyte"); single-model units show nothing.
+  const composition = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!engine) return m;
+    for (const u of engine.roster.units) {
+      const types = modelTypes(engine, u.id);
+      if (types.length === 1 && !types[0]!.key) continue;
+      m.set(u.id, compositionLine(types));
+    }
+    return m;
+  }, [engine]);
   const fileCommit = useLiveQuery(() => (roster ? db.dataMeta.where('catalogueId').equals(roster.catalogueId).first() : undefined), [roster?.catalogueId])?.commit;
   const sections = useMemo(() => {
     if (!roster) return [];
@@ -78,6 +90,7 @@ export function RosterScreen() {
                 .filter(Boolean)
                 .join(' · ')}
             </div>
+            {composition.get(u.id) && <div className="composition">{composition.get(u.id)}</div>}
             {unitIssues > 0 && <div className="small issue-title">{unitIssues === 1 ? '1 issue' : `${unitIssues} issues`}</div>}
           </div>
           <span className="pts">{pts}</span>

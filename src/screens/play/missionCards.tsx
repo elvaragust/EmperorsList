@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { useRulePopup } from '@/ui/RulePopup';
 import { RulesText } from '@/ui/RulesText';
-import { parseCard, scoreItems, sectionsFor } from '@/engine/missionCard';
+import { parseCard, scoreItems, type ScoreItem } from '@/engine/missionCard';
 
 export interface CardInfo {
   name: string;
@@ -51,10 +51,14 @@ export function useCardPopup(cards: Map<string, CardInfo>) {
   };
 }
 
+const vpLabel = (it: ScoreItem) => `${it.bonus ? '+' : ''}${it.vp}VP${it.each ? ' each' : ''}${it.cap ? ` · max ${it.cap}` : ''}`;
+
 /**
- * A card laid out for scoring: the part for this battle round first (when to
- * score, a tick or a counter per scoring line, caps applied), the add-to-score
- * button, and the rest folded away.
+ * A card laid out for scoring. The whole card is shown: flavour, rules and
+ * every battle-round section — the ones that count this round are live, the
+ * others dimmed — with a tick or a counter per scoring line, caps applied.
+ * "OR" lines are alternatives: ticking one clears the other. Once scored, a
+ * card can be shown as done for the round (`done`) and enabled again.
  */
 export function ScoreCard({
   name,
@@ -64,6 +68,10 @@ export function ScoreCard({
   addLabel = 'Add',
   footer,
   mode,
+  kind,
+  done,
+  onEnable,
+  readOnly,
 }: {
   mode?: 'fixed' | 'tactical';
   name: string;
@@ -72,6 +80,13 @@ export function ScoreCard({
   onAdd?: (vp: number) => void;
   addLabel?: string;
   footer?: React.ReactNode;
+  /** Shown as a chip in the head: "Primary", "Secondary", "Twist". */
+  kind?: string;
+  /** Already scored this round (e.g. "+7 VP scored in round 2"): its lines are locked until enabled again. */
+  done?: string;
+  onEnable?: () => void;
+  /** Someone else's card: shown, not ticked. */
+  readOnly?: boolean;
 }) {
   const c = cards.get(name.toLowerCase());
   const parsed = useMemo(() => {
@@ -81,120 +96,160 @@ export function ScoreCard({
     if (mode) p.sections = p.sections.map((s) => ({ ...s, items: s.items.filter((it) => !it.mode || it.mode === mode) }));
     return p;
   }, [c, mode]);
-  const [counts, setCounts] = useState<Record<string, number[]>>({});
-  const [more, setMore] = useState(false);
+  // Ticks and counters per section (by position: two sections can have the same heading).
+  const [counts, setCounts] = useState<Record<number, number[]>>({});
   const [open, setOpen] = useState(true);
+  const sections = parsed?.sections ?? [];
   // The first intro line is flavour text; the rest (WHEN DRAWN, actions) are rules you need while playing.
   const flavour = parsed?.intro.slice(0, 1) ?? [];
   const introRules = parsed?.intro.slice(1) ?? [];
-  const now = parsed ? sectionsFor(parsed, round) : [];
-  const later = parsed ? parsed.sections.filter((s) => !now.includes(s)) : [];
-  const total = now.reduce((sum, s) => sum + scoreItems(s.items, counts[s.title] ?? []), 0);
-  const setCount = (title: string, i: number, n: number) => setCounts((all) => {
-    const list = [...(all[title] ?? [])];
-    list[i] = Math.max(0, n);
-    return { ...all, [title]: list };
-  });
+  const live = (si: number) => round >= sections[si]!.from && round <= sections[si]!.to;
+  const total = sections.reduce((sum, s, si) => sum + (live(si) ? scoreItems(s.items, counts[si] ?? []) : 0), 0);
+  const anyLive = sections.some((s, si) => live(si) && s.items.length > 0);
+  const setCount = (si: number, i: number, n: number) =>
+    setCounts((all) => {
+      const items = sections[si]!.items;
+      const list = [...(all[si] ?? [])];
+      if (n > 0) {
+        // A line and its "OR" alternatives: only one of them scores.
+        let start = i;
+        while (start > 0 && items[start]!.or) start--;
+        let end = start + 1;
+        while (end < items.length && items[end]!.or) end++;
+        if (end - start > 1) for (let k = start; k < end; k++) if (k !== i) list[k] = 0;
+      }
+      list[i] = Math.max(0, n);
+      return { ...all, [si]: list };
+    });
   return (
-    <div className={`score-card ${open ? '' : 'closed'}`}>
+    <div className={`score-card ${done ? 'is-done' : ''}`}>
       <button className="score-card-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <strong style={{ flex: 1, textAlign: 'left' }}>{name}</strong>
+        {kind && <span className="card-kind">{kind}</span>}
+        <strong className="score-card-name">{name}</strong>
         {c?.tags.includes('fixed') && <span className="tag">FIXED</span>}
         <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
-      {open && (
-      <>
-      {!c && <p className="small muted" style={{ margin: '4px 0' }}>Card text not loaded on this device.</p>}
-      {parsed && parsed.sections.length === 0 && <RulesText text={[...introRules, ...parsed.notes].join('\n') || c!.text} />}
-      {parsed && parsed.sections.length > 0 && introRules.length > 0 && (
-        <div className="card-rules small">
-          {introRules.map((l, i) => (
-            <RulesText key={i} text={l} />
-          ))}
-        </div>
-      )}
-      {now.map((s) => (
-        <div key={s.title} className="score-section">
-          <div className="round-pill">{s.title}</div>
-          {s.when && (
-            <div className="small">
-              <strong>When:</strong> {s.when}
-            </div>
+      {done && (
+        <div className="score-done">
+          <span style={{ flex: 1 }}>✓ {done}</span>
+          {onEnable && (
+            <button className="btn btn-sm" onClick={onEnable}>
+              Enable again
+            </button>
           )}
-          {s.lines.map((l, i) => (
-            <RulesText key={i} text={l} />
-          ))}
-          {s.items.map((it, i) => {
-            const n = counts[s.title]?.[i] ?? 0;
-            const label = (
-              <span style={{ flex: 1 }}>
-                <RulesText inline text={it.text} />
-                <span className="vp">
-                  {it.bonus ? '+' : ''}
-                  {it.vp}VP{it.each ? ' each' : ''}
-                  {it.cap ? ` (max ${it.cap})` : ''}
-                </span>
-              </span>
-            );
-            return it.each ? (
-              <div key={i} className="score-line">
-                {label}
-                <span className="wounds">
-                  <button className="btn btn-sm" onClick={() => setCount(s.title, i, n - 1)} aria-label="One fewer">
-                    −
-                  </button>
-                  <span className="num">{n}</span>
-                  <button className="btn btn-sm" onClick={() => setCount(s.title, i, n + 1)} aria-label="One more">
-                    +
-                  </button>
-                </span>
-              </div>
-            ) : (
-              <button key={i} className="score-line" role="checkbox" aria-checked={n > 0} onClick={() => setCount(s.title, i, n > 0 ? 0 : 1)}>
-                {label}
-                <span className={`check ${n > 0 ? 'on' : ''}`}>{n > 0 ? '✓' : ''}</span>
-              </button>
-            );
-          })}
         </div>
-      ))}
-      {parsed && parsed.sections.length > 0 && now.length === 0 && <p className="small muted">Nothing to score on this card in round {round}.</p>}
-      {onAdd && now.some((s) => s.items.length) && (
-        <button
-          className="btn btn-sm btn-primary btn-block"
-          disabled={total <= 0}
-          onClick={() => {
-            onAdd(total);
-            setCounts({});
-          }}
-        >
-          {addLabel} {total} VP
-        </button>
       )}
-      {footer}
-      </>
-      )}
-      {open && parsed && (flavour.length > 0 || later.length > 0) && (
-        <button className="link-btn small" onClick={() => setMore(!more)} aria-expanded={more}>
-          {more ? 'Hide' : 'Show'} the rest of the card {more ? '▴' : '▾'}
-        </button>
-      )}
-      {open && more && parsed && (
-        <div className="small muted">
-          {flavour.map((l, i) => (
-            <RulesText key={i} text={l} />
-          ))}
-          {later.map((s) => (
-            <div key={s.title} style={{ marginTop: 6 }}>
-              <div className="round-pill dim">{s.title}</div>
-              {s.when && <div>When: {s.when}</div>}
-              {[...s.lines, ...s.items.map((it) => `${it.bonus ? '+' : ''}${it.text} — ${it.vp}VP${it.cap ? ` (max ${it.cap})` : ''}`)].map((l, i) => (
+      {open && (
+        <>
+          {!c && <p className="small muted" style={{ margin: '4px 0' }}>Card text not loaded on this device.</p>}
+          {parsed && sections.length === 0 && <RulesText text={[...parsed.intro, ...parsed.notes].join('\n') || c!.text} />}
+          {sections.length > 0 && flavour.length > 0 && (
+            <div className="card-flavour">
+              {flavour.map((l, i) => (
                 <RulesText key={i} text={l} />
               ))}
             </div>
-          ))}
-        </div>
+          )}
+          {sections.length > 0 && introRules.length > 0 && (
+            <div className="card-rules small">
+              {introRules.map((l, i) => (
+                <RulesText key={i} text={l} />
+              ))}
+            </div>
+          )}
+          {sections.map((s, si) => {
+            const now = live(si) && !done && !readOnly;
+            return (
+              <div key={si} className={`score-section ${now ? 'now' : 'later'}`}>
+                <div className="score-section-head">
+                  <span className={`round-pill ${live(si) ? '' : 'dim'}`}>{s.title}</span>
+                  {live(si) ? <span className="small now-tag">This round</span> : <span className="small muted">Not in round {round}</span>}
+                </div>
+                {s.when && (
+                  <div className="small score-when">
+                    <strong>When:</strong> {s.when}
+                  </div>
+                )}
+                {s.items.map((it, i) => {
+                  const n = counts[si]?.[i] ?? 0;
+                  const text = (
+                    <span className="score-text">
+                      <RulesText inline text={it.text} />
+                    </span>
+                  );
+                  const vp = <span className="vp-chip">{vpLabel(it)}</span>;
+                  const or = it.or ? <div className="or-tag">or</div> : null;
+                  if (!now) {
+                    return (
+                      <Fragment key={i}>
+                        {or}
+                        <div className="score-line static">
+                          {text}
+                          {vp}
+                        </div>
+                      </Fragment>
+                    );
+                  }
+                  return (
+                    <Fragment key={i}>
+                      {or}
+                      {it.each ? (
+                        <div className="score-line">
+                          {text}
+                          {vp}
+                          <span className="wounds">
+                            <button className="btn btn-sm" onClick={() => setCount(si, i, n - 1)} aria-label="One fewer">
+                              −
+                            </button>
+                            <span className="num">{n}</span>
+                            <button className="btn btn-sm" onClick={() => setCount(si, i, n + 1)} aria-label="One more">
+                              +
+                            </button>
+                          </span>
+                        </div>
+                      ) : (
+                        <button className="score-line" role="checkbox" aria-checked={n > 0} onClick={() => setCount(si, i, n > 0 ? 0 : 1)}>
+                          {text}
+                          {vp}
+                          <span className={`check ${n > 0 ? 'on' : ''}`}>{n > 0 ? '✓' : ''}</span>
+                        </button>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {s.lines.length > 0 && (
+                  <div className="card-rules small">
+                    {s.lines.map((l, i) => (
+                      <RulesText key={i} text={l} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {sections.length > 0 && (parsed?.notes.length ?? 0) > 0 && (
+            <div className="card-rules small">
+              {parsed!.notes.map((l, i) => (
+                <RulesText key={i} text={l} />
+              ))}
+            </div>
+          )}
+          {sections.length > 0 && !anyLive && <p className="small muted">Nothing to score on this card in round {round}.</p>}
+          {onAdd && anyLive && !done && (
+            <button
+              className="btn btn-primary btn-block score-add"
+              disabled={total <= 0}
+              onClick={() => {
+                onAdd(total);
+                setCounts({});
+              }}
+            >
+              {addLabel} {total} VP
+            </button>
+          )}
+        </>
       )}
+      {footer}
     </div>
   );
 }

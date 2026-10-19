@@ -63,15 +63,21 @@ export function exportText(engine: RosterEngine, roster: Roster): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-function selectionLines(engine: RosterEngine, inst: Inst, depth: number): string[] {
+/**
+ * One selection and what it holds. Counts are totals for the unit, as the
+ * official app writes them: "2x Custodian Warden" then "2x Guardian Spear"
+ * (each warden's one spear), not "1x" per model.
+ */
+function selectionLines(engine: RosterEngine, inst: Inst, depth: number, times = 1): string[] {
   const ev = engine.ev;
   const name = ev.name(inst);
   const pad = depth === 1 ? '  • ' : `${'  '.repeat(depth)}◦ `;
   const out: string[] = [];
+  const total = inst.count * times;
   if (ev.categories(inst).has('5c0e-4c31-d51b-e470')) out.push(`${pad}Warlord`);
   else if (ev.cost(inst, 'f759-1bc4-cb3a-f0d2') > 0) out.push(`${pad}Enhancement: ${name}`);
-  else out.push(`${pad}${inst.count}x ${name}`);
-  for (const c of inst.children) if (c.count > 0) out.push(...selectionLines(engine, c, depth + 1));
+  else out.push(`${pad}${total}x ${name}`);
+  for (const c of inst.children) if (c.count > 0) out.push(...selectionLines(engine, c, depth + 1, total));
   return out;
 }
 
@@ -378,20 +384,46 @@ export function importUnit(engineFor: (units: RosterUnit[]) => RosterEngine, oth
   }
 
   // 3. Wargear: each model's lines say how many of those models carry each weapon.
-  const gear: { modelKey?: string; line: ParsedLine }[] = [];
+  const gear: { modelKey?: string; line: ParsedLine; under?: ParsedLine }[] = [];
   let currentModel: string | undefined;
+  let currentItem: ParsedLine | undefined;
   lines.forEach((l, i) => {
     if (handled.has(i)) return;
     if (modelOf.has(i)) {
       currentModel = modelOf.get(i);
+      currentItem = undefined;
       return;
     }
     if (l.kind !== 'item') return;
-    if (l.depth === 1) currentModel = undefined;
-    gear.push({ modelKey: l.depth === 2 ? currentModel : undefined, line: l });
+    if (l.depth === 1) {
+      currentModel = undefined;
+      currentItem = l;
+    }
+    // A line under a wargear item (not a model) is what that item holds ("2 ectoplasma cannons" → "2x Ectoplasma cannon").
+    gear.push({ modelKey: l.depth === 2 ? currentModel : undefined, line: l, under: l.depth === 2 && !currentModel ? currentItem : undefined });
   });
   const applied = new Map<string, Set<string>>();
-  for (const { modelKey, line } of gear) {
+  for (const { modelKey, line, under } of gear) {
+    if (under) {
+      const root = engine.unitInst(unit.id)!;
+      const holder = root.children.find((c) => c.count > 0 && matchName(under.name, [engine.ev.name(c)]));
+      const label = `${parsed.name}: ${line.count}x ${line.name}`;
+      if (holder) {
+        const have = holder.children.find((c) => c.count > 0 && matchName(line.name, [engine.ev.name(c)]));
+        if (have && have.count * holder.count === line.count) {
+          report.matched.push(label);
+          continue;
+        }
+        const hi = root.sel?.children.indexOf(holder.sel!) ?? -1;
+        const ok = hi >= 0 ? setDeep(engine, unit, [hi], line.name, Math.max(1, Math.round(line.count / Math.max(1, holder.count)))) : undefined;
+        if (ok) {
+          unit = ok;
+          refresh();
+          report.matched.push(label);
+          continue;
+        }
+      }
+    }
     const types = modelTypes(engine, unit.id);
     const t = modelKey !== undefined ? types.find((x) => x.key === modelKey) : types.length === 1 ? types[0] : types.find((x) => !x.key);
     const label = `${parsed.name}: ${line.count}x ${line.name}`;

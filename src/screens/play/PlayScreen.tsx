@@ -53,7 +53,7 @@ export function PlayScreen() {
         </Link>
       </div>
       <p className="small muted" style={{ margin: 0 }}>
-        Live games sync turn, phase, CP and score between phones — 1v1 or 2v2. <Link to="/play/layouts" className="tag">TABLE LAYOUTS</Link>
+        Live games sync turn, phase, CP, score and missions between phones — 1v1, 2v2, 2v1 or three players. <Link to="/play/layouts" className="tag">TABLE LAYOUTS</Link>
       </p>
       {live.length > 0 && (
         <>

@@ -1,5 +1,5 @@
 import type { SavedGame } from '@/data/db';
-import { discardTactical, drawTactical, fixedSecondaries, MISSION_DECK, newTactical, restoreTactical, scoreTactical, secondariesFor, type TacticalState } from '@/engine/missions';
+import { applySecOp, fixedSecondaries, MISSION_DECK, secondariesFor, shuffled, type SecOp, type SecondaryState } from '@/engine/missions';
 import { showToast } from '@/ui/Toast';
 import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
 
@@ -9,6 +9,32 @@ const list = (v?: string) =>
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+/** A local game's own missions, kept on the saved game (older fields), as one state. */
+export function localSecondaries(g: SavedGame): SecondaryState {
+  return { mode: g.secondaryMode?.me, fixed: list(g.secondaries?.me), tactical: g.tactical, primaryDone: g.primaryDone };
+}
+
+/** Write a missions state back onto a local game. */
+export function localSecondariesPatch(g: SavedGame, s: SecondaryState): Partial<SavedGame> {
+  return {
+    secondaryMode: { ...g.secondaryMode, me: s.mode },
+    secondaries: { me: s.fixed.join(', '), them: g.secondaries?.them ?? '' },
+    tactical: s.tactical,
+    primaryDone: s.primaryDone,
+  };
+}
+
+/** Apply a missions change to a local game (the latest saved copy). */
+export function applyLocalSec(g: SavedGame, op: SecOp): Partial<SavedGame> {
+  return localSecondariesPatch(g, applySecOp(localSecondaries(g), op));
+}
+
+/** Choosing Tactical: a freshly shuffled deck of the cards this side may use. */
+export function tacticalOp(role: SavedGame['role'], cards: Map<string, CardInfo>): SecOp {
+  const tags = cardTags(cards);
+  return { op: 'mode', mode: 'tactical', deck: shuffled(secondariesFor(role, tags.size ? tags : undefined)) };
+}
 
 /** How the two ways of playing secondaries work (mission deck rules, summarised). */
 export function ModeRules({ mode }: { mode: Mode }) {
@@ -28,18 +54,18 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others.
       </li>
       <li>
-        <strong>Once per battle:</strong> spend 1CP to discard one card and draw a new one (<em>Redraw</em>).
+        <strong>Redraw:</strong> spend 1CP to discard one card and draw a new one (this app lets you do it as often as you like).
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
   );
 }
 
-function ModeSwitch({ value, onChange }: { value?: Mode; onChange: (m: Mode) => void }) {
+function ModeSwitch({ value, onChange, disabled }: { value?: Mode; onChange: (m: Mode) => void; disabled?: boolean }) {
   return (
     <div className="seg" role="radiogroup" style={{ margin: '6px 0' }}>
       {(['fixed', 'tactical'] as const).map((m) => (
-        <button key={m} role="radio" aria-checked={value === m} className={value === m ? 'on' : undefined} onClick={() => onChange(m)}>
+        <button key={m} role="radio" aria-checked={value === m} className={value === m ? 'on' : undefined} disabled={disabled} onClick={() => onChange(m)}>
           {m === 'fixed' ? 'Fixed' : 'Tactical'}
         </button>
       ))}
@@ -70,36 +96,48 @@ function PickTwo({ pool, value, onChange, cards }: { pool: string[]; value: stri
   );
 }
 
-/** Setup step: Fixed or Tactical for each player, the two Fixed cards, and the rules for each way. */
-export function SecondarySetup({ game, set, opponent = true }: { game: SavedGame; set: (p: Partial<SavedGame>) => void; opponent?: boolean }) {
+/**
+ * Setup step: Fixed or Tactical, the two Fixed cards, and the rules for each
+ * way. `sec`/`onSec` are this side's missions (in a live game, the team's —
+ * your teammate sees the same choices). The opponent part is for local games.
+ */
+export function SecondarySetup({
+  sec,
+  onSec,
+  role,
+  game,
+  setGame,
+  title = 'My secondaries',
+}: {
+  sec: SecondaryState;
+  onSec: (op: SecOp) => void;
+  role?: SavedGame['role'];
+  /** Local game: also note the opponent's choice. */
+  game?: SavedGame;
+  setGame?: (p: Partial<SavedGame>) => void;
+  title?: string;
+}) {
   const cards = useMissionCards();
   const tags = cardTags(cards);
-  const mode = game.secondaryMode ?? {};
   const fixedPool = fixedSecondaries(tags.size ? tags : undefined);
-  const mine = list(game.secondaries?.me);
-  const theirs = list(game.secondaries?.them);
-  const setMine = (m: Mode) =>
-    set({
-      secondaryMode: { ...mode, me: m },
-      secondaries: { me: m === 'fixed' ? mine.filter((x) => fixedPool.includes(x)).join(', ') : '', them: game.secondaries?.them ?? '' },
-      tactical: m === 'tactical' ? newTactical(secondariesFor(game.role, tags.size ? tags : undefined)) : undefined,
-    });
+  const mode = game?.secondaryMode ?? {};
+  const theirs = list(game?.secondaries?.them);
   return (
     <>
-      <div className="section-label">My secondaries</div>
-      <ModeSwitch value={mode.me} onChange={setMine} />
-      {mode.me && <ModeRules mode={mode.me} />}
-      {mode.me === 'fixed' && <PickTwo pool={fixedPool} value={mine} cards={cards} onChange={(v) => set({ secondaries: { me: v.join(', '), them: game.secondaries?.them ?? '' } })} />}
-      {mode.me === 'tactical' && (
+      <div className="section-label">{title}</div>
+      <ModeSwitch value={sec.mode} onChange={(m) => onSec(m === 'tactical' ? tacticalOp(role, cards) : { op: 'mode', mode: 'fixed' })} />
+      {sec.mode && <ModeRules mode={sec.mode} />}
+      {sec.mode === 'fixed' && <PickTwo pool={fixedPool} value={sec.fixed} cards={cards} onChange={(v) => onSec({ op: 'fixed', cards: v })} />}
+      {sec.mode === 'tactical' && (
         <p className="small muted">
-          Your deck of {game.tactical?.deck.length ?? MISSION_DECK.secondaries.length} cards is shuffled. Draw your first two in your first Command phase — the battle screen's <strong>Missions</strong> tab does it for you.
+          Your deck of {sec.tactical?.deck.length ?? MISSION_DECK.secondaries.length} cards is shuffled. Draw your first two in your first Command phase — the battle screen's <strong>Missions</strong> tab does it for you.
         </p>
       )}
-      {opponent && (
+      {game && setGame && (
         <>
           <div className="section-label">{game.opponentName || 'Opponent'}'s secondaries</div>
-          <ModeSwitch value={mode.them} onChange={(m) => set({ secondaryMode: { ...mode, them: m }, secondaries: { me: game.secondaries?.me ?? '', them: m === 'fixed' ? theirs.join(', ') : '' } })} />
-          {mode.them === 'fixed' && <PickTwo pool={fixedPool} value={theirs} cards={cards} onChange={(v) => set({ secondaries: { me: game.secondaries?.me ?? '', them: v.join(', ') } })} />}
+          <ModeSwitch value={mode.them} onChange={(m) => setGame({ secondaryMode: { ...mode, them: m }, secondaries: { me: game.secondaries?.me ?? '', them: m === 'fixed' ? theirs.join(', ') : '' } })} />
+          {mode.them === 'fixed' && <PickTwo pool={fixedPool} value={theirs} cards={cards} onChange={(v) => setGame({ secondaries: { me: game.secondaries?.me ?? '', them: v.join(', ') } })} />}
           {mode.them === 'tactical' && <p className="small muted">They draw from their own deck; score their VP in the Score tab.</p>}
         </>
       )}
@@ -108,63 +146,98 @@ export function SecondarySetup({ game, set, opponent = true }: { game: SavedGame
 }
 
 /**
- * Battle: my primary (scored line by line for this round), the twist, and my
- * secondaries — the two Fixed cards, or the Tactical hand with draw / add VP /
- * discard for 1CP / new card. Scored and discarded cards stay listed; tap one to undo.
+ * Battle: the primary (scored line by line for this round, then locked for the
+ * round until enabled again), the twist, and the secondaries — the two Fixed
+ * cards, or the Tactical hand with draw / add VP / discard / redraw for 1CP.
+ * Scored and discarded cards stay listed; tap one to put it back.
+ * With `readOnly` it shows someone else's missions (an opponent in a live game).
  */
 export function MissionsPanel({
-  game,
+  sec,
+  onSec,
   round,
   turnKey,
   myCommandPhase,
-  onChange,
   onCp,
   onVp,
   primary,
+  twist,
+  role,
+  readOnly,
+  who,
 }: {
-  game: SavedGame;
+  sec: SecondaryState;
+  onSec?: (op: SecOp, text?: string) => void;
   round: number;
   /** Changes every turn, so the draw is offered once per Command phase. */
   turnKey: string;
   myCommandPhase: boolean;
-  onChange: (p: Partial<SavedGame>) => void;
-  onCp: (delta: number, why: string) => void;
-  onVp: (kind: 'primary' | 'secondary', vp: number, why: string) => void;
+  onCp?: (delta: number, why: string) => void;
+  onVp?: (kind: 'primary' | 'secondary', vp: number, why: string) => void;
   primary?: string;
+  twist?: string;
+  role?: SavedGame['role'];
+  readOnly?: boolean;
+  /** Whose missions these are, for read-only views ("Bob's"). */
+  who?: string;
 }) {
   const cards = useMissionCards();
   const tags = cardTags(cards);
-  const mode = game.secondaryMode?.me;
-  const t: TacticalState | undefined = game.tactical ?? (mode === 'tactical' ? newTactical(secondariesFor(game.role, tags.size ? tags : undefined)) : undefined);
-  const put = (next: TacticalState) => onChange({ tactical: next });
-  const canDraw = mode === 'tactical' && t && t.drawnFor !== turnKey;
+  const fixedPool = fixedSecondaries(tags.size ? tags : undefined);
+  const mode = sec.mode;
+  const t = sec.tactical;
+  const act = (op: SecOp, text?: string) => onSec?.(op, text);
+  const canDraw = !readOnly && mode === 'tactical' && t && t.drawnFor !== turnKey;
+  const primaryDone = (sec.primaryDone ?? []).includes(round);
   return (
     <div>
-      <div className="section-label">Primary · round {round}</div>
-      {primary ? <ScoreCard name={primary} cards={cards} round={round} onAdd={(vp) => onVp('primary', vp, primary)} addLabel={`Add to round ${round} primary:`} /> : <p className="muted small">No primary mission set.</p>}
-      {game.twist && (
+      <div className="section-label">{who ? `${who} primary` : 'Primary'} · round {round}</div>
+      {primary ? (
+        <ScoreCard
+          kind="Primary"
+          name={primary}
+          cards={cards}
+          round={round}
+          onAdd={readOnly ? undefined : (vp) => (onVp?.('primary', vp, primary), act({ op: 'primaryDone', round, done: true }))}
+          addLabel={`Add to round ${round} primary:`}
+          done={primaryDone ? `Primary scored for round ${round}` : undefined}
+          onEnable={readOnly ? undefined : () => act({ op: 'primaryDone', round, done: false })}
+          readOnly={readOnly}
+        />
+      ) : (
+        <p className="muted small">No primary mission set.</p>
+      )}
+      {twist && !readOnly && (
         <>
           <div className="section-label">Twist</div>
-          <ScoreCard name={game.twist} cards={cards} round={round} />
+          <ScoreCard kind="Twist" name={twist} cards={cards} round={round} />
         </>
       )}
-      <div className="section-label">Secondaries{mode ? ` · ${mode === 'fixed' ? 'Fixed' : 'Tactical'}` : ''}</div>
-      {!mode && (
-        <p className="muted small">
-          Not set. Choose Fixed or Tactical:
-          <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => onChange({ secondaryMode: { ...game.secondaryMode, me: 'fixed' } })}>
-            Fixed
-          </button>
-          <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => onChange({ secondaryMode: { ...game.secondaryMode, me: 'tactical' }, tactical: newTactical(secondariesFor(game.role, tags.size ? tags : undefined)) })}>
-            Tactical
-          </button>
-        </p>
-      )}
-      {mode === 'fixed' &&
-        (list(game.secondaries?.me).length ? (
-          list(game.secondaries?.me).map((n) => <ScoreCard key={n} mode="fixed" name={n} cards={cards} round={round} onAdd={(vp) => onVp('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} />)
+      <div className="section-label">
+        {who ? `${who} secondaries` : 'Secondaries'}
+        {mode ? ` · ${mode === 'fixed' ? 'Fixed' : 'Tactical'}` : ''}
+      </div>
+      {!mode &&
+        (readOnly ? (
+          <p className="muted small">Not chosen yet.</p>
         ) : (
-          <p className="muted small">No Fixed cards chosen.</p>
+          <p className="muted small">
+            Not set. Choose Fixed or Tactical:
+            <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => act({ op: 'mode', mode: 'fixed' })}>
+              Fixed
+            </button>
+            <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => act(tacticalOp(role, cards))}>
+              Tactical
+            </button>
+          </p>
+        ))}
+      {mode === 'fixed' &&
+        (sec.fixed.length ? (
+          sec.fixed.map((n) => <ScoreCard key={n} kind="Secondary" mode="fixed" name={n} cards={cards} round={round} onAdd={readOnly ? undefined : (vp) => onVp?.('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} readOnly={readOnly} />)
+        ) : readOnly ? (
+          <p className="muted small">No Fixed cards chosen yet.</p>
+        ) : (
+          <PickTwo pool={fixedPool} value={sec.fixed} cards={cards} onChange={(v) => act({ op: 'fixed', cards: v })} />
         ))}
       {mode === 'tactical' && t && (
         <>
@@ -172,54 +245,62 @@ export function MissionsPanel({
             <button
               className={`btn btn-block ${myCommandPhase ? 'btn-primary' : ''}`}
               onClick={() => {
-                const next = drawTactical(t, 2);
-                put({ ...next, drawnFor: turnKey });
-                showToast(`Drew ${next.active.filter((x) => !t.active.includes(x)).join(' and ') || 'nothing (deck empty)'}`);
+                const next = applySecOp(sec, { op: 'draw', n: 2, key: turnKey }).tactical;
+                const drawn = next?.active.filter((x) => !t.active.includes(x)) ?? [];
+                act({ op: 'draw', n: 2, key: turnKey }, drawn.length ? `Drew ${drawn.join(' and ')}` : undefined);
+                showToast(`Drew ${drawn.join(' and ') || 'nothing (deck empty)'}`);
               }}
             >
               Draw 2 secondary missions{myCommandPhase ? ' (start of your Command phase)' : ''}
             </button>
           )}
-          {t.active.length === 0 && <p className="muted small">No active cards.{canDraw ? '' : ' Draw at the start of your next Command phase.'}</p>}
+          {t.active.length === 0 && <p className="muted small">No active cards.{canDraw || readOnly ? '' : ' Draw at the start of your next Command phase.'}</p>}
           {t.active.map((n) => (
             <ScoreCard
               key={n}
+              kind="Secondary"
               mode="tactical"
               name={n}
               cards={cards}
               round={round}
+              readOnly={readOnly}
               addLabel="Achieved — add"
-              onAdd={(vp) => {
-                onVp('secondary', vp, n);
-                put(scoreTactical(t, n, round));
-              }}
+              onAdd={
+                readOnly
+                  ? undefined
+                  : (vp) => {
+                      onVp?.('secondary', vp, n);
+                      act({ op: 'score', name: n, round }, `Scored ${n} (+${vp} VP)`);
+                    }
+              }
               footer={
-                <div className="btn-row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm" onClick={() => (put(discardTactical(t, n)), showToast(`${n} discarded`))}>
-                    Discard
-                  </button>
-                  <button
-                    className="btn btn-sm btn-ghost"
-                    disabled={t.newOrdersUsed}
-                    title="Once per battle: spend 1CP to discard this card and draw a new one"
-                    onClick={() => {
-                      const next = drawTactical({ ...discardTactical(t, n), newOrdersUsed: true }, 1);
-                      put(next);
-                      onCp(-1, `Redraw: swapped ${n}`);
-                    }}
-                  >
-                    {t.newOrdersUsed ? 'Redraw used' : 'Redraw (1CP)'}
-                  </button>
-                </div>
+                readOnly ? undefined : (
+                  <div className="btn-row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+                    <button className="btn btn-sm" onClick={() => (act({ op: 'discard', name: n }, `Discarded ${n}`), showToast(`${n} discarded`))}>
+                      Discard
+                    </button>
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      title="Spend 1CP: discard this card and draw a new one"
+                      disabled={!t.deck.length && !t.discarded.length}
+                      onClick={() => {
+                        act({ op: 'redraw', name: n }, `Redraw: swapped ${n} (1 CP)`);
+                        onCp?.(-1, `Redraw: swapped ${n}`);
+                      }}
+                    >
+                      Redraw (1CP){t.redraws ? ` · used ${t.redraws}×` : ''}
+                    </button>
+                  </div>
+                )
               }
             />
           ))}
           {(t.scored.length > 0 || t.discarded.length > 0) && (
             <>
-              <div className="small muted">Scored ✓ and discarded — tap one to put it back in your hand</div>
+              <div className="small muted">{readOnly ? 'Scored ✓ and discarded' : 'Scored ✓ and discarded — tap one to put it back in your hand'}</div>
               <div className="done-list">
                 {t.scored.map((s, i) => (
-                  <button key={`s${i}`} onClick={() => (put(restoreTactical(t, s.name)), showToast(`${s.name} back in your hand — take its VP off in Score if needed`))}>
+                  <button key={`s${i}`} disabled={readOnly} onClick={() => (act({ op: 'restore', name: s.name }), showToast(`${s.name} back in your hand — take its VP off in Score if needed`))}>
                     ✓ {s.name} · R{s.round}
                   </button>
                 ))}
@@ -227,10 +308,11 @@ export function MissionsPanel({
                   <button
                     key={`d${i}`}
                     className="discarded"
+                    disabled={readOnly}
                     onClick={() => {
                       const gaveCp = (t.discardCp ?? []).includes(d);
-                      put(restoreTactical(t, d));
-                      if (gaveCp) onCp(-1, `Undid discard of ${d}`);
+                      act({ op: 'restore', name: d });
+                      if (gaveCp) onCp?.(-1, `Undid discard of ${d}`);
                     }}
                   >
                     {d}
@@ -242,7 +324,7 @@ export function MissionsPanel({
           <p className="small muted">Deck {t.deck.length} cards</p>
         </>
       )}
-      <ModeRules mode={mode ?? 'tactical'} />
+      {!readOnly && <ModeRules mode={mode ?? 'tactical'} />}
     </div>
   );
 }

@@ -53,7 +53,7 @@ To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and u
 
 **Live games**
 - Play → Host live game shows a room code and QR; other phones scan it (or Play → Join and type the code)
-- 1v1 or 2v2 (two per team). Turn, phase, CP per player, VP per team and a shared log sync between phones; each player's units-left are shown to the others
+- 1v1, 2v2, 2v1 or a three-player free-for-all. Turn, phase, CP (per player or one pool per team), VP per team, each team's primary and secondaries and a shared log sync between phones; each player's units-left are shown to the others
 - Phones talk directly (WebRTC). The free public PeerJS server only introduces them; nothing is stored on a server. If a phone drops or reloads it reconnects. The host's phone is the referee, so it must stay open
 - Optional own PeerJS server in Settings → Live games
 

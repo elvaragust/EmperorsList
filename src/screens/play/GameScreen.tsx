@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
 import { nextPhase, PHASE_NAMES, PHASES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
-import { datasheet, unitModels } from '@/engine/rules/models';
+import { datasheet } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
@@ -13,15 +13,16 @@ import { Loading } from '@/ui/Loading';
 import { Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
-import { practiceId, saveGame, startPractice, withLog } from './games';
+import { practiceId, saveGame, startPractice, updateGame, withLog } from './games';
 import { ViewToggle } from '@/ui/ViewToggle';
 import { useSessionState } from '@/ui/useSessionState';
-import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner } from './panels';
+import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
 import { LiveGame } from './LiveGame';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
 import { allowedDispositions } from '@/engine/rules/config';
-import { MissionsPanel, SecondarySetup } from './secondaries';
+import { applyLocalSec, localSecondaries, MissionsPanel, SecondarySetup } from './secondaries';
+import { primaryFor } from '@/engine/missions';
 import { OpponentUnits } from './OpponentUnits';
 import { importListText } from '@/data/importList';
 import { matchFaction, parseListText } from '@/engine/listText';
@@ -157,7 +158,12 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
       {step === 2 && (
         <>
-          <MissionFields value={{ mission: game.mission, deployment: game.deployment, twist: game.twist, disposition: game.disposition }} onChange={(v) => set(v)} disposition={engine?.roster.forceDisposition} allowed={engine ? allowedDispositions(engine).map((d) => d.name) : undefined} />
+          <MissionFields
+            value={{ mission: game.mission, deployment: game.deployment, twist: game.twist, disposition: game.disposition, opponentDisposition: game.opponentDisposition, manualPrimary: game.manualPrimary }}
+            onChange={(v) => set(v)}
+            disposition={engine?.roster.forceDisposition}
+            allowed={engine ? allowedDispositions(engine).map((d) => d.name) : undefined}
+          />
           <div className="section-label">Attacker or Defender?</div>
           <p className="small muted" style={{ marginTop: 0 }}>Roll off after the deployment card: the winner decides.</p>
           <div className="seg" role="radiogroup">
@@ -179,7 +185,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         </>
       )}
 
-      {step === 3 && <SecondarySetup game={game} set={set} />}
+      {step === 3 && <SecondarySetup sec={localSecondaries(game)} onSec={(op) => void set(applyLocalSec(game, op))} role={game.role} game={game} setGame={(p) => void set(p)} />}
 
       {step === 4 && (
         <div className="card">
@@ -246,22 +252,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
     void save({ ...game, vp: { ...game.vp, [side]: sc } });
   };
 
-  const unitsLeft = useMemo(() => {
-    if (!engine) return [];
-    return engine.roster.units
-      .filter((u) => !u.leaderOf)
-      .map((u) => {
-        const group = [u, ...engine.roster.units.filter((x) => x.leaderOf === u.id)];
-        let total = 0;
-        let dead = 0;
-        for (const m of group) {
-          const n = unitModels(engine, m.id).models.length;
-          total += n;
-          dead += Math.min(n, game.casualties[m.id]?.length ?? 0);
-        }
-        return { u, group, total, dead };
-      });
-  }, [engine, game.casualties]);
+  const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties) : []), [engine, game.casualties]);
 
   return (
     <Screen
@@ -341,24 +332,38 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
       {tab === 'rules' && <RulesPanel engine={engine} />}
 
       {tab === 'missions' && (
+        <>
         <MissionsPanel
-          game={game}
+          sec={localSecondaries(game)}
+          onSec={(op, text) => void updateGame(game.id, (g) => (text ? withLog({ ...g, ...applyLocalSec(g, op) }, text, 'note') : { ...g, ...applyLocalSec(g, op) }))}
           round={game.round}
           turnKey={`${game.round}-${game.turn}`}
           myCommandPhase={game.turn === 'me' && game.phase === 'command'}
-          primary={game.mission}
-          onChange={(p) => void save({ ...game, ...p })}
-          onCp={(d, why) => void db.games.get(game.id).then((g) => g && save(withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp')))}
-          onVp={(kind, vp, why) =>
-            void db.games.get(game.id).then((g) => {
-              if (!g) return;
+          primary={game.manualPrimary ? game.mission : primaryFor(game.disposition ?? engine?.roster.forceDisposition, game.opponentDisposition) ?? game.mission}
+          twist={game.twist}
+          role={game.role}
+          onCp={(d, why) => void updateGame(game.id, (g) => withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp'))}
+          onVp={(kind, vp, why) => {
+            void updateGame(game.id, (g) => {
               const i = Math.min(g.round, g.vp.me[kind].length) - 1;
               const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? x + vp : x)) };
-              void save(withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: +${vp} VP (${kind}, round ${g.round})`, 'vp'));
-              showToast(`+${vp} VP added to round ${g.round}`);
-            })
-          }
+              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: +${vp} VP (${kind}, round ${g.round})`, 'vp');
+            });
+            showToast(`+${vp} VP added to round ${game.round}`);
+          }}
         />
+        <div className="opp-missions">
+          <MissionsPanel
+            readOnly
+            who={`${who('them')}'s`}
+            sec={{ mode: game.secondaryMode?.them, fixed: (game.secondaries?.them ?? '').split(',').map((x) => x.trim()).filter(Boolean) }}
+            round={game.round}
+            turnKey=""
+            myCommandPhase={false}
+            primary={primaryFor(game.opponentDisposition, game.disposition ?? engine?.roster.forceDisposition)}
+          />
+        </div>
+        </>
       )}
 
       {tab === 'units' && game.opponentRoster && (
@@ -368,20 +373,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           <div className="section-label">Your units</div>
         </>
       )}
-      {tab === 'units' && (
-        <div className="card">
-          {unitsLeft.map(({ u, group, total, dead }) => (
-            <NavLink key={u.id} className={({ isActive }) => `unit-row${isActive ? ' active' : ''}`} to={`/play/${game.id}/unit/${u.id}`}>
-              <span style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, textDecoration: dead >= total ? 'line-through' : undefined }}>{group.map((x) => x.nickname || x.name).join(' + ')}</div>
-                <div className="muted small">
-                  {total - dead}/{total} models
-                </div>
-              </span>
-            </NavLink>
-          ))}
-        </div>
-      )}
+      {tab === 'units' && <UnitsPanel gameId={game.id} units={myUnits} />}
 
       {tab === 'score' && (
         <div className="card" style={{ padding: 12 }}>
