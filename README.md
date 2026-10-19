@@ -28,7 +28,7 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 |---|---|
 | **Lists** | Your armies — as many as you like, in folders |
 | **Reference** | Search every rule, unit, stratagem, enhancement and keyword; your pins |
-| **Play** | Track a game on one phone, or play live across several phones (1v1 or 2v2) |
+| **Play** | Track a game on one phone, or play live across several phones (1v1, 2v2, 2v1 or three players) |
 | **Collection** | What you own, have built and painted, and whether you can field a list |
 | **Settings** | Appearance, data updates, backup |
 
@@ -51,15 +51,16 @@ It then opens like a normal app, full screen, with its own icon. Updates arrive 
 Open a unit from the list. Everything is on one page, like the official app:
 - **Top:** the unit's points and model count. The 📄 button jumps to the datasheet at the bottom of the page.
 - **Warlord** switch and **Unit enhancements** (tap to open; pick *None* or tap the chosen one again to remove it).
-- **A coloured band per kind of model** (e.g. *Sword Brother*, *Initiate w/Bolt Rifle*), with + / − to change how many. A model the unit must have but is missing (e.g. the Sergeant) also gets + / − so you can add it.
-- **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option — so it's clear when the sergeant or a few models carry something different.
+- **A coloured band per kind of model** (e.g. *Sword Brother*), with + / − to change how many. Where the data lists a model once per weapon (*Initiate w/Pyreblaster*, *Initiate w/Chainsword…*), they're grouped under one *Initiate* band with the total, and each weapon variant has its own + / − underneath (+ adds a model with that loadout). A model the unit must have but is missing (e.g. the Sergeant) also gets + / − so you can add it.
+- **Wargear options** under each band: what every model always carries, then each choice. With one model you tick it; with several you set **how many of those models** carry each option. + and − only change that weapon: − leaves a model without a choice (shown as *1 model has no … yet*), and + gives it to a model that has none — nothing else is swapped out behind your back.
+- **Weapon notes:** tap a weapon's name in the datasheet at the bottom to write a note under it (e.g. *+1 attacks*). It's kept with the list and shows in games too.
 - **▾ next to a weapon or enhancement** opens what it does: the weapon's profile (range, attacks, BS/WS, S, AP, D and its abilities) or the enhancement's rules text — so you can compare before you pick.
 - When a squad must all carry the same weapon, changing it on one model changes the whole unit.
 - Options that bundle choices (e.g. *Pistol and Melee Weapon*) open their own choices underneath once picked — which pistol, which melee weapon.
 - **Datasheet** at the bottom: one profile table (identical models merged), weapons, then every ability in one list — including those of a character leading the unit, tagged with its name. Who a character can join (Leader / Support) and the keywords are folded away in the last bar. The battle screen and the Reference use the same layout.
 - The bar at the bottom shows the list total and whether it's valid; **Done** goes back to the list.
 
-**Adding units:** the list is split into *Characters*, *Battleline*, *Dedicated Transports*, *Other datasheets* (everything else) and *Allied units* (units from another faction your army may take, e.g. Agents of the Imperium), each with its points and a **+** that opens *Add unit* filtered to that section. In *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
+**Adding units:** each unit in the list shows what it's made of under its name (*1 Sword Brother · 6 Initiate · 4 Neophyte*). The list is split into *Characters*, *Battleline*, *Dedicated Transports*, *Other datasheets* (everything else) and *Allied units* (units from another faction your army may take, e.g. Agents of the Imperium), each with its points and a **+** that opens *Add unit* filtered to that section. In *Add unit*, **+** adds the unit and keeps you there so you can add several; tap a unit's name to read it first.
 
 **Warlord:** open a Character → Wargear → tick **Warlord**. **Enhancements** for your chosen detachment appear in the same place.
 
@@ -91,7 +92,7 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 **Play → New game (this phone)** and follow the steps:
 1. Your army
 2. Opponent (name, faction, paste their list if you like)
-3. Mission — your **Force Disposition** (taken from your list; change it here if needed), then your **primary mission**: only your disposition's five cards are offered — yours is the one under your opponent's symbol on your card. Other dispositions' cards appear only with a twist that swaps or copies missions (*Scrambled Communications*, *Mirrored World*). The deployment shows a rough sketch of both zones; pick *Other* for anything else. Then deployment, twist, **Attacker or Defender**, and who goes first. 🎲 next to each picks at random (primary only from your disposition); **Randomise all** does primary, deployment and twist at once. Each card's rules text shows under it as soon as you pick it.
+3. Mission — your **Force Disposition** (only the ones your list's detachments allow) and your **opponent's**. Your **primary mission** then follows by itself: it's the mission on your card under their symbol. Before they reveal, the list under the pickers shows which primary each of your dispositions would give against theirs — tap one to choose it. **Pick missions by hand** lets you choose any primary (or type your own), e.g. for a twist that swaps primaries. The deployment shows a rough sketch of both zones; pick *Other* for anything else. Then twist, **Attacker or Defender**, and who goes first. 🎲 picks at random. Each card's full rules text shows under it.
 4. Secondary missions — choose **Fixed** or **Tactical** for you and your opponent. The rules for each are shown. Fixed: pick 2 of the Fixed-marked cards. Tactical: your deck is shuffled and dealt in the battle.
 5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
 
@@ -101,9 +102,10 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 - **Rules** tab: your army rules (e.g. *Oath of Moment*) and the rules of each of your detachments, each in a bar you open. Where Wahapedia has the same rule its (usually newer) text is shown.
 - **Round buttons R1–R5** at the top jump straight to the start of a round.
 - **Phase panel** lists only *your* army's stratagems that can be used in this phase and turn; pinned ones (★) come first.
-- **Missions:** each card shows only the part for the current battle round. Tick each scoring line (or count it with − / + for "for each…" lines; caps are applied), then **Add … VP** puts the total in that round's score. Tactical: **Draw 2** at the start of your Command phase; cards you don't score stay in your hand; **Discard** removes it and **Redraw (1CP)** (once per battle) swaps it for a new card. Tap a card's name to fold it away. Scored (✓) and discarded (struck through) cards stay listed — tap one to put it back.
+- **Missions:** every card shows its whole text; the parts that score this battle round are marked *This round*, the others are dimmed. Tick each scoring line (or count it with − / + for "for each…" lines; caps are applied; ticking an *or* line clears its alternative), then **Add … VP** puts the total in that round's score. Once the primary is scored it is locked for the round — **Enable again** if you need to score it once more. Tactical: **Draw 2** at the start of your Command phase; cards you don't score stay in your hand; **Discard** removes it and **Redraw (1CP)** swaps it for a new card as often as you like. Fixed cards can be picked here too if you skipped it at setup. Your opponent's primary and secondaries are shown underneath, read only. Scored (✓) and discarded (struck through) cards stay listed — tap one to put it back.
 - **Opponent's units:** paste their list at setup (or, in a live game, it's shared automatically) and tap any of their units in **Units** for a read-only datasheet and shots grid.
-- **Units:** tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row to see each model: **− / +** tracks its wounds and losing the last one removes it; every total updates. Characters, vehicles and small units have a wound tracker at the top.
+- **Units:** each unit with its models left and its points. Tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row to see each model: **− / +** tracks its wounds and losing the last one removes it; **+** also goes past full health (5/4) when a rule gives extra wounds. A weapon that only removed models carried is greyed out and comes back with the model. Characters, vehicles and small units have a wound tracker at the top.
+- **Weapon notes:** tap a weapon's name in a datasheet to write a short note under it (*+1 attacks*). Notes written in the list builder stay with the list; notes written during a game are for that game only.
 - **Score:** primary and secondary VP per round.
 
 **Where the data comes from:** units, points and wargear come from the community BSData project (wh40k-11e), checked for updates once a day. If a new codex isn't reflected yet (missing or old options), the app shows it as soon as BSData is updated — Settings → Data shows the version you have.
@@ -114,15 +116,16 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 
 **Games that go quiet:** a game with no changes for **2 hours** (from anyone, in a live game) is ended automatically. Nothing is lost: it stays under *In progress* marked *Ended after 2 hours*. Open it and choose **Resume game** to carry on exactly where you were (a live game reconnects; the other phones resume too when they open it), or **Keep it finished** to file it with your results.
 
-### Live across phones (1v1 or 2v2)
+### Live across phones (1v1, 2v2, 2v1 or three players)
 - **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.
 - **Others:** scan the QR with the phone camera, or Play → **Join** and type the code, then pick their army.
-- The host chooses 1v1 or 2v2, sorts players into teams, sets deployment and twist, and starts. Every player picks their own primary mission, Fixed or Tactical secondaries, and either side can record the roll-off as *We attack* / *We defend* (one side attacks, the other defends).
+- The host chooses **1v1**, **2v2**, **2v1** (the pair can be either team) or **3 players** (everyone for themselves, taking turns in order), sorts players into teams, sets deployment and twist, and starts. Each team picks one **Force Disposition** — the choices are what either teammate's list allows — and its primary follows from the other side's disposition (or pick it by hand). Each team chooses Fixed or Tactical secondaries together, and either side can record the roll-off as *We attack* / *We defend*.
+- **Teammates share CP** (on by default for teams): one pool per team that either teammate spends from. Turn it off in the lobby to keep CP per player.
 
-What's shared: whose turn it is and the current phase, everyone's CP, both teams' scores, the log, and how many models each player's units have left.
+What's shared: whose turn it is and the current phase, everyone's CP, every team's score, each team's primary and secondary cards (your teammate manages them with you; opponents can read them), the log, and how many models (and points) each player's units have left.
 
 - **Look around freely** — the phase words under the header only change *your* screen (the current phase has a •). Only the team whose turn it is (or the host) moves the game on.
-- **You can only change your own CP and your own team's score.** You see theirs update as they type.
+- **You can only change your own (or your team's) CP, score and missions.** You see theirs update as they type.
 - **End the game:** the host ends it for everyone (⋯ menu). Other players can *End the game on my phone* to save the result and stop following.
 - **Turn off live changes** (⋯ menu): unlinks your phone. You keep everyone's army and score as they were and can change anything yourself. *Reconnect* joins again.
 - Phones connect directly to each other; nothing is stored online. Everyone needs internet during the game, and the host's game must stay open.

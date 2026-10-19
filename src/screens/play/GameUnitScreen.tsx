@@ -7,7 +7,7 @@ import { datasheet } from '@/engine/rules/models';
 import { useFactionTheme } from '@/theme/themes';
 import { DatasheetView } from '@/ui/DatasheetView';
 import { Collapse } from '@/ui/Collapse';
-import { weaponCounts } from '@/engine/weaponGrid';
+import { goneWeapons, weaponCounts } from '@/engine/weaponGrid';
 import { useUnitDetachmentRules } from './detachmentRules';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
@@ -48,7 +48,7 @@ export function GameUnitScreen() {
     else set.delete(mid);
     const next = { ...wounds, [prefixed]: dies ? 0 : lost };
     const name = models.loadouts.find((l) => models.models.find((m) => m.id === prefixed)?.loadoutKey === l.key)?.name ?? 'Model';
-    const text = dies ? `${name}: destroyed` : `${name}: ${max - lost}/${max} wounds left`;
+    const text = dies ? `${name}: destroyed` : lost < 0 ? `${name}: ${max - lost}/${max} wounds (above full)` : `${name}: ${max - lost}/${max} wounds left`;
     void saveGame(withLog({ ...game, wounds: next, casualties: { ...game.casualties, [uid!]: [...set] } }, text, 'casualty'));
   };
   // Characters, vehicles and small units: a wound tracker per model right at the top.
@@ -58,6 +58,9 @@ export function GameUnitScreen() {
   const sheet = inst ? datasheet(engine, inst) : undefined;
   return (
     <Screen title={group.map((g) => g.nickname || g.name).join(' + ')} back>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        {group.reduce((n, g) => n + engine.unitPoints(g.id), 0)} pts · {models.models.length - models.models.filter((m) => dead.includes(m.id)).length}/{models.models.length} models · tap a weapon's name to add a note for this game
+      </p>
       {showTop && (
         <div className="card" style={{ padding: '8px 12px', marginBottom: 10 }}>
           {tracked.map((m) => {
@@ -89,6 +92,9 @@ export function GameUnitScreen() {
           detachmentRules={detRules}
           weaponGroups={models.byUnit}
           weaponCounts={weaponCounts(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
+          goneWeapons={goneWeapons(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
+          weaponNotes={{ ...Object.assign({}, ...group.map((g) => g.weaponNotes ?? {})), ...game.weaponNotes?.[unit.id] }}
+          onWeaponNote={(weaponId, text) => void db.games.get(game.id).then((g) => g && saveGame({ ...g, weaponNotes: { ...g.weaponNotes, [unit.id]: { ...g.weaponNotes?.[unit.id], [weaponId]: text } } }))}
           attached={group.slice(1).flatMap((l) => {
             const li = engine.unitInst(l.id);
             return li ? [{ name: l.nickname || l.name, sheet: datasheet(engine, li) }] : [];

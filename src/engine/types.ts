@@ -79,6 +79,8 @@ export interface RosterUnit {
   selections: Selection[];
   /** Optional nickname shown instead of the datasheet name. */
   nickname?: string;
+  /** The player's own notes under weapons (weapon id -> "+1 attacks"), typed in the builder. */
+  weaponNotes?: Record<string, string>;
 }
 
 export type BattleSize = 'incursion' | 'strikeForce' | 'onslaught' | 'custom';

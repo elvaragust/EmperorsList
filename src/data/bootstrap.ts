@@ -89,6 +89,8 @@ export async function syncAllFactions(force = false): Promise<void> {
 }
 
 const WP_KEY = 'emperorslist.wahapediaStamp';
+/** Bump when the import itself changes, so every device reads the files again. */
+const IMPORT_VERSION = 2;
 const WP_FILES: [keyof WahapediaFiles, string][] = [
   ['factions', 'Factions.csv'],
   ['stratagems', 'Stratagems.csv'],
@@ -107,7 +109,7 @@ export async function syncWahapedia(force = false): Promise<{ imported: number }
   try {
     const stampRes = await fetch(`${base}Last_update.csv`, { cache: 'no-cache' });
     if (!stampRes.ok) return undefined;
-    const stamp = (await stampRes.text()).trim();
+    const stamp = `${(await stampRes.text()).trim()}|v${IMPORT_VERSION}`;
     let prev = '';
     try {
       prev = localStorage.getItem(WP_KEY) ?? '';

@@ -130,6 +130,40 @@ export function modelTypes(engine: RosterEngine, unitId: string): ModelType[] {
   return out;
 }
 
+/**
+ * The data often lists one model kind per weapon ("Initiate w/Pyreblaster",
+ * "Initiate w/Chainsword & Heavy Bolt Pistol"). Split such a name into the
+ * model ("Initiate") and the variant ("w/Pyreblaster").
+ */
+export function variantOf(name: string): { base: string; variant?: string } {
+  const m = name.match(/^(.*?\S)\s+((?:w\/|with\s).+)$/i);
+  return m ? { base: m[1]!.trim(), variant: m[2]!.trim() } : { base: name.trim() };
+}
+
+/** Model kinds grouped by model: one group per model with all its weapon variants, in data order. */
+export function groupVariants<T extends { name: string }>(types: T[]): { base: string; types: T[] }[] {
+  const out: { base: string; types: T[] }[] = [];
+  for (const t of types) {
+    const { base } = variantOf(t.name);
+    const g = out.find((x) => x.base.toLowerCase() === base.toLowerCase());
+    if (g) g.types.push(t);
+    else out.push({ base, types: [t] });
+  }
+  return out;
+}
+
+/** "1 Sword Brother · 6 Initiate · 4 Neophyte": what a unit is made of, for list rows. */
+export function compositionLine(types: ModelType[]): string {
+  return groupVariants(types.filter((t) => t.count > 0))
+    .map((g) => {
+      const n = g.types.reduce((s, t) => s + t.count, 0);
+      const parts = g.types.filter((t) => variantOf(t.name).variant);
+      const detail = g.types.length > 1 && parts.length ? ` (${g.types.map((t) => `${t.count} ${variantOf(t.name).variant ?? 'standard'}`).join(', ')})` : '';
+      return `${n} ${g.base}${detail}`;
+    })
+    .join(' · ');
+}
+
 const clone = (s: Selection): Selection => ({ ...s, children: s.children.map(clone) });
 
 /**
@@ -137,12 +171,17 @@ const clone = (s: Selection): Selection => ({ ...s, children: s.children.map(clo
  * single selections, changed one by one (a choose-one group swaps the old
  * choice out; taking the option away puts the group's default back), then
  * identical models are merged again and the rules' requirements filled in.
+ *
+ * With `keepOthers` (the builder's + and −) nothing else changes by itself:
+ * + only gives the option to a model that has no choice from that group yet,
+ * and − leaves the model without one, so the player decides what it carries.
+ * When no model is free, the unit comes back unchanged.
  */
-export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, modelKey: string, optionKey: string, n: number, group?: ModelGroup, avoid?: Set<string>): RosterUnit {
+export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, unit: RosterUnit, modelKey: string, optionKey: string, n: number, group?: ModelGroup, avoid?: Set<string>, keepOthers = false): RosterUnit {
   // The unit itself is the model (characters, vehicles).
   if (!modelKey) {
     let u = setOptionCount(engineFor(unit), unit, [], optionKey, n > 0 ? 1 : 0);
-    if (n <= 0 && group?.chooseOne && !group.optional) {
+    if (n <= 0 && group?.chooseOne && !group.optional && !keepOthers) {
       const fallback = group.options.find((o) => o.key === group.defaultKey && o.key !== optionKey) ?? group.options.find((o) => o.key !== optionKey);
       if (fallback) u = setOptionCount(engineFor(u), u, [], fallback.key, 1);
     }
@@ -163,8 +202,14 @@ export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, 
   const busy = (i: number) => Boolean(avoid?.size && instAt(eng, u.id, [i])?.children.some((c) => c.count > 0 && avoid.has(c.node?.key ?? '')));
   const without = idx.filter((i) => !has(eng, i)).sort((a, b) => Number(busy(a)) - Number(busy(b)));
   const target = Math.max(0, Math.min(n, idx.length));
+  const groupKeys = new Set(group?.options.map((o) => o.key) ?? []);
+  const freeOf = (i: number) => !instAt(eng, u.id, [i])?.children.some((c) => c.count > 0 && groupKeys.has(c.node?.key ?? ''));
+  const strict = keepOthers && Boolean(group?.chooseOne);
   if (target > withIt.length) {
-    for (const i of without.slice(0, target - withIt.length)) {
+    // Without swapping, only models that carry nothing from this group can take it.
+    const pool = strict ? without.filter(freeOf) : without;
+    if (!pool.length) return unit;
+    for (const i of pool.slice(0, target - withIt.length)) {
       u = setOptionCount(eng, u, [i], optionKey, 1);
       eng = engineFor(u);
     }
@@ -172,7 +217,7 @@ export function setModelsWithOption(engineFor: (u: RosterUnit) => RosterEngine, 
     for (const i of withIt.slice(target).reverse()) {
       u = setOptionCount(eng, u, [i], optionKey, 0);
       eng = engineFor(u);
-      if (group?.chooseOne && !group.optional) {
+      if (group?.chooseOne && !group.optional && !keepOthers) {
         const fallback = group.options.find((o) => o.key === group.defaultKey && o.key !== optionKey) ?? group.options.find((o) => o.key !== optionKey);
         if (fallback) {
           u = setOptionCount(eng, u, [i], fallback.key, 1);
