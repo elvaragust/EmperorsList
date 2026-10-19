@@ -146,6 +146,14 @@ describe('live game reducer', () => {
     s = reduce(s, { t: 'sec', team: 'A', op: { op: 'redraw', name: 'Cleanse' } }, 'a2');
     s = reduce(s, { t: 'sec', team: 'A', op: { op: 'redraw', name: 'Plunder' } }, 'a2');
     expect(missionsOf(s, 'A').tactical).toMatchObject({ active: ['Beacon', 'Outflank'], redraws: 2 });
+    // Free: one more card any time, and a card shuffled back for a new one (never the same card back).
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'drawFree' } }, 'a1');
+    expect(missionsOf(s, 'A').tactical!.active).toHaveLength(3);
+    const back = missionsOf(s, 'A').tactical!.active[0]!;
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'shuffleBack', name: back, at: 1 } }, 'a1');
+    expect(missionsOf(s, 'A').tactical!.active).not.toContain(back);
+    expect(missionsOf(s, 'A').tactical!.active).toHaveLength(3);
+    expect(missionsOf(s, 'A').tactical!.deck).toContain(back);
     s = reduce(s, { t: 'sec', team: 'A', op: { op: 'primaryDone', round: 1, done: true } }, 'a1');
     expect(missionsOf(s, 'A').primaryDone).toEqual([1]);
     expect(missionsOf(s, 'B')).toEqual({ fixed: [] });
