@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Collapse } from '@/ui/Collapse';
 import { PinButton, pinId } from '@/ui/PinButton';
 import { NavLink } from 'react-router-dom';
@@ -16,11 +17,26 @@ import { sameName, stratagemFits, stratagemsFor, type ImportedRule } from '@/eng
 import { RuleLabel } from '@/ui/RuleLabel';
 import { Icon } from '@/ui/Icon';
 import { ConfirmSheet } from '@/ui/Sheet';
+import { showToast } from '@/ui/Toast';
 import { useRulePopup } from '@/ui/RulePopup';
 
 /** Stratagems (from the import) and your abilities that apply in this phase and turn. */
-export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: RosterEngine; phase: Phase; myTurn: boolean; onSpend: (s: ImportedRule, cost: number) => void }) {
+export function PhasePanel({ engine, phase, myTurn, onSpend, cp }: { engine?: RosterEngine; phase: Phase; myTurn: boolean; onSpend: (s: ImportedRule, cost: number) => void; /** CP you have, to say what's left. */ cp?: number }) {
   const popup = useRulePopup();
+  // The stratagem just used shows "✓ Used" on its button for a moment.
+  const [used, setUsed] = useState<string>();
+  useEffect(() => {
+    if (!used) return;
+    const t = setTimeout(() => setUsed(undefined), 2200);
+    return () => clearTimeout(t);
+  }, [used]);
+  const spend = (s: ImportedRule, cost: number) => {
+    onSpend(s, cost);
+    setUsed(s.id);
+    if (cp === undefined) showToast(`Used ${s.name} · ${cost} CP`);
+    else if (cp < cost) showToast(`Used ${s.name} — but you only had ${cp} CP`);
+    else showToast(`Used ${s.name} · ${cost} CP spent · ${cp - cost} CP left`);
+  };
   const imported = useLiveQuery(() => db.imported.toArray(), []);
   const pins = useLiveQuery(() => db.pins.toArray(), []);
   const pinnedNames = useMemo(() => new Set((pins ?? []).filter((p) => p.kind === 'stratagem').map((p) => p.name.toLowerCase())), [pins]);
@@ -65,8 +81,8 @@ export function PhasePanel({ engine, phase, myTurn, onSpend }: { engine?: Roster
         <div className="muted small">{[s.detachment ?? 'Core', offPhase ? s.phase : s.turn].filter(Boolean).join(' · ')}</div>
       </button>
       <PinButton small pin={{ id: pinId('stratagem', s.name), kind: 'stratagem', name: s.name, text: s.text, source: `${cpOf(s)} CP · ${s.detachment ?? s.faction}` }} />
-      <button className="btn btn-sm" onClick={() => onSpend(s, cpOf(s))}>
-        {cpOf(s)} CP
+      <button className={`btn btn-sm spend-btn ${used === s.id ? 'just-used' : ''}`} onClick={() => spend(s, cpOf(s))} aria-label={`Use ${s.name} for ${cpOf(s)} CP`}>
+        {used === s.id ? '✓ Used' : `${cpOf(s)} CP`}
       </button>
     </div>
   );
@@ -293,11 +309,31 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
  */
 export function TurnBanner({ mine, label, phase, vp, onSwitch, switchTo }: { mine: boolean; label: string; phase: string; vp: string; onSwitch?: () => void; switchTo?: string }) {
   const [ask, setAsk] = useState(false);
+  // When the turn passes: a short callout in the middle of the screen, a pulse on the banner,
+  // and a buzz when it's your turn now.
+  const prev = useRef(label);
+  const [flash, setFlash] = useState<string>();
+  useEffect(() => {
+    if (prev.current === label) return;
+    prev.current = label;
+    setFlash(label);
+    if (mine) navigator.vibrate?.(80);
+    const t = setTimeout(() => setFlash(undefined), 1700);
+    return () => clearTimeout(t);
+  }, [label, mine]);
   return (
     <>
+      {flash &&
+        createPortal(
+          <div className={`turn-callout ${mine ? 'mine' : 'theirs'}`} role="status" aria-live="assertive">
+            <div className="turn-callout-who">{flash}</div>
+            <div className="turn-callout-phase">{phase} phase</div>
+          </div>,
+          document.body,
+        )}
       <button
         type="button"
-        className={`turn-banner ${mine ? 'mine' : 'theirs'}`}
+        className={`turn-banner ${mine ? 'mine' : 'theirs'} ${flash ? 'turn-flash' : ''}`}
         aria-live="polite"
         onClick={() => onSwitch && setAsk(true)}
         disabled={!onSwitch}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { applyAppearance, getAppearance, useAppearance } from './appearance';
+import { applyAppearance, getAppearance, rememberArmyTheme, useAppearance } from './appearance';
 
 /**
  * Faction themes follow the list that is open; everywhere else uses the base
@@ -47,7 +47,13 @@ export function themeForFaction(factionName?: string): string | undefined {
 }
 
 /** Apply a faction theme while the calling screen is mounted. */
-export function useFactionTheme(factionName?: string) {
+/**
+ * Colour the app for an army while its screens are open. With "Follow the
+ * open army" the theme stays when you go elsewhere (Lists, Settings…) until
+ * you open another army. Reference pages pass `remember: false`: looking
+ * something up doesn't change your army's colours for good.
+ */
+export function useFactionTheme(factionName?: string, remember = true) {
   const { themeMode, fixedTheme } = useAppearance();
   useEffect(() => {
     const root = document.documentElement;
@@ -55,13 +61,15 @@ export function useFactionTheme(factionName?: string) {
       applyAppearance();
       return;
     }
-    const theme = themeForFaction(factionName);
+    if (!factionName) return;
+    const theme = themeForFaction(factionName) ?? '';
     if (theme) root.dataset.theme = theme;
     else delete root.dataset.theme;
+    if (remember) rememberArmyTheme(theme);
     return () => {
-      if (getAppearance().themeMode !== 'fixed') delete root.dataset.theme;
+      if (getAppearance().themeMode !== 'fixed') applyAppearance();
     };
-  }, [factionName, themeMode, fixedTheme]);
+  }, [factionName, themeMode, fixedTheme, remember]);
 }
 
 /** Every theme, for the "always use one theme" setting. */

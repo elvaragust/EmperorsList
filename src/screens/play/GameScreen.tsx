@@ -316,6 +316,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           engine={engine}
           phase={game.phase}
           myTurn={game.turn === 'me'}
+          cp={game.cp.me}
           onSpend={(st, cost) => {
             const again = game.used.some((u) => u.id === st.id && u.round === game.round && u.phase === game.phase && u.turn === game.turn);
             let g: SavedGame = { ...game, cp: { ...game.cp, me: Math.max(0, game.cp.me - cost) }, used: [...game.used, { round: game.round, turn: game.turn, phase: game.phase, id: st.id, name: st.name }] };

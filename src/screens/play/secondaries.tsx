@@ -54,7 +54,7 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others.
       </li>
       <li>
-        <strong>Redraw:</strong> spend 1CP to discard one card and draw a new one (this app lets you do it as often as you like).
+        <strong>Redraw:</strong> spend 1CP to discard one card and draw a new one (as often as you like here). A card that says <em>when drawn… draw a new card and shuffle this one back</em> (e.g. in the first battle round): use <strong>Shuffle back &amp; draw</strong>, which is free. <strong>Draw a card</strong> takes one more at any time.
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
@@ -255,6 +255,20 @@ export function MissionsPanel({
             </button>
           )}
           {t.active.length === 0 && <p className="muted small">No active cards.{canDraw || readOnly ? '' : ' Draw at the start of your next Command phase.'}</p>}
+          {!readOnly && !canDraw && (
+            <button
+              className="btn btn-sm btn-block"
+              disabled={!t.deck.length && !t.discarded.length}
+              onClick={() => {
+                const next = applySecOp(sec, { op: 'drawFree' }).tactical;
+                const drawn = next?.active.filter((x) => !t.active.includes(x)) ?? [];
+                act({ op: 'drawFree' }, drawn.length ? `Drew ${drawn.join(', ')} (extra card)` : undefined);
+                showToast(drawn.length ? `Drew ${drawn.join(', ')}` : 'The deck is empty');
+              }}
+            >
+              Draw a card (free)
+            </button>
+          )}
           {t.active.map((n) => (
             <ScoreCard
               key={n}
@@ -278,6 +292,20 @@ export function MissionsPanel({
                   <div className="btn-row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
                     <button className="btn btn-sm" onClick={() => (act({ op: 'discard', name: n }, `Discarded ${n}`), showToast(`${n} discarded`))}>
                       Discard
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      title="Free: put this card back in the deck and draw a new one (for cards that say so when drawn, e.g. in the first battle round)"
+                      disabled={!t.deck.length}
+                      onClick={() => {
+                        const at = 1 + Math.floor(Math.random() * Math.max(1, t.deck.length));
+                        const next = applySecOp(sec, { op: 'shuffleBack', name: n, at }).tactical;
+                        const drawn = next?.active.find((x) => !t.active.includes(x));
+                        act({ op: 'shuffleBack', name: n, at }, `Shuffled ${n} back and drew ${drawn ?? 'nothing'}`);
+                        showToast(drawn ? `${n} went back · drew ${drawn}` : `${n} went back into the deck`);
+                      }}
+                    >
+                      Shuffle back &amp; draw (free)
                     </button>
                     <button
                       className="btn btn-sm btn-ghost"

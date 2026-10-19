@@ -999,23 +999,33 @@ textarea.input {
 .toast-pop {
   position: fixed;
   left: 50%;
-  bottom: calc(86px + env(safe-area-inset-bottom));
+  top: calc(12px + env(safe-area-inset-top));
   transform: translateX(-50%);
   z-index: 40;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: var(--text);
-  color: var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(calc(100vw - 32px), 440px);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  background: var(--raised);
+  color: var(--text);
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 14px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  font-size: 15px;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
+}
+.toast-pop .toast-text {
+  flex: 1;
 }
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 8px);
+    transform: translate(-50%, -8px);
   }
 }
 
@@ -1784,7 +1794,6 @@ textarea.input {
     display: none;
   }
   :root:not([data-layout='phone']) .toast-pop {
-    bottom: 28px;
     left: calc(50% + 46px);
   }
   .icon-btn:hover,
@@ -2280,13 +2289,132 @@ tr.pulse > td {
 }
 .cp-card {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 6px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px 12px;
   padding: 8px 12px;
 }
+/* Label on top, stepper under it: two players fit side by side on a phone. */
 .cp-card .counter {
   margin: 0 !important;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.cp-card .counter > span:first-child {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.cp-card .counter > .num {
+  padding: 4px 0 !important;
 }
 .battle-bar .btn-primary {
   flex: 1;
+}
+.spend-btn {
+  min-width: 76px;
+}
+.spend-btn.just-used {
+  background: color-mix(in srgb, var(--ok) 25%, var(--raised));
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* The turn just passed: a callout that fades on its own (never blocks taps) and a pulse on the banner */
+.turn-callout {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  z-index: 45;
+  transform: translate(-50%, -50%);
+  min-width: min(80vw, 340px);
+  padding: 18px 24px;
+  border-radius: 18px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: turn-callout 1.7s ease-out forwards;
+}
+.turn-callout.mine {
+  background: var(--accent-strong);
+  color: var(--on-accent-strong);
+}
+.turn-callout.theirs {
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.turn-callout-who {
+  font-family: var(--font-ui);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.turn-callout-phase {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+@keyframes turn-callout {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.turn-banner.turn-flash {
+  animation: turn-pulse 0.9s ease-out 2;
+}
+@keyframes turn-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+/* Big choices: how to play */
+.mode-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mode-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.mode-choice strong {
+  font-family: var(--font-ui);
+  font-size: 17px;
+}
+.mode-choice[aria-expanded='true'] {
+  border-color: var(--accent);
 }
