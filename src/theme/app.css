@@ -25,9 +25,36 @@ a {
   text-decoration: none;
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
+}
+/* Keyboard focus is always visible; taps get a quick pressed look. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:not(:disabled),
+a,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 80ms ease-out, background-color 120ms ease-out, opacity 120ms ease-out;
+}
+button:not(:disabled):active,
+a.btn:active,
+a.choice:active,
+a.unit-row:active,
+a.menu-item:active {
+  transform: scale(0.98);
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* App shell: phone-width column, centred on larger screens. */
@@ -178,7 +205,7 @@ input {
   min-height: var(--tap);
   justify-content: center;
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -205,7 +232,7 @@ input {
 }
 .grid th .unit {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   color: var(--text-muted);
 }
@@ -224,7 +251,7 @@ input {
   border-left: 2px solid var(--line);
 }
 .grid .group td {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   color: var(--text-muted);
   text-align: left;
@@ -334,26 +361,41 @@ textarea.input {
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
+  gap: 8px;
   overflow-x: auto;
   padding: 4px 0 10px;
   scrollbar-width: none;
 }
+/* Chips: clearly tappable when off (outlined), clearly chosen when on (filled tint + check). */
 .filter {
-  border: 0;
-  background: none;
-  padding: 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
-  color: var(--text-muted);
-  border-bottom: 2px solid transparent;
+  color: var(--text);
   cursor: pointer;
 }
 .filter.on {
+  color: var(--text);
+  border-color: var(--filter-color, var(--accent));
+  background: color-mix(in srgb, var(--filter-color, var(--accent)) 22%, var(--surface));
+}
+.filter.on::before {
+  content: '✓';
   color: var(--filter-color, var(--accent));
-  border-bottom-color: var(--filter-color, var(--accent));
+  font-weight: 700;
+}
+.filter:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* Segmented tabs inside a screen */
@@ -484,10 +526,41 @@ textarea.input {
   background: var(--line);
   margin: 0 auto 12px;
 }
+.sheet:focus {
+  outline: none;
+}
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
 .sheet h2 {
+  flex: 1;
   font-family: var(--font-body);
   font-size: 24px;
   margin: 6px 0 8px;
+}
+.sheet-close {
+  margin: -4px -8px 0 0;
+  color: var(--text-muted);
+}
+.confirm-message {
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.confirm-actions .btn {
+  flex: 1;
+}
+.btn-danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #1a0000;
 }
 
 /* Rules text */
@@ -536,7 +609,7 @@ textarea.input {
   padding: 6px 0;
 }
 .stats .k {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   letter-spacing: 0.08em;
 }
@@ -556,7 +629,7 @@ textarea.input {
   font-size: 14px;
 }
 .wtable th {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-weight: 600;
   text-align: center;
@@ -585,7 +658,7 @@ textarea.input {
 .gone-tag {
   display: inline-block;
   margin-left: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-decoration: none;
@@ -671,7 +744,7 @@ textarea.input {
   padding: 1px 6px;
   border: 1px solid currentColor;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   vertical-align: 2px;
 }
@@ -1269,7 +1342,7 @@ textarea.input {
 }
 .wound-tag {
   margin-left: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--danger);
 }
@@ -1314,7 +1387,7 @@ textarea.input {
 }
 .card-kind {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1371,7 +1444,7 @@ textarea.input {
 .round-pill {
   display: inline-block;
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   padding: 2px 8px;
@@ -1420,7 +1493,7 @@ textarea.input {
 }
 .or-tag {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1588,7 +1661,7 @@ textarea.input {
 }
 .stat-table th {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--text-muted);
   font-weight: 600;
@@ -1672,7 +1745,7 @@ textarea.input {
     flex: none;
     padding: 10px 2px;
     border-radius: 12px;
-    font-size: 10px;
+    font-size: 12px;
   }
   :root:not([data-layout='phone']) .tab:hover {
     background: var(--surface);
@@ -1890,7 +1963,7 @@ textarea.input {
 }
 .per-model {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--accent);
 }
 .weapon-count {
@@ -1995,7 +2068,7 @@ tr.pulse > td {
   padding: 10px 2px 4px;
   border-top: 2px solid color-mix(in srgb, var(--accent-strong) 35%, var(--line));
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2063,4 +2136,157 @@ tr.pulse > td {
   margin-top: 18px;
   padding-top: 6px;
   border-top: 2px dashed var(--line);
+}
+
+/* A live game going on without the host */
+.offline-note {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  line-height: 1.45;
+}
+
+/* First-run / nothing-here-yet card */
+.empty-state {
+  margin-top: 12px;
+  padding: 20px 18px 8px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.empty-state .empty-title {
+  font-family: var(--font-title);
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+.empty-state .btn-row {
+  flex-direction: column;
+}
+.wizard-label {
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  margin: -4px 0 6px;
+}
+.wizard-label strong {
+  color: var(--text);
+}
+
+/* List status: one glanceable pill, and the problems right under the totals */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid currentColor;
+}
+.status-pill.good {
+  color: var(--ok);
+}
+.status-pill.bad {
+  color: var(--danger);
+}
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.quick-actions .btn {
+  flex: 1;
+}
+.issues-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 10px 0 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.issues-bar.bad {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 60%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.dice-btn {
+  min-height: 32px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.field > span .dice-btn {
+  margin: -6px 0;
+}
+.add-btn {
+  margin-right: 6px;
+  color: var(--on-accent-strong);
+  background: var(--accent-strong);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+}
+
+/* Touch targets: everything you tap is at least 40px (44 where there's room). */
+.collapse-title {
+  min-height: 40px;
+}
+.collapse-chev {
+  width: 40px;
+  height: 40px;
+}
+.round-bar button {
+  min-height: 40px;
+}
+.role-add {
+  width: 40px;
+  height: 40px;
+}
+.view-toggle button {
+  min-height: 36px;
+}
+.pin-btn {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* Battle screen: compact controls so the tabs start high; Next always at the bottom */
+.phase-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 8px calc(-1 * var(--gutter, 16px)) 8px;
+  padding: 0 var(--gutter, 16px);
+}
+.phase-strip .filter {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+}
+.phase-strip .filter.on::before {
+  content: none;
+}
+.cp-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 12px;
+  padding: 8px 12px;
+}
+.cp-card .counter {
+  margin: 0 !important;
+}
+.battle-bar .btn-primary {
+  flex: 1;
 }

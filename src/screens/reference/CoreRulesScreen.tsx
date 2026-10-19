@@ -56,7 +56,7 @@ export function CoreRulesScreen() {
   );
 
   return (
-    <Screen title="Core rules" back>
+    <Screen title="Core rules" back="/reference">
       <div className="seg" role="tablist">
         <button className={tab === 'rules' ? 'on' : undefined} onClick={() => setTab('rules')}>
           Core Rules

@@ -14,6 +14,8 @@ import { RulesText } from '@/ui/RulesText';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { sameName, stratagemFits, stratagemsFor, type ImportedRule } from '@/engine/wahapedia';
 import { RuleLabel } from '@/ui/RuleLabel';
+import { Icon } from '@/ui/Icon';
+import { ConfirmSheet } from '@/ui/Sheet';
 import { useRulePopup } from '@/ui/RulePopup';
 
 /** Stratagems (from the import) and your abilities that apply in this phase and turn. */
@@ -284,21 +286,40 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
   );
 }
 
-/** Big bar saying whose turn it is: your colour on your turn, a cold grey on theirs. */
-export function TurnBanner({ mine, label, phase, vp, onSwitch }: { mine: boolean; label: string; phase: string; vp: string; onSwitch?: () => void }) {
+/**
+ * Big bar saying whose turn it is: your colour on your turn, a cold grey on
+ * theirs. Tapping it offers to hand the turn over (with a confirmation, so a
+ * stray tap mid-game doesn't skip anyone's turn).
+ */
+export function TurnBanner({ mine, label, phase, vp, onSwitch, switchTo }: { mine: boolean; label: string; phase: string; vp: string; onSwitch?: () => void; switchTo?: string }) {
+  const [ask, setAsk] = useState(false);
   return (
-    <button
-      type="button"
-      className={`turn-banner ${mine ? 'mine' : 'theirs'}`}
-      aria-live="polite"
-      onClick={onSwitch}
-      disabled={!onSwitch}
-      title={onSwitch ? 'Tap to switch whose turn it is' : undefined}
-    >
-      <span className="turn-banner-who">{label}</span>
-      <span className="turn-banner-phase">{phase}</span>
-      <span className="turn-banner-vp num">VP {vp}</span>
-      {onSwitch && <span className="turn-banner-swap" aria-hidden="true">⇄</span>}
-    </button>
+    <>
+      <button
+        type="button"
+        className={`turn-banner ${mine ? 'mine' : 'theirs'}`}
+        aria-live="polite"
+        onClick={() => onSwitch && setAsk(true)}
+        disabled={!onSwitch}
+        aria-label={`${label}, ${phase} phase, VP ${vp}${onSwitch ? '. Tap to hand the turn over' : ''}`}
+      >
+        <span className="turn-banner-who">{label}</span>
+        <span className="turn-banner-phase">{phase}</span>
+        <span className="turn-banner-vp num">VP {vp}</span>
+        {onSwitch && (
+          <span className="turn-banner-swap" aria-hidden="true">
+            <Icon name="swap" size={18} />
+          </span>
+        )}
+      </button>
+      <ConfirmSheet
+        open={ask}
+        onClose={() => setAsk(false)}
+        title={switchTo ? `Hand the turn to ${switchTo}?` : 'Hand the turn over?'}
+        message="Their turn starts at the Command phase. Use this when someone forgot to press Next; otherwise Next moves through the phases for you."
+        confirm="Hand over the turn"
+        onConfirm={() => onSwitch?.()}
+      />
+    </>
   );
 }

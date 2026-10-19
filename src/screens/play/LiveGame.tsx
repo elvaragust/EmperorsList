@@ -11,8 +11,9 @@ import type { SecOp } from '@/engine/missions';
 import { closeRoom, joinUrl, type Room } from '@/sync/room';
 import { useRoom } from '@/sync/useRoom';
 import { Screen } from '@/ui/Screen';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
+import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
@@ -64,7 +65,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
 
   if (!state) {
     return (
-      <Screen title="Joining…" back>
+      <Screen title="Joining…" back="/play">
         <Status room={room} />
         <p className="muted">Waiting for the host's game. Keep this screen open.</p>
       </Screen>
@@ -73,7 +74,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
   const me = state.players.find((p) => p.id === myId);
   if (!me && state.stage !== 'lobby') {
     return (
-      <Screen title="Live game" back>
+      <Screen title="Live game" back="/play">
         <p className="issue-title">This game started without you.</p>
       </Screen>
     );
@@ -135,7 +136,7 @@ function Lobby({ game, state, room, dispatch, allowed }: { game: SavedGame; stat
   const missionValue = { mission: me?.primary, deployment: state.deployment, twist: state.twist, disposition: me?.disposition, manualPrimary: me?.manualPrimary };
 
   return (
-    <Screen title="Live game · Lobby" back>
+    <Screen title="Live game · Lobby" back="/play">
       <Status room={room} />
       {isHost && (
         <div className="card" style={{ padding: 14, textAlign: 'center' }}>
@@ -283,25 +284,35 @@ function PrimariesList({ state }: { state: LiveState }) {
 
 function LeaveButton({ game }: { game: SavedGame }) {
   const navigate = useNavigate();
-  const [sure, setSure] = useState(false);
+  const [ask, setAsk] = useState(false);
   return (
-    <button
-      className="btn btn-ghost btn-danger btn-block"
-      onClick={async () => {
-        if (!sure) return setSure(true);
-        closeRoom(game.id);
-        await db.games.delete(game.id);
-        navigate('/play', { replace: true });
-      }}
-    >
-      {sure ? 'Tap again to leave and delete this game' : 'Leave game'}
-    </button>
+    <>
+      <button className="btn btn-ghost btn-danger btn-block" onClick={() => setAsk(true)}>
+        Leave game
+      </button>
+      <ConfirmSheet
+        open={ask}
+        onClose={() => setAsk(false)}
+        title="Leave this game?"
+        message={game.live?.role === 'host' ? 'You are the host: the room closes for everyone and the game is deleted from this phone.' : 'You leave the room and the game is deleted from this phone. You can join again with the room code.'}
+        confirm="Leave game"
+        danger
+        onConfirm={async () => {
+          closeRoom(game.id);
+          await db.games.delete(game.id);
+          navigate('/play', { replace: true });
+        }}
+      />
+    </>
   );
 }
 
 function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; state: LiveState; room?: Room; engine?: RosterEngine; dispatch: (a: LiveAction) => void }) {
   const myId = game.live!.myId;
   const unlinked = Boolean(game.live?.unlinked);
+  // A guest cut off from the host plays on with every change allowed; its team's changes sync when the host is back.
+  const cutOff = Boolean(room?.cutOff) && !unlinked;
+  const free = unlinked || cutOff;
   const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
@@ -322,19 +333,19 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const viewPhase = view.seen === stamp ? view.phase : state.phase;
   const setViewPhase = (p: typeof state.phase) => setView({ phase: p, seen: stamp });
   const myTurn = state.turn === myTeam;
-  const mayAdvance = unlinked || canAdvance(state, myId);
+  const mayAdvance = free || canAdvance(state, myId);
   const order = turnOrder(state);
   const lastTurn = order.indexOf(state.turn) === order.length - 1;
   const gameOver = state.phase === 'fight' && lastTurn && state.round >= ROUNDS;
   const nextText = gameOver ? 'end of game' : state.phase === 'fight' ? `${teamNames(state, lastTurn ? order[0]! : order[order.indexOf(state.turn) + 1]!)}'s turn` : PHASE_NAMES[PHASES[PHASES.indexOf(state.phase) + 1]!];
   const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties) : []), [engine, game.casualties]);
   const usedThisPhase = useLiveQuery(() => db.games.get(game.id).then((g) => g?.used ?? []), [game.id]);
-  const mine = (id: string) => unlinked || id === myId;
+  const mine = (id: string) => free || id === myId;
   const myScore = totalScore(vpOf(state, myTeam));
   const best = Math.max(...others.map((t) => totalScore(vpOf(state, t))));
   // With a shared pool, one CP counter per team; otherwise one per player.
   const cpRows = state.sharedCp
-    ? [myTeam, ...others].filter((t) => membersOf(state, t).length).map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Our CP' : 'Your CP') : `${teamNames(state, t)} CP`, id: membersOf(state, t)[0]!.id, editable: unlinked || t === myTeam }))
+    ? [myTeam, ...others].filter((t) => membersOf(state, t).length).map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Our CP' : 'Your CP') : `${teamNames(state, t)} CP`, id: membersOf(state, t)[0]!.id, editable: free || t === myTeam }))
     : [...state.players].sort((a, b) => Number(b.team === myTeam) - Number(a.team === myTeam)).map((p) => ({ key: p.id, label: p.id === myId ? 'Your CP' : `${p.name} CP`, id: p.id, editable: mine(p.id), team: p.team }));
   const secOf = (t: Team) => missionsOf(state, t);
   const primaryOfTeam = (t: Team) => membersOf(state, t).find((p) => p.primary)?.primary ?? (t === myTeam ? state.mission : undefined);
@@ -367,10 +378,10 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   return (
     <Screen
       title={`Round ${state.round}`}
-      back
+      back="/play"
       actions={
         <button className="icon-btn" aria-label="Game menu" onClick={() => setMenu(true)}>
-          ⋯
+          <Icon name="more" />
         </button>
       }
     >
@@ -379,7 +390,14 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
           ● Offline copy — you can change everything. The other players' armies are kept as they were.
         </div>
       ) : (
-        <Status room={room} />
+        <>
+          <Status room={room} />
+          {cutOff && (
+            <div className="offline-note small" role="status">
+              <strong>Playing on without the host.</strong> Everything works on this phone. When the host is back, your team's CP, score, missions and the turn are sent over; the other team's numbers come from the host.
+            </div>
+          )}
+        </>
       )}
       <div className="game-layout">
         <div className="game-controls">
@@ -390,8 +408,9 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             phase={PHASE_NAMES[state.phase]}
             vp={`${myScore}–${best}`}
             onSwitch={mayAdvance ? () => dispatch({ t: 'turn' }) : undefined}
+            switchTo={teamNames(state, order[(order.indexOf(state.turn) + 1) % order.length]!)}
           />
-          <div className="filters" style={{ marginTop: 6 }} aria-label="Look at a phase (only on your screen)">
+          <div className="phase-strip" aria-label="Look at a phase (only on your screen)">
             {PHASES.map((p) => (
               <button key={p} className={`filter ${viewPhase === p ? 'on' : ''}`} onClick={() => setViewPhase(p)}>
                 {PHASE_NAMES[p]}
@@ -399,7 +418,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
               </button>
             ))}
           </div>
-          <div className="card" style={{ padding: 12 }}>
+          <div className="card cp-card">
             {cpRows.map((r) => (
               <div key={r.key} className="counter" style={{ marginTop: 4 }}>
                 <span>
@@ -416,21 +435,13 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
               </div>
             ))}
           </div>
-          <div className="btn-row">
-            <button className="btn" onClick={() => dispatch({ t: 'prev' })} disabled={!mayAdvance}>
-              ‹
-            </button>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (gameOver ? isHost && setEnding(true) : dispatch({ t: 'next' }))} disabled={!mayAdvance || (gameOver && !isHost)}>
-              {mayAdvance ? `Next: ${nextText}` : `${teamNames(state, state.turn)} moves the turn on`}
-            </button>
-          </div>
-
+          
           <NotesPanel gameId={game.id} notes={game.notes} />
         </div>
 
         <div className="game-main">
           <div className="seg" role="tablist">
-            {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
+            {(['phase', 'missions', 'units', 'score', 'rules', 'log'] as const).map((t) => (
               <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
                 {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
               </button>
@@ -516,7 +527,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
                         key={kind}
                         label={kind === 'primary' ? 'Pri' : 'Sec'}
                         values={vpOf(state, team)[kind]}
-                        readOnly={!unlinked && team !== myTeam}
+                        readOnly={!free && team !== myTeam}
                         onChange={(r, v) => dispatch({ t: 'vp', team, kind, round: r, value: v })}
                       />
                     ))}
@@ -553,6 +564,14 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
         </div>
       </div>
 
+      <div className="sticky-bar battle-bar">
+            <button className="btn" onClick={() => dispatch({ t: 'prev' })} disabled={!mayAdvance} aria-label="Previous phase">
+              <Icon name="back" />
+            </button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (gameOver ? isHost && setEnding(true) : dispatch({ t: 'next' }))} disabled={!mayAdvance || (gameOver && !isHost)}>
+              {mayAdvance ? `Next: ${nextText}` : `${teamNames(state, state.turn)} moves the turn on`}
+            </button>
+          </div>
       <Sheet open={menu} onClose={() => setMenu(false)} title="Game">
         {isHost ? (
           <button className="menu-item" onClick={() => (setMenu(false), setEnding(true))}>
@@ -595,12 +614,13 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
 
 function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: LiveState; room?: Room; dispatch: (a: LiveAction) => void }) {
   const navigate = useNavigate();
+  const [askDelete, setAskDelete] = useState(false);
   const isHost = game.live?.role === 'host';
   const myTeam = state.players.find((p) => p.id === game.live!.myId)?.team ?? 'A';
   const result = state.winner === 'draw' ? 'DRAW' : state.winner === myTeam ? 'WIN' : 'LOSS';
   const others = opponentsOf(state, myTeam);
   return (
-    <Screen title="Result" back>
+    <Screen title="Result" back="/play">
       <Status room={room} />
       <div className="big-num" style={{ textAlign: 'center', margin: '12px 0' }}>
         {[myTeam, ...others].map((t) => totalScore(vpOf(state, t))).join(' – ')}
@@ -642,16 +662,22 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
         >
           Close
         </button>
-        <button
-          className="btn btn-ghost btn-danger"
-          onClick={() => {
-            closeRoom(game.id);
-            void db.games.delete(game.id).then(() => navigate('/play', { replace: true }));
-          }}
-        >
+        <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
           Delete game
         </button>
       </div>
+      <ConfirmSheet
+        open={askDelete}
+        onClose={() => setAskDelete(false)}
+        title="Delete this game?"
+        message="Its result and log are removed from this phone. The other players keep their copies."
+        confirm="Delete game"
+        danger
+        onConfirm={() => {
+          closeRoom(game.id);
+          void db.games.delete(game.id).then(() => navigate('/play', { replace: true }));
+        }}
+      />
     </Screen>
   );
 }

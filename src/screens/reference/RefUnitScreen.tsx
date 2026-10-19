@@ -30,10 +30,10 @@ export function RefUnitScreen() {
     const options = inst.node ? [...new Set(offeredEntries(index, inst.node).filter((o) => o.node.type !== 'model').map((o) => o.node.name))] : [];
     return { engine, unit, sheet: datasheet(engine, inst), models: unitModels(engine, unit.id), points: engine.unitPoints(unit.id), options };
   }, [index, catalogueId, key]);
-  if (error) return <Screen title="Datasheet" back><p className="muted">{error}</p></Screen>;
-  if (!data) return <Screen title="Datasheet" back><p className="muted">Loading…</p></Screen>;
+  if (error) return <Screen title="Datasheet" back="/reference"><p className="muted">{error}</p></Screen>;
+  if (!data) return <Screen title="Datasheet" back="/reference"><p className="muted">Loading…</p></Screen>;
   return (
-    <Screen title={data.sheet.name} back>
+    <Screen title={data.sheet.name} back="/reference">
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span className="muted small" style={{ flex: 1 }}>
           {data.points} pts with the default loadout

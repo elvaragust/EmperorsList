@@ -9,12 +9,14 @@ import { datasheet } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
+import { Icon } from '@/ui/Icon';
 import { Loading } from '@/ui/Loading';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { practiceId, saveGame, startPractice, updateGame, withLog } from './games';
 import { ViewToggle } from '@/ui/ViewToggle';
+import { WizardSteps } from '@/ui/WizardSteps';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
 import { LiveGame } from './LiveGame';
@@ -37,8 +39,8 @@ export function GameScreen() {
   const roster = useLiveQuery(() => (game ? db.rosters.get(game.rosterId) : undefined), [game?.rosterId]);
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
-  if (found === null) return <Screen title="Game" back><p className="muted">This game isn't on this device (it may have been deleted, or the browser cleared the app's data).</p></Screen>;
-  if (!game) return <Screen title="Game" back><Loading what="the game" /></Screen>;
+  if (found === null) return <Screen title="Game" back="/play"><p className="muted">This game isn't on this device (it may have been deleted, or the browser cleared the app's data).</p></Screen>;
+  if (!game) return <Screen title="Game" back="/play"><Loading what="the game" /></Screen>;
   if (game.idle) return <IdleEnded game={game} />;
   if (game.live) return <LiveGame game={game} engine={engine} />;
   if (game.stage === 'setup') return <Setup game={game} engine={engine} />;
@@ -52,7 +54,7 @@ function IdleEnded({ game }: { game: SavedGame }) {
   const st = game.live?.state;
   const where = game.idle!.stage === 'setup' ? 'during setup' : `in round ${st?.round ?? game.round}`;
   return (
-    <Screen title="Game ended" back>
+    <Screen title="Game ended" back="/play">
       <div className="card" style={{ padding: 16 }}>
         <p style={{ marginTop: 0 }}>
           <strong>This game was ended automatically</strong> after {hours === 2 ? 'two hours' : `${hours} hours`} with no changes, {where}.
@@ -122,12 +124,8 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
   }, [engine]);
 
   return (
-    <Screen title={`New game · ${SETUP_TITLES[step]}`} back>
-      <div className="wizard-steps" aria-hidden="true">
-        {SETUP_TITLES.map((t, i) => (
-          <span key={t} className={i <= step ? 'done' : undefined} />
-        ))}
-      </div>
+    <Screen title="New game" back="/play" onBack={step > 1 ? () => void set({ setupStep: step - 1 }) : undefined}>
+      <WizardSteps titles={SETUP_TITLES} step={step} />
       <p className="muted small">Your army: {game.rosterName}</p>
 
       {step === 1 && (
@@ -204,6 +202,11 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
             Back
           </button>
         )}
+        {step < 4 && step > 1 && (
+          <button className="btn btn-ghost" onClick={() => set({ setupStep: 4 })} title="Skip to the last step">
+            Skip
+          </button>
+        )}
         {step < 4 ? (
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => set({ setupStep: step + 1 })}>
             Next
@@ -257,7 +260,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
   return (
     <Screen
       title={`Round ${game.round}`}
-      back={!game.practice}
+      back={game.practice ? undefined : '/play'}
       actions={
         game.practice ? (
           <ViewToggle rosterId={game.rosterId} current="play" />
@@ -272,19 +275,20 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
       <div className="game-controls">
       <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
       <TurnBanner mine={game.turn === 'me'} label={game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`} phase={PHASE_NAMES[game.phase]} vp={`${totalScore(game.vp.me)}–${totalScore(game.vp.them)}`}
+        switchTo={game.turn === 'me' ? who('them') : 'you'}
         onSwitch={() => {
           const turn = game.turn === 'me' ? 'them' : 'me';
           void save(withLog({ ...game, turn, phase: 'command' }, `Switched to ${turn === 'me' ? 'your' : `${who('them')}'s`} turn`, 'phase'));
         }}
       />
-      <div className="filters" style={{ marginTop: 6 }}>
+      <div className="phase-strip">
         {PHASES.map((p) => (
           <button key={p} className={`filter ${game.phase === p ? 'on' : ''}`} onClick={() => save({ ...game, phase: p })}>
             {PHASE_NAMES[p]}
           </button>
         ))}
       </div>
-      <div className="card" style={{ padding: 12 }}>
+      <div className="card cp-card">
         <div className="counter">
           <span>Your CP</span>
           <Stepper value={game.cp.me} onChange={(v) => save(withLog({ ...game, cp: { ...game.cp, me: v } }, `Your CP → ${v}`, 'cp'))} label="your CP" />
@@ -294,21 +298,13 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           <Stepper value={game.cp.them} onChange={(v) => save({ ...game, cp: { ...game.cp, them: v } })} label="opponent CP" />
         </div>
       </div>
-      <div className="btn-row">
-        <button className="btn" onClick={back}>
-          ‹
-        </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} onClick={advance}>
-          Next: {nextLabel(game, first, who)}
-        </button>
-      </div>
-
+      
       <NotesPanel gameId={game.id} notes={game.notes} />
       </div>
 
       <div className="game-main">
       <div className="seg" role="tablist">
-        {(['phase', 'missions', 'rules', 'units', 'score', 'log'] as const).map((t) => (
+        {(['phase', 'missions', 'units', 'score', 'rules', 'log'] as const).map((t) => (
           <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
             {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
           </button>
@@ -422,6 +418,14 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
       </div>
       </div>
 
+      <div className="sticky-bar battle-bar">
+        <button className="btn" onClick={back} aria-label="Previous phase">
+          <Icon name="back" />
+        </button>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={advance}>
+          Next: {nextLabel(game, first, who)}
+        </button>
+      </div>
       <Sheet open={ending && Boolean(game.practice)} onClose={() => setEnding(false)} title="Practice game over">
         <p>
           Final score {totalScore(game.vp.me)}–{totalScore(game.vp.them)}. Practice games aren't kept.
@@ -480,8 +484,9 @@ export function ScoreRow({ label, values, onChange, readOnly }: { label: string;
 
 function Result({ game }: { game: SavedGame }) {
   const navigate = useNavigate();
+  const [askDelete, setAskDelete] = useState(false);
   return (
-    <Screen title="Result" back>
+    <Screen title="Result" back="/play">
       <div className="big-num" style={{ textAlign: 'center', margin: '12px 0' }}>
         {totalScore(game.vp.me)} – {totalScore(game.vp.them)}
       </div>
@@ -520,10 +525,19 @@ function Result({ game }: { game: SavedGame }) {
         <button className="btn" onClick={() => saveGame({ ...game, stage: 'battle' })}>
           Reopen game
         </button>
-        <button className="btn btn-ghost btn-danger" onClick={() => db.games.delete(game.id).then(() => navigate('/play', { replace: true }))}>
+        <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
           Delete game
         </button>
       </div>
+      <ConfirmSheet
+        open={askDelete}
+        onClose={() => setAskDelete(false)}
+        title="Delete this game?"
+        message="Its result, notes and log are removed from this phone."
+        confirm="Delete game"
+        danger
+        onConfirm={() => void db.games.delete(game.id).then(() => navigate('/play', { replace: true }))}
+      />
     </Screen>
   );
 }

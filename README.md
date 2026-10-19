@@ -68,7 +68,9 @@ Open a unit from the list. Everything is on one page, like the official app:
 Open a Character → **Attach to a unit…** and pick from the units its Leader ability allows. The unit then shows as a **Combined** unit, with the leader's abilities listed and the ones that buff the unit marked.
 
 ### Issues
-The number at the top right of a list says what's wrong (too many points, a missing Warlord, too many copies of a unit, an option that isn't allowed…). Tap it to see each problem, the reason and a button to fix it.
+Under the points, a pill says **Valid list** or how many **problems** there are (too many points, a missing Warlord, too many copies of a unit, an option that isn't allowed…). Problems are listed right there with the reason and a button to fix each; tips that don't make the list illegal stay folded until you open them. **Start game** and **Share / export** sit just below.
+
+**Build / Practice** at the top: Practice opens the battle screen with this list to try things out — nothing is kept. Use **Start game** for a real game. Deleting a list, a unit or a game always asks first.
 
 ---
 
@@ -97,7 +99,7 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 5. Pre-battle checklist built from your list (Warlord, leaders, Deep Strike/Infiltrators/Scouts, pre-battle abilities)
 
 **During the battle**
-- **Next** moves through the phases and turns. Both players get 1 CP at the start of every Command phase.
+- **Next** (in the bar at the bottom of the screen) moves through the phases and turns. Both players get 1 CP at the start of every Command phase. If someone forgot to press Next, tap the turn banner to hand the turn over (it asks first).
 - **Phase panel:** the stratagems you can use right now (tap the CP button to spend), plus your abilities that mention this phase.
 - **Rules** tab: your army rules (e.g. *Oath of Moment*) and the rules of each of your detachments, each in a bar you open. Where Wahapedia has the same rule its (usually newer) text is shown.
 - **Round buttons R1–R5** at the top jump straight to the start of a round.
@@ -129,6 +131,7 @@ What's shared: whose turn it is and the current phase, everyone's CP, every team
 - **End the game:** the host ends it for everyone (⋯ menu). Other players can *End the game on my phone* to save the result and stop following.
 - **Turn off live changes** (⋯ menu): unlinks your phone. You keep everyone's army and score as they were and can change anything yourself. *Reconnect* joins again.
 - Phones connect directly to each other; nothing is stored online. Everyone needs internet during the game, and the host's game must stay open.
+- **Lost the host?** Keep playing: everything works on your phone (phases, turn, CP, score, missions). When the host is back, your phone sends what you changed: your team's CP, score, missions and disposition, and the turn if you got further. The other team's numbers always come from the host, so nothing of theirs is overwritten.
 
 ### Table layouts
 **Play → Table layouts** stores photos or screenshots of terrain layouts. Pick one as the deployment when setting up a game.
@@ -142,7 +145,7 @@ From a list's **⋯ menu → Export**:
 - **Share link** and **QR code** — opens the list in EmperorsList on another device.
 - **Print datacards** — one card per unit; print or save as PDF.
 
-**Import:** Lists → ⇣ → paste a list exported from the official app. The faction, detachments and Force Disposition are found wherever they are in the header (if there's no disposition line, the detachment's one is used). Units, models, wargear, Warlord and enhancements are matched by name. Models the datasheet requires but the text left out (e.g. a Sergeant) are added, and everything that couldn't be matched or was added is listed so you can check it.
+**Import:** Lists → **Import** → paste a list exported from the official app. The faction, detachments and Force Disposition are found wherever they are in the header (if there's no disposition line, the detachment's one is used). Units, models, wargear, Warlord and enhancements are matched by name. Models the datasheet requires but the text left out (e.g. a Sergeant) are added, and everything that couldn't be matched or was added is listed so you can check it.
 
 ---
 

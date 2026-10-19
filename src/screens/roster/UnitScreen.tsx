@@ -16,7 +16,8 @@ import { useFactionTheme } from '@/theme/themes';
 import { Collapse } from '@/ui/Collapse';
 import { DatasheetView } from '@/ui/DatasheetView';
 import { Screen } from '@/ui/Screen';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
+import { Icon } from '@/ui/Icon';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { OptionList } from './WargearEditor';
@@ -37,6 +38,7 @@ export function UnitScreen() {
   useFactionTheme(roster?.factionName);
   const [menu, setMenu] = useState(false);
   const [leadPicker, setLeadPicker] = useState(false);
+  const [askRemove, setAskRemove] = useState(false);
 
   const unit = roster?.units.find((u) => u.id === unitId);
   const leading = unit?.leaderOf ? roster?.units.find((u) => u.id === unit.leaderOf) : undefined;
@@ -57,7 +59,7 @@ export function UnitScreen() {
     });
   }, [engine, unit, attached]);
   const unitDetRules = useUnitDetachmentRules(engine, sheetsForRules);
-  if (!roster || !unit) return <Screen title="Unit" back>{roster && !unit ? <p className="muted">This unit was removed.</p> : null}</Screen>;
+  if (!roster || !unit) return <Screen title="Unit" back={`/roster/${id}`}>{roster && !unit ? <p className="muted">This unit was removed.</p> : null}</Screen>;
 
   const save = (fn: (r: Roster) => Roster) => saveRoster(index, fn(roster));
   const saveUnit = (u: RosterUnit) => save((r) => ({ ...r, units: r.units.map((x) => (x.id === u.id ? u : x)) }));
@@ -135,7 +137,7 @@ export function UnitScreen() {
       back
       actions={
         <button className="icon-btn" aria-label="Unit menu" onClick={() => setMenu(true)}>
-          ⋯
+          <Icon name="more" />
         </button>
       }
     >
@@ -409,16 +411,22 @@ export function UnitScreen() {
             Detach from {leading?.name}
           </button>
         )}
-        <button
-          className="menu-item btn-danger"
-          onClick={() => {
-            save((r) => ({ ...r, units: r.units.filter((x) => x.id !== unit.id).map((x) => (x.leaderOf === unit.id ? { ...x, leaderOf: undefined } : x)) }));
-            navigate(-1);
-          }}
-        >
-          Remove unit from list
+        <button className="menu-item btn-danger" onClick={() => (setMenu(false), setAskRemove(true))}>
+          Remove unit from list…
         </button>
       </Sheet>
+      <ConfirmSheet
+        open={askRemove}
+        onClose={() => setAskRemove(false)}
+        title={`Remove ${unit.nickname || unit.name}?`}
+        message={attached.length ? `${attached.map((a) => a.nickname || a.name).join(' and ')} stay in the list, no longer attached.` : 'Its wargear choices are lost.'}
+        confirm="Remove unit"
+        danger
+        onConfirm={() => {
+          save((r) => ({ ...r, units: r.units.filter((x) => x.id !== unit.id).map((x) => (x.leaderOf === unit.id ? { ...x, leaderOf: undefined } : x)) }));
+          navigate(`/roster/${roster.id}`, { replace: true });
+        }}
+      />
     </Screen>
   );
 }
