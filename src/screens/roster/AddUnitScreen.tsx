@@ -20,6 +20,7 @@ import { showToast } from '@/ui/Toast';
 import { useFactionTheme } from '@/theme/themes';
 import { useAppearance } from '@/theme/appearance';
 import { Screen } from '@/ui/Screen';
+import { Icon } from '@/ui/Icon';
 import { isLegends, LegendsTag, legendsName } from '@/ui/Legends';
 
 const FILTERS = ['All', ...ROLES] as const;
@@ -159,16 +160,17 @@ export function AddUnitScreen() {
           <span className="num muted">{c.points}</span>
         </button>
         <PinButton small pin={{ id: pinId('datasheet', c.name), kind: 'datasheet', name: c.name, route: `/reference/unit/${roster?.catalogueId}/${c.root.key}`, source: `${c.points} pts` }} />
-        <button className="icon-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)} style={{ color: 'var(--accent)', fontSize: 24 }}>
-          +
+        <button className="icon-btn add-btn" aria-label={`Add ${c.name}`} title="Add to list" onClick={() => add(c.root.key)}>
+          <Icon name="plus" />
         </button>
       </div>
     );
   };
 
   return (
-    <Screen title="Add unit" back>
+    <Screen title="Add unit" back={`/roster/${id}`}>
       <input className="input" placeholder="Search units" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search units" />
+      <p className="small muted" style={{ margin: '6px 0 2px' }}>Tap a unit to read it first, or + to add it straight away — you stay here to add more.</p>
       <div className="filters" role="tablist">
         {FILTERS.map((r) => (
           <button key={r} className={`filter ${role === r ? 'on' : ''}`} onClick={() => setRole(r)} role="tab" aria-selected={role === r}>
@@ -194,7 +196,6 @@ export function AddUnitScreen() {
         <div className="card">{list.map(row)}</div>
       )}
       {engine && list.length === 0 && <p className="muted">No units match.</p>}
-      <p className="small muted">Tap a unit to read it first, or + to add it straight away (you stay here to add more).</p>
       {roster && (
         <div className="sticky-bar">
           <span className="pts-chip">{(engine?.totalPoints() ?? 0).toLocaleString('en')} / {(engine?.pointsLimit() ?? roster.pointsLimit).toLocaleString('en')}</span>

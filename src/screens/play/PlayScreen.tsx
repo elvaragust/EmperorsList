@@ -13,7 +13,8 @@ function liveTitle(g: SavedGame): string {
 }
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
+import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 
 /** War Journal: games in progress and finished games. */
@@ -35,7 +36,7 @@ export function PlayScreen() {
         setMenu(g);
       }}
     >
-      ⋯
+      <Icon name="more" />
     </button>
   );
   const record = done.reduce((r, g) => ({ ...r, [g.result ?? 'draw']: (r[g.result ?? 'draw'] ?? 0) + 1 }), {} as Record<string, number>);
@@ -52,9 +53,16 @@ export function PlayScreen() {
           Join
         </Link>
       </div>
-      <p className="small muted" style={{ margin: 0 }}>
-        Live games sync turn, phase, CP, score and missions between phones — 1v1, 2v2, 2v1 or three players. <Link to="/play/layouts" className="tag">TABLE LAYOUTS</Link>
+      <p className="small muted" style={{ margin: '0 0 4px' }}>
+        <strong>New game</strong> tracks a game on this phone. <strong>Host</strong> / <strong>Join</strong> play live across phones (1v1, 2v2, 2v1 or three players): turn, CP, score and missions stay in step.
       </p>
+      <Link className="card choice" to="/play/layouts" style={{ marginTop: 8 }}>
+        <Icon name="map" />
+        <span style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600 }}>Table layouts</div>
+          <div className="muted small">Photos of terrain set-ups to pick when you start a game</div>
+        </span>
+      </Link>
       {live.length > 0 && (
         <>
           <div className="section-label">In progress</div>
@@ -96,31 +104,29 @@ export function PlayScreen() {
           </div>
         </>
       )}
-      <Sheet open={Boolean(menu)} onClose={close} title={menu ? title(menu) : undefined}>
+      <Sheet open={Boolean(menu) && !confirm} onClose={close} title={menu ? title(menu) : undefined}>
         {menu && (
           <>
             <Link className="menu-item" to={`/play/${menu.id}`} onClick={close}>
               Open
             </Link>
-            {!confirm ? (
-              <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>
-                Delete game
-              </button>
-            ) : (
-              <button
-                className="menu-item btn-danger"
-                onClick={() => {
-                  const g = menu;
-                  void db.games.delete(g.id).then(() => showToast('Game deleted'));
-                  close();
-                }}
-              >
-                Tap again to delete this game{menu.stage === 'done' ? '' : ' (still in progress)'} — this can't be undone
-              </button>
-            )}
+            <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>
+              Delete game…
+            </button>
           </>
         )}
       </Sheet>
+      <ConfirmSheet
+        open={confirm && Boolean(menu)}
+        onClose={close}
+        title="Delete this game?"
+        message={menu && menu.stage !== 'done' ? 'It is still in progress. Its score and log are removed from this phone.' : 'Its result and log are removed from this phone.'}
+        confirm="Delete game"
+        danger
+        onConfirm={() => {
+          if (menu) void db.games.delete(menu.id).then(() => showToast('Game deleted'));
+        }}
+      />
       {!games && <Loading what="your games" />}
       {games && games.length === 0 && <p className="muted" style={{ marginTop: 16 }}>No games yet. Start one from here or from a list's menu.</p>}
     </Screen>

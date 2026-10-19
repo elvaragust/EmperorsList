@@ -5,7 +5,9 @@ import { db } from '@/data/db';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
+import { Icon } from '@/ui/Icon';
+import { showToast } from '@/ui/Toast';
 import type { Roster } from '@/engine/types';
 
 export function ListsScreen() {
@@ -26,8 +28,9 @@ export function ListsScreen() {
     <Screen
       title="Armies"
       actions={
-        <Link className="icon-btn" to="/import" aria-label="Import a list" title="Import a list">
-          ⇣
+        <Link className="btn btn-sm btn-ghost" to="/import">
+          <Icon name="import" size={18} />
+          Import
         </Link>
       }
     >
@@ -35,7 +38,21 @@ export function ListsScreen() {
         <input className="input" placeholder="Search lists" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Search lists" style={{ marginBottom: 8 }} />
       )}
       {!rosters && <Loading what="your lists" />}
-      {rosters && rosters.length === 0 && <p className="muted">No lists yet. Create as many as you like.</p>}
+      {rosters && rosters.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-title">No armies yet</div>
+          <p className="muted">Build a list from scratch, or paste one exported from the official Warhammer app.</p>
+          <div className="btn-row">
+            <Link className="btn btn-primary btn-block" to="/new">
+              New list
+            </Link>
+            <Link className="btn btn-block" to="/import">
+              <Icon name="import" size={18} />
+              Import a list
+            </Link>
+          </div>
+        </div>
+      )}
       {folders.map(([folder, list]) => (
         <div key={folder || 'none'}>
           {folder && <div className="section-label">{folder}</div>}
@@ -52,7 +69,7 @@ export function ListsScreen() {
                     </div>
                   </Link>
                   <button className="icon-btn" aria-label={`More for ${r.name}`} onClick={() => setMenu(r)}>
-                    ⋯
+                    <Icon name="more" />
                   </button>
                 </div>
               );
@@ -60,15 +77,23 @@ export function ListsScreen() {
           </div>
         </div>
       ))}
-      <div style={{ marginTop: 16 }}>
-        <Link className="btn btn-primary btn-block" to="/new">
-          New list
-        </Link>
-      </div>
-      <Sheet open={Boolean(menu)} onClose={() => (setMenu(null), setConfirm(false))} title={menu?.name}>
+      {rosters && rosters.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <Link className="btn btn-primary btn-block" to="/new">
+            New list
+          </Link>
+        </div>
+      )}
+      <Sheet open={Boolean(menu) && !confirm} onClose={() => setMenu(null)} title={menu?.name}>
         {menu && (
           <>
-            <button className="menu-item" onClick={() => (duplicateRoster(menu.id), setMenu(null))}>
+            <Link className="menu-item" to={`/roster/${menu.id}`}>
+              Open
+            </Link>
+            <Link className="menu-item" to={`/play/new?roster=${menu.id}`}>
+              Start a game with it
+            </Link>
+            <button className="menu-item" onClick={() => (duplicateRoster(menu.id), setMenu(null), showToast(`Copied “${menu.name}”`))}>
               Duplicate
             </button>
             <label className="field">
@@ -80,18 +105,24 @@ export function ListsScreen() {
                 onBlur={(e) => db.rosters.put({ ...menu, folder: e.target.value.trim() || undefined })}
               />
             </label>
-            {!confirm ? (
-              <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>
-                Delete
-              </button>
-            ) : (
-              <button className="menu-item btn-danger" onClick={() => (deleteRoster(menu.id), setMenu(null), setConfirm(false))}>
-                Tap again to delete “{menu.name}”
-              </button>
-            )}
+            <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>
+              Delete…
+            </button>
           </>
         )}
       </Sheet>
+      <ConfirmSheet
+        open={confirm && Boolean(menu)}
+        onClose={() => setConfirm(false)}
+        title={`Delete “${menu?.name}”?`}
+        message="The list is removed from this device. Games already played with it keep their results."
+        confirm="Delete list"
+        danger
+        onConfirm={() => {
+          if (menu) void deleteRoster(menu.id).then(() => showToast('List deleted'));
+          setMenu(null);
+        }}
+      />
     </Screen>
   );
 }

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { db } from '@/data/db';
 import { DISPOSITIONS, MISSION_DECK, primaryFor, primaryOptions, toggleInList } from '@/engine/missions';
 import { CardText, useMissionCards } from './missionCards';
+import { Icon } from '@/ui/Icon';
 import { DeploymentMap } from './deploymentMap';
 import { LayoutPicker, LayoutPreview } from './layouts';
 
@@ -85,8 +86,9 @@ export function MissionFields({
     );
   }
   const dice = (onClick: () => void, label: string, disabled?: boolean) => (
-    <button className="btn btn-sm btn-ghost" style={{ minHeight: 24, padding: 0 }} disabled={disabled} aria-label={label} onClick={(e) => (e.preventDefault(), onClick())}>
-      🎲
+    <button className="btn btn-sm btn-ghost dice-btn" disabled={disabled} aria-label={label} title={label} onClick={(e) => (e.preventDefault(), onClick())}>
+      <Icon name="dice" size={18} />
+      Random
     </button>
   );
   return (
@@ -179,7 +181,8 @@ export function MissionFields({
       {!primaryOnly && (
         <>
           <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => change({ ...value, ...randomMission() })}>
-            🎲 Random deployment and twist
+            <Icon name="dice" size={18} />
+            Random deployment and twist
           </button>
           <label className="field">
             <span style={{ display: 'flex' }}>
@@ -261,7 +264,8 @@ export function SecondaryPicker({ value, onChange, max = 2 }: { value: string; o
           {chosen.length}/{max} active{full ? ' — tap one to swap it out' : ''}
         </span>
         <button className="btn btn-sm" onClick={draw}>
-          🎲 Draw {max}
+          <Icon name="dice" size={18} />
+          Draw {max}
         </button>
       </div>
       <div className="kw-list" style={{ gap: '6px 14px', margin: '6px 0 10px' }}>

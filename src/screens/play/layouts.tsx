@@ -40,7 +40,7 @@ export function LayoutsScreen() {
     setName('');
   };
   return (
-    <Screen title="Table layouts" back>
+    <Screen title="Table layouts" back="/play">
       <p className="small muted">Save a photo or screenshot of a terrain layout or deployment map you use. Pick it when setting up a game. Layouts stay on this device.</p>
       <div className="btn-row">
         <input className="input" placeholder="Name (e.g. Layout 3 · Crucible)" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} />

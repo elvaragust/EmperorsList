@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/data/db';
 import { Screen } from '@/ui/Screen';
 import { saveGame } from './games';
@@ -31,7 +31,7 @@ export function JoinScreen() {
     navigate(`/play/${g.id}`, { replace: true });
   };
   return (
-    <Screen title="Join a live game" back>
+    <Screen title="Join a live game" back="/play">
       <label className="field">
         <span>Room code</span>
         <input className="input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="ABC123" autoCapitalize="characters" style={{ letterSpacing: '0.2em', fontSize: 22 }} />
@@ -52,12 +52,21 @@ export function JoinScreen() {
           </button>
         ))}
       </div>
-      {rosters?.length === 0 && <p className="muted">Make a list first, then join.</p>}
+      {rosters?.length === 0 && (
+        <p className="muted">
+          You need an army to join. <Link to="/new">Make a list</Link> or <Link to="/import">import one</Link>.
+        </p>
+      )}
       <div className="btn-row">
         <button className="btn btn-primary btn-block" disabled={!ok} onClick={join}>
           Join
         </button>
       </div>
+      {!ok && (
+        <p className="small muted" role="status">
+          To join: {[!/^[A-Z0-9]{6}$/.test(code) && 'the 6-letter room code from the host', !name.trim() && 'your name', !rosterId && 'an army'].filter(Boolean).join(', ')}.
+        </p>
+      )}
       <p className="small muted">Phones connect directly to each other. Everyone needs to be online, with the host's game open.</p>
     </Screen>
   );
