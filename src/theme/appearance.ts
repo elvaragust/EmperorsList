@@ -65,7 +65,26 @@ export function applyAppearance() {
     if (current.fixedTheme) root.dataset.theme = current.fixedTheme;
     else delete root.dataset.theme;
   } else {
-    delete root.dataset.theme;
+    // "Follow the open army": the last army you opened keeps colouring the whole app.
+    const last = lastArmyTheme();
+    if (last) root.dataset.theme = last;
+    else delete root.dataset.theme;
+  }
+}
+
+const LAST_THEME_KEY = 'emperorslist.lastArmyTheme';
+export function lastArmyTheme(): string {
+  try {
+    return localStorage.getItem(LAST_THEME_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+export function rememberArmyTheme(theme: string) {
+  try {
+    localStorage.setItem(LAST_THEME_KEY, theme);
+  } catch {
+    /* ignore */
   }
 }
 

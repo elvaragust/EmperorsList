@@ -482,6 +482,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
               engine={engine}
               phase={viewPhase}
               myTurn={myTurn}
+              cp={state.cp[myId] ?? 0}
               onSpend={(s, cost) => {
                 const again = (usedThisPhase ?? []).some((u) => u.id === s.id && u.round === state.round && u.phase === state.phase);
                 void db.games.update(game.id, { used: [...(usedThisPhase ?? []), { round: state.round, turn: myTurn ? 'me' : 'them', phase: state.phase, id: s.id, name: s.name }] });

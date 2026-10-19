@@ -150,6 +150,14 @@ export type SecOp =
   | { op: 'restore'; name: string }
   /** Spend 1CP: discard a card and draw a new one. As many times as you like. */
   | { op: 'redraw'; name: string }
+  /** Draw one card for free, any time (a card's own rule, a missed draw, a house rule). */
+  | { op: 'drawFree' }
+  /**
+   * Put a card back into the deck and draw a new one, free ("WHEN DRAWN: if it
+   * is the first battle round, draw a new card and shuffle this one back").
+   * `at` is where it goes in the deck (picked by the phone, so every copy agrees); never on top.
+   */
+  | { op: 'shuffleBack'; name: string; at: number }
   | { op: 'primaryDone'; round: number; done: boolean };
 
 export const emptySecondaries = (): SecondaryState => ({ fixed: [] });
@@ -179,6 +187,15 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
     case 'redraw':
       if (!t || !t.active.includes(o.name)) return s;
       return { ...s, tactical: { ...drawTactical(discardTactical(t, o.name), 1), redraws: (t.redraws ?? 0) + 1 } };
+    case 'drawFree':
+      return t ? { ...s, tactical: drawTactical(t, 1) } : s;
+    case 'shuffleBack': {
+      if (!t || !t.active.includes(o.name)) return s;
+      // Draw first, so the card that goes back can't come straight back.
+      const drawn = drawTactical({ ...t, active: t.active.filter((a) => a !== o.name) }, 1);
+      const at = Math.max(0, Math.min(o.at, drawn.deck.length));
+      return { ...s, tactical: { ...drawn, deck: [...drawn.deck.slice(0, at), o.name, ...drawn.deck.slice(at)] } };
+    }
     case 'primaryDone': {
       const set = new Set(s.primaryDone ?? []);
       if (o.done) set.add(o.round);

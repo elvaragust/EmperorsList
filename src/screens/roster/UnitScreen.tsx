@@ -249,9 +249,7 @@ export function UnitScreen() {
                 <div key={`v-${g.base}`} className="model-band variant-head">
                   <span style={{ flex: 1 }}>
                     {g.base}
-                    <span className="sub">
-                      {g.types.length} weapon variants · + adds a model with that loadout
-                    </span>
+                    <span className="sub">{g.types[0]?.group ? squadLimit(g.types[0].group) : `${g.types.length} loadouts — set how many of each below`}</span>
                   </span>
                   <span className="num" style={{ padding: '0 12px' }}>
                     {g.types.reduce((n, t) => n + t.count, 0)}
@@ -294,7 +292,7 @@ export function UnitScreen() {
               // Several models: + and − change only this weapon; nothing is swapped out by itself.
               let next = setModelsWithOption(engineFor, unit, t.key, optionKey, n, group, undefined, t.count > 1);
               if (next === unit && n > before) {
-                showToast(`Every ${t.name} already has one of these — use − on another first`);
+                showToast(`All ${t.count} already carry one — press − on another first`);
                 return;
               }
               const after = modelTypes(engineFor(next), unit.id).find((x) => x.key === t.key);
@@ -459,16 +457,14 @@ function ModelSection({
   const hi = t.max < 0 ? Math.max(99, t.count) : Math.max(t.max, t.count);
   const hasChoices = t.groups.some((g) => !hideGroups?.has(g.key) && (g.options.length > 1 || g.optional)) || t.extras.length > 0;
   const empty = t.count === 0;
+  // The unit's limit on the model's own band; a weapon variant only says its own limit (the unit's is above it).
+  const sub = single ? '' : variant ? kindLimit(t) : [t.group ? squadLimit(t.group) : '', kindLimit(t)].filter(Boolean).join(' · ');
   return (
     <>
       <div className={`model-band ${empty ? 'empty' : ''} ${variant ? 'variant' : ''}`}>
         <span style={{ flex: 1 }}>
           {variant ?? t.name}
-          {t.group && !single && (
-            <span className="sub">
-              {t.group.name} · {t.group.selected} of {t.group.max > 0 ? (t.group.min === t.group.max ? t.group.max : `${t.group.min}–${t.group.max}`) : `${t.group.min}+`}
-            </span>
-          )}
+          {sub && <span className="sub">{sub}</span>}
         </span>
         {variable ? <Stepper value={t.count} min={lo} max={hi} onChange={onCount} label={t.name} /> : <span className="num" style={{ padding: '0 12px' }}>{t.count}</span>}
       </div>
@@ -485,6 +481,8 @@ function ModelSection({
           {t.groups.filter((g) => !hideGroups?.has(g.key)).map((g) => {
             const chosen = g.options.reduce((n, o) => n + o.carried, 0);
             const short = g.chooseOne && !g.optional && t.count > 1 ? t.count - chosen : 0;
+            // Every model already has one: + would have to take it from another, so it waits for a −.
+            const full = g.chooseOne && t.count > 1 && chosen >= t.count;
             return (
             <div className="gear-box" key={g.key}>
               <div className="gear-box-head">
@@ -494,9 +492,10 @@ function ModelSection({
                   · {g.chooseOne ? (t.count > 1 ? `one per model · ${chosen} of ${t.count} chosen` : 'choose one') : 'any of these'}
                 </span>
                 {short > 0 && <div className="small issue-title">{short === 1 ? '1 model has' : `${short} models have`} no {g.name.toLowerCase()} yet — use + on one</div>}
+                {full && g.options.length > 1 && <div className="small gear-hint">All {t.count} have one. To swap, press − on one first, then + on the one you want.</div>}
               </div>
               {g.options.map((o) => (
-                <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} nested={nested?.(t, o)} />
+                <GearRow key={o.key} o={o} count={full ? o.carried : t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} nested={nested?.(t, o)} stepper={t.count > 1} />
               ))}
             </div>
             );
@@ -526,7 +525,7 @@ function InfoToggle({ open, onClick, name }: { open: boolean; onClick: () => voi
 }
 
 /** A wargear row: tap to pick it, the chevron opens its weapon profile underneath. */
-function GearRow({ o, count, onSet, radio, lockOn, index, nested }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean; index?: DataIndex; nested?: ReactNode }) {
+function GearRow({ o, count, onSet, radio, lockOn, index, nested, stepper }: { o: ModelOption; count: number; onSet: (n: number) => void; radio?: boolean; lockOn?: boolean; index?: DataIndex; nested?: ReactNode; /** Several models: a − n + counter (its max is `count`). */ stepper?: boolean }) {
   const [open, setOpen] = useState(false);
   const info = index ? hasGearInfo(index, o.node) : false;
   const pts = o.points ? <span className="num muted small">+{o.points}</span> : null;
@@ -539,7 +538,7 @@ function GearRow({ o, count, onSet, radio, lockOn, index, nested }: { o: ModelOp
   const on = o.carried > 0;
   return (
     <div className="gear-item">
-      {count <= 1 ? (
+      {!(stepper ?? count > 1) ? (
         <div className="gear-line">
           <button className="gear-row" role={radio ? 'radio' : 'checkbox'} aria-checked={on} onClick={() => (on ? !lockOn && onSet(0) : onSet(1))}>
             {label}
@@ -605,4 +604,19 @@ function EnhancementRow({ e, onPick, index }: { e: OptionView; onPick: () => voi
       {open && index && <GearDetails index={index} node={e.node} />}
     </div>
   );
+}
+
+/** "10 of 4–10 models · full", "3 of 3–6 models · room for 3 more", "2 of 4–10 models · 2 more needed". */
+function squadLimit(g: NonNullable<ModelType['group']>): string {
+  const range = g.max > 0 ? (g.min === g.max ? `${g.max}` : `${g.min}–${g.max}`) : `${g.min}+`;
+  const state = g.selected < g.min ? `${g.min - g.selected} more needed` : g.max > 0 && g.selected >= g.max ? (g.selected > g.max ? `${g.selected - g.max} too many` : 'full') : g.max > 0 ? `room for ${g.max - g.selected} more` : '';
+  return `Unit: ${g.selected} of ${range} models${state ? ` · ${state}` : ''}`;
+}
+
+/** What this one kind of model allows: "exactly 1", "up to 2 of these", "at least 1". */
+function kindLimit(t: ModelType): string {
+  if (t.max > 0 && t.min === t.max) return `exactly ${t.max}`;
+  if (t.max > 0) return t.min > 0 ? `${t.min}–${t.max} of these` : `up to ${t.max} of these`;
+  if (t.min > 0) return `at least ${t.min}`;
+  return '';
 }

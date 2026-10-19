@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { WizardSteps } from '@/ui/WizardSteps';
 import { db } from '@/data/db';
@@ -20,6 +20,19 @@ export function NewGameScreen() {
   const [name, setName] = useState(savedName());
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const startLive = async (r: Roster) => {
+    try {
+      setBusy(r.id);
+      rememberName(name.trim());
+      const g = newHostedGame(r, name.trim());
+      await saveGame(g);
+      navigate(`/play/${g.id}`, { replace: true });
+    } catch (e) {
+      setError(`Couldn't start the game: ${storageMessage(e)}`);
+    } finally {
+      setBusy('');
+    }
+  };
   const start = async (r: Roster) => {
     if (busy) return;
     setError('');
@@ -40,12 +53,50 @@ export function NewGameScreen() {
       setBusy('');
     }
   };
-  useEffect(() => {
-    const id = params.get('roster');
-    const r = id && rosters?.find((x) => x.id === id);
-    if (r && !live) void start(r);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, rosters]);
+  // Opened from a list ("Start game"): that army is chosen; ask how to play instead of guessing.
+  const picked = params.get('roster') ? rosters?.find((x) => x.id === params.get('roster')) : undefined;
+  const [hosting, setHosting] = useState(false);
+  if (picked && !live) {
+    return (
+      <Screen title="Start a game" back={`/roster/${picked.id}`}>
+        <div className="card row" style={{ marginBottom: 12 }}>
+          <span style={{ flex: 1 }}>
+            <div className="muted small">Your army</div>
+            <div style={{ fontWeight: 600, fontSize: 18 }}>{picked.name}</div>
+            <div className="muted small">
+              {picked.factionName} · {picked.units.reduce((n, u) => n + u.points, 0)} pts
+            </div>
+          </span>
+        </div>
+        {error && <p className="issue-title" role="alert">{error}</p>}
+        <div className="mode-choices">
+          <button className="mode-choice" onClick={() => void start(picked)} disabled={Boolean(busy)}>
+            <strong>On this phone</strong>
+            <span className="muted small">Track both sides yourself: turns, CP, score, missions.</span>
+          </button>
+          <button className="mode-choice" onClick={() => setHosting(true)} aria-expanded={hosting}>
+            <strong>Host a live game</strong>
+            <span className="muted small">Others join from their phones with a code: 1v1, 2v2, 2v1 or three players.</span>
+          </button>
+          {hosting && (
+            <div className="card" style={{ padding: 12 }}>
+              <label className="field" style={{ marginTop: 0 }}>
+                <span>Your name (the other players see it)</span>
+                <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              </label>
+              <button className="btn btn-primary btn-block" disabled={!name.trim() || Boolean(busy)} onClick={() => void startLive(picked)}>
+                Open the room
+              </button>
+            </div>
+          )}
+          <Link className="mode-choice" to="/play/join">
+            <strong>Join a live game</strong>
+            <span className="muted small">Someone else is hosting: type their room code.</span>
+          </Link>
+        </div>
+      </Screen>
+    );
+  }
   return (
     <Screen title={live ? 'Host a live game' : 'New game'} back="/play">
       {!live && <WizardSteps titles={['Army', 'Opponent', 'Mission', 'Secondaries', 'Pre-battle']} step={0} />}

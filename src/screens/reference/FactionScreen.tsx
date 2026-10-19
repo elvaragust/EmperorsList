@@ -19,7 +19,7 @@ export function FactionScreen() {
   const { index, error } = useIndex(catalogueId);
   const [open, setOpen] = useState<string | null>(null);
   const cat = index?.catalogues.get(catalogueId);
-  useFactionTheme(cat?.name);
+  useFactionTheme(cat?.name, false);
 
   const data = useMemo(() => {
     if (!index) return undefined;
