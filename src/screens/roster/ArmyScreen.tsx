@@ -25,13 +25,13 @@ export function ArmyScreen() {
   const choices = useMemo(() => (engine ? configChoices(engine) : undefined), [engine]);
   const shown = useMemo(() => choices?.detachments.filter((d) => !d.hidden || roster?.detachmentIds.includes(d.key)) ?? [], [choices, roster]);
   const enhByDet = useMemo(() => (engine ? enhancementsByDetachment(engine.index, shown) : new Map()), [engine, shown]);
-  if (!roster) return <Screen title="Army" back>{null}</Screen>;
-  if (!engine || !choices) return <Screen title="Army" back><p className="muted">Loading…</p></Screen>;
+  if (!roster) return <Screen title="Army" back={`/roster/${id}`}>{null}</Screen>;
+  if (!engine || !choices) return <Screen title="Army" back={`/roster/${id}`}><p className="muted">Loading…</p></Screen>;
   const save = (r: Roster) => saveRoster(index, r);
   const dp = engine.detachmentPoints();
 
   return (
-    <Screen title="Army" back>
+    <Screen title="Army" back={`/roster/${id}`}>
       <div className="section-label">Battle size</div>
       <div className="card">
         {SIZES.map((s) => (

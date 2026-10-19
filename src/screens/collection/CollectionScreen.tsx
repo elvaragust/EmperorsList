@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { db, type CollectionItem } from '@/data/db';
 import { rootsFor, useIndex, useRosterEngine } from '@/data/gameData';
@@ -8,6 +8,8 @@ import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { blankRoster } from '@/search/buildDocs';
 import { Screen } from '@/ui/Screen';
 import { Stepper } from '@/ui/Stepper';
+
+const FACTION_KEY = 'emperorslist.collectionFaction';
 
 /**
  * What you own: models owned, built and painted per datasheet. Keyed by the
@@ -20,7 +22,26 @@ export function CollectionScreen() {
   const items = useLiveQuery(() => db.collection.toArray(), []);
   const roster = useLiveQuery(() => (rosterId ? db.rosters.get(rosterId) : undefined), [rosterId]);
   const factions = (files ?? []).filter((f) => !f.library && !f.gameSystem && f.catalogueId);
-  const [picked, setPicked] = useState('');
+  // The faction you last looked at, or your most recent list's.
+  const [picked, setPickedState] = useState(() => {
+    try {
+      return localStorage.getItem(FACTION_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const setPicked = (v: string) => {
+    setPickedState(v);
+    try {
+      localStorage.setItem(FACTION_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const latest = useLiveQuery(() => db.rosters.orderBy('updatedAt').last(), []);
+  useEffect(() => {
+    if (!picked && latest?.catalogueId) setPickedState(latest.catalogueId);
+  }, [picked, latest]);
   const catalogueId = roster?.catalogueId ?? picked ?? '';
   const { index } = useIndex(catalogueId || undefined);
   const { engine: rosterEngine } = useRosterEngine(roster);

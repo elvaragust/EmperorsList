@@ -375,6 +375,60 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
   }
 }
 
+/** How far into the game a state is: round, then whose turn in the order, then phase. */
+function progress(s: LiveState): number {
+  const order = turnOrder(s);
+  return s.round * 100 + Math.max(0, order.indexOf(s.turn)) * 10 + PHASES.indexOf(s.phase);
+}
+
+/**
+ * A player's phone was cut off from the host and kept playing on its own copy.
+ * When it reconnects, the host folds that copy in:
+ *  - that player's team's own things come from the phone: their CP (the whole
+ *    team's with a shared pool), score, missions, disposition and primary,
+ *    and the player's units left;
+ *  - round / turn / phase take whichever copy is further on;
+ *  - log lines written offline are added;
+ *  - nothing that belongs to another team or player is ever taken from the
+ *    phone — the host's copy wins for them.
+ */
+export function mergeOffline(host: LiveState, phone: LiveState, base: LiveState | undefined, from: string): LiveState {
+  const me = host.players.find((p) => p.id === from);
+  if (!me || phone.room !== host.room) return host;
+  const team = me.team;
+  // Only what the phone changed while it was cut off (compared with the last copy the host sent it):
+  // a teammate's changes on the host in the meantime are kept.
+  const changed = (pick: (s: LiveState) => unknown) => JSON.stringify(pick(phone)) !== JSON.stringify(base ? pick(base) : undefined);
+  const mates = host.players.filter((p) => p.team === team && (host.sharedCp || p.id === from)).map((p) => p.id);
+  const cp = { ...host.cp };
+  for (const id of mates) if (id in phone.cp && changed((s) => s.cp[id])) cp[id] = phone.cp[id]!;
+  const phoneMe = phone.players.find((p) => p.id === from);
+  const teamChoice = (s: LiveState) => {
+    const p = s.players.find((x) => x.id === from);
+    return [p?.disposition, p?.manualPrimary ? p.primary : undefined];
+  };
+  const players =
+    phoneMe && changed(teamChoice)
+      ? withPrimaries({ ...host, players: host.players.map((p) => (p.team === team ? { ...p, disposition: phoneMe.disposition, manualPrimary: phoneMe.manualPrimary, primary: phoneMe.manualPrimary ? phoneMe.primary : p.primary } : p)) }).players
+      : host.players;
+  const seen = new Set(host.log.map((l) => `${l.at}|${l.text}`));
+  const extra = phone.log.filter((l) => !seen.has(`${l.at}|${l.text}`));
+  const moved = host.stage === 'battle' && phone.stage === 'battle' && progress(phone) > progress(host) && (!base || progress(phone) !== progress(base));
+  let next: LiveState = {
+    ...host,
+    players,
+    cp,
+    vp: phone.vp[team] && changed((s) => s.vp[team]) ? { ...host.vp, [team]: phone.vp[team] } : host.vp,
+    missions: phone.missions?.[team] && changed((s) => s.missions?.[team]) ? { ...host.missions, [team]: phone.missions[team] } : host.missions,
+    units: phone.units[from] ? { ...host.units, [from]: phone.units[from]! } : host.units,
+    log: extra.length ? [...host.log, ...extra].sort((a, b) => a.at - b.at) : host.log,
+    ...(moved ? { round: phone.round, turn: phone.turn, phase: phone.phase } : {}),
+  };
+  const ahead = moved;
+  if (extra.length || ahead) next = { ...next, log: [...next.log, { at: Date.now(), round: next.round, turn: next.turn, phase: next.phase, text: `${me.name} reconnected — their offline changes were added`, by: me.name }] };
+  return { ...next, v: host.v + 1 };
+}
+
 const totalOf = (s: LiveState, t: Team) => {
   const sc = vpOf(s, t);
   return sc.primary.reduce((a, b) => a + b, 0) + sc.secondary.reduce((a, b) => a + b, 0);

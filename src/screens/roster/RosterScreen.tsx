@@ -14,7 +14,8 @@ import type { Roster, RosterUnit } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
-import { Sheet } from '@/ui/Sheet';
+import { ConfirmSheet, Sheet } from '@/ui/Sheet';
+import { Icon } from '@/ui/Icon';
 
 const roleOf = (engine: RosterEngine | undefined, u: RosterUnit): Role =>
   engine ? unitRole(engine, u.id, u.primaryCategory) : roleOfCategory('');
@@ -26,7 +27,8 @@ export function RosterScreen() {
   const { engine, index, error } = useRosterEngine(roster);
   const pinnedSheets = usePinnedNames('datasheet');
   useFactionTheme(roster?.factionName);
-  const [showIssues, setShowIssues] = useState(false);
+  // Problems that make the list illegal are shown until you hide them; tips stay folded until opened.
+  const [toggledIssues, setShowIssues] = useState(false);
   const [menu, setMenu] = useState(false);
   const [rename, setRename] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -64,6 +66,7 @@ export function RosterScreen() {
   const dp = engine?.detachmentPoints();
   const enh = engine?.enhancements();
   const errors = issues.filter((i) => i.severity === 'error');
+  const issuesOpen = errors.length ? !toggledIssues : toggledIssues;
 
   const unitLine = (u: RosterUnit, isLed = false) => {
     const attached = roster.units.filter((x) => x.leaderOf === u.id);
@@ -103,12 +106,12 @@ export function RosterScreen() {
   return (
     <Screen
       title={roster.name}
-      back
+      back="/lists"
       actions={
         <>
           <ViewToggle rosterId={roster.id} roster={roster} current="build" />
           <button className="icon-btn" aria-label="List menu" onClick={() => setMenu(true)}>
-            ⋯
+            <Icon name="more" />
           </button>
         </>
       }
@@ -119,9 +122,12 @@ export function RosterScreen() {
         <span className="big-num">{total.toLocaleString('en')}</span>
         <span className="muted">/ {limit.toLocaleString('en')} pts</span>
         <span className="spacer" />
-        <button className="btn btn-sm btn-ghost" onClick={() => setShowIssues((s) => !s)} style={{ color: errors.length ? 'var(--danger)' : 'var(--ok)' }} disabled={!engine}>
-          {!engine ? '…' : errors.length ? `${errors.length} ${errors.length === 1 ? 'issue' : 'issues'}` : 'Valid'}
-        </button>
+        {engine && (
+          <span className={`status-pill ${errors.length ? 'bad' : 'good'}`}>
+            <Icon name={errors.length ? 'warn' : 'check'} size={16} />
+            {errors.length ? `${errors.length} ${errors.length === 1 ? 'problem' : 'problems'}` : 'Valid list'}
+          </span>
+        )}
       </div>
       <div className={`meter ${total > limit ? 'over' : ''}`}>
         <div style={{ width: `${Math.min(100, (total / Math.max(limit, 1)) * 100)}%` }} />
@@ -146,9 +152,27 @@ export function RosterScreen() {
           </button>
         </div>
       )}
-      {showIssues && issues.length > 0 && (
+      <div className="quick-actions">
+        <Link className="btn btn-sm" to={`/play/new?roster=${roster.id}`}>
+          <Icon name="play" size={16} />
+          Start game
+        </Link>
+        <Link className="btn btn-sm" to={`/roster/${roster.id}/export`}>
+          <Icon name="share" size={16} />
+          Share / export
+        </Link>
+      </div>
+
+      {issues.length > 0 && (
+        <button className={`issues-bar ${errors.length ? 'bad' : ''}`} onClick={() => setShowIssues((v) => !v)} aria-expanded={issuesOpen}>
+          <span style={{ flex: 1 }}>
+            {errors.length ? `${errors.length} ${errors.length === 1 ? 'problem' : 'problems'} to fix before this list is legal` : `${issues.length} ${issues.length === 1 ? 'tip' : 'tips'} for this list`}
+          </span>
+          <span className="small">{issuesOpen ? 'Hide' : 'Show'}</span>
+        </button>
+      )}
+      {issuesOpen && issues.length > 0 && (
         <>
-          <div className="section-label">Issues</div>
           <div className="card">
             {issues.map((i, k) => (
               <div className="row" key={k} style={{ alignItems: 'flex-start' }}>
@@ -195,7 +219,7 @@ export function RosterScreen() {
         </Link>
       </div>
 
-      <Sheet open={menu} onClose={() => (setMenu(false), setRename(null), setConfirmDelete(false))} title={roster.name}>
+      <Sheet open={menu} onClose={() => (setMenu(false), setRename(null))} title={roster.name}>
         {rename === null ? (
           <button className="menu-item" onClick={() => setRename(roster.name)}>
             Rename
@@ -236,16 +260,19 @@ export function RosterScreen() {
         >
           Duplicate list
         </button>
-        {!confirmDelete ? (
-          <button className="menu-item btn-danger" onClick={() => setConfirmDelete(true)}>
-            Delete list
-          </button>
-        ) : (
-          <button className="menu-item btn-danger" onClick={() => (deleteRoster(roster.id), navigate('/lists', { replace: true }))}>
-            Tap again to delete for good
-          </button>
-        )}
+        <button className="menu-item btn-danger" onClick={() => (setMenu(false), setConfirmDelete(true))}>
+          Delete list…
+        </button>
       </Sheet>
+      <ConfirmSheet
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={`Delete “${roster.name}”?`}
+        message="The list is removed from this device. Games already played with it keep their results."
+        confirm="Delete list"
+        danger
+        onConfirm={() => void deleteRoster(roster.id).then(() => navigate('/lists', { replace: true }))}
+      />
     </Screen>
   );
 }

@@ -24,8 +24,15 @@ export function ViewToggle({ rosterId, roster, current }: { rosterId: string; ro
       <button role="tab" aria-selected={current === 'build'} className={current === 'build' ? 'on' : undefined} onClick={() => void build()}>
         Build
       </button>
-      <button role="tab" aria-selected={current === 'play'} className={current === 'play' ? 'on' : undefined} onClick={() => void play()} disabled={current === 'build' && !roster}>
-        Play
+      <button
+        role="tab"
+        aria-selected={current === 'play'}
+        className={current === 'play' ? 'on' : undefined}
+        onClick={() => void play()}
+        disabled={current === 'build' && !roster}
+        title="Try the battle screen with this list. Nothing is saved — use Start game for a real one."
+      >
+        Practice
       </button>
     </div>
   );

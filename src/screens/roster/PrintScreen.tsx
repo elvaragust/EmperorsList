@@ -30,9 +30,9 @@ export function PrintScreen() {
       return { u, sheet, models, counts, leader, enh: enh ? engine.ev.name(enh) : undefined, pts: engine.unitPoints(u.id), warlord: engine.isWarlord(u.id) };
     });
   }, [engine, roster]);
-  if (!roster) return <Screen title="Print" back>{null}</Screen>;
+  if (!roster) return <Screen title="Print" back={`/roster/${id}`}>{null}</Screen>;
   return (
-    <Screen title="Datacards" back>
+    <Screen title="Datacards" back={`/roster/${id}`}>
       <div className="no-print btn-row">
         <button className="btn btn-primary btn-block" onClick={() => window.print()}>
           Print or save as PDF

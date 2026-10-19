@@ -168,6 +168,52 @@ describe('live game reducer', () => {
     expect(s.players.find((x) => x.id === 'b1')!.primary).toBe('Delaying Action');
   });
 
+  it('folds in a cut-off phone: its own team only, never the other team', async () => {
+    const { mergeOffline, LOCAL } = await import('../live');
+    let s = newLiveState('R', p('h', 'Host'));
+    s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
+    s = reduce(s, { t: 'start' }, 'h');
+    const base = s;
+    // The guest (team B) plays on alone: moves the game on, spends CP, scores, and (locally) edits the host's score.
+    let phone = base;
+    for (let i = 0; i < 5; i++) phone = reduce(phone, { t: 'next' }, LOCAL);
+    phone = reduce(phone, { t: 'cp', id: 'g', value: 5 }, LOCAL);
+    phone = reduce(phone, { t: 'vp', team: 'B', kind: 'secondary', round: 0, value: 4 }, LOCAL);
+    phone = reduce(phone, { t: 'vp', team: 'A', kind: 'primary', round: 0, value: 99 }, LOCAL);
+    phone = reduce(phone, { t: 'cp', id: 'h', value: 9 }, LOCAL);
+    phone = reduce(phone, { t: 'note', text: 'Charged the objective' }, LOCAL);
+    // Meanwhile the host scored and spent CP.
+    let host = reduce(base, { t: 'vp', team: 'A', kind: 'primary', round: 0, value: 6 }, 'h');
+    host = reduce(host, { t: 'cp', id: 'h', value: 0 }, 'h');
+    const merged = mergeOffline(host, phone, base, 'g');
+    expect(merged.vp.B.secondary[0]).toBe(4);
+    expect(merged.cp.g).toBe(5);
+    // The other team keeps what the host has.
+    expect(merged.vp.A.primary[0]).toBe(6);
+    expect(merged.cp.h).toBe(0);
+    // The game moved on offline; the log gets the offline note.
+    expect(merged).toMatchObject({ round: 1, turn: 'B', phase: 'command' });
+    expect(merged.log.some((l) => l.text === 'Charged the objective')).toBe(true);
+    expect(merged.v).toBe(host.v + 1);
+  });
+
+  it('keeps a teammate’s newer change when the cut-off phone left that field alone', async () => {
+    const { mergeOffline, LOCAL } = await import('../live');
+    let s = newLiveState('R', p('a1', 'Ann'));
+    s = reduce(s, { t: 'setMode', mode: '2v2' }, 'a1');
+    for (const [id, n] of [['b1', 'Bob'], ['a2', 'Cat'], ['b2', 'Dan']]) s = reduce(s, { t: 'join', player: p(id!, n!) }, id!);
+    s = reduce(s, { t: 'start' }, 'a1');
+    const base = s;
+    // Cat is cut off and only writes a note; Ann spends the shared CP on the host meanwhile.
+    const phone = reduce(base, { t: 'note', text: 'hi' }, LOCAL);
+    const host = reduce(base, { t: 'cp', id: 'a1', value: 0 }, 'a1');
+    const merged = mergeOffline(host, phone, base, 'a2');
+    expect([merged.cp.a1, merged.cp.a2]).toEqual([0, 0]);
+    // A phone that is behind the host doesn't pull the turn back.
+    const behind = mergeOffline(reduce(host, { t: 'next' }, 'a1'), phone, base, 'a2');
+    expect(behind.phase).toBe('movement');
+  });
+
   it('makes readable room codes', () => {
     expect(makeRoomCode()).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   });

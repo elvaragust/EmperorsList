@@ -1,6 +1,6 @@
 import type { DataConnection, Peer as PeerType } from 'peerjs';
 import { db, type SavedGame } from '@/data/db';
-import { reduce, type LiveAction, type LivePlayer, type LiveState } from '@/engine/live';
+import { LOCAL, mergeOffline, reduce, type LiveAction, type LivePlayer, type LiveState } from '@/engine/live';
 
 /**
  * Phone-to-phone rooms. The host's phone holds the game; others connect to it
@@ -11,9 +11,21 @@ import { reduce, type LiveAction, type LivePlayer, type LiveState } from '@/engi
  * Messages:
  *   guest -> host  { k: 'hello', player }   on connect (also on reconnect)
  *   guest -> host  { k: 'act', action }
+ *   guest -> host  { k: 'merge', state, base } after playing on while cut off
  *   host -> guests { k: 'state', state }    after every change
+ *
+ * A guest that loses the host keeps playing: its actions apply to its own
+ * copy straight away (anything may be changed). When the host is back, that
+ * copy is sent once and the host folds in only the guest's own team's changes
+ * (see `mergeOffline`); everything else comes from the host.
  */
-type Msg = { k: 'hello'; player: LivePlayer } | { k: 'act'; action: LiveAction; from: string } | { k: 'state'; state: LiveState } | { k: 'error'; message: string };
+type Msg =
+  | { k: 'hello'; player: LivePlayer }
+  | { k: 'act'; action: LiveAction; from: string }
+  /** A guest that played on while cut off: its copy, and the last copy it had from the host. */
+  | { k: 'merge'; from: string; state: LiveState; base?: LiveState }
+  | { k: 'state'; state: LiveState }
+  | { k: 'error'; message: string };
 
 export type RoomStatus = 'connecting' | 'online' | 'offline' | 'error';
 
@@ -55,7 +67,9 @@ export class Room {
   private retry?: ReturnType<typeof setTimeout>;
   private closed = false;
   private state?: LiveState;
-  private queue: LiveAction[] = [];
+  /** The last copy the host sent (guests), and whether we've changed our copy since without the host. */
+  private hostState?: LiveState;
+  private offlineChanges = false;
 
   constructor(
     readonly gameId: string,
@@ -65,6 +79,7 @@ export class Room {
     initial?: LiveState,
   ) {
     this.state = initial;
+    this.hostState = initial;
     void this.open();
   }
 
@@ -133,9 +148,11 @@ export class Room {
     conn.on('open', () => {
       this.setStatus('online');
       conn.send({ k: 'hello', player: this.me } satisfies Msg);
-      const q = this.queue;
-      this.queue = [];
-      q.forEach((action) => conn.send({ k: 'act', action, from: this.me.id } satisfies Msg));
+      // Played on while cut off: hand our copy to the host to fold in.
+      if (this.offlineChanges && this.state) {
+        conn.send({ k: 'merge', from: this.me.id, state: this.state, base: this.hostState } satisfies Msg);
+        this.offlineChanges = false;
+      }
     });
     conn.on('data', (d) => this.onGuestMessage(d as Msg));
     conn.on('close', () => {
@@ -148,7 +165,12 @@ export class Room {
 
   private onGuestMessage(m: Msg) {
     if (m.k === 'state') {
-      if (!this.state || m.state.v >= this.state.v || m.state.room !== this.state.room) void this.persist(m.state);
+      // Compare with the host's own numbering: our offline copy may have counted further.
+      if (this.offlineChanges) return;
+      if (!this.hostState || m.state.v >= this.hostState.v || m.state.room !== this.hostState.room) {
+        this.hostState = m.state;
+        void this.persist(m.state);
+      }
     } else if (m.k === 'error') this.setStatus('error', m.message);
   }
 
@@ -164,6 +186,7 @@ export class Room {
       const m = d as Msg;
       if (m.k === 'hello') this.apply({ t: 'join', player: m.player }, m.player.id, conn);
       else if (m.k === 'act') this.apply(m.action, m.from, conn);
+      else if (m.k === 'merge' && this.state) this.publish(mergeOffline(this.state, m.state, m.base, m.from));
     });
     conn.on('close', () => {
       this.conns.delete(conn.peer);
@@ -182,6 +205,11 @@ export class Room {
       }
       return;
     }
+    this.publish(next);
+  }
+
+  private publish(next: LiveState) {
+    if (next === this.state) return;
     void this.persist(next);
     this.conns.forEach((c) => c.open && c.send({ k: 'state', state: next } satisfies Msg));
   }
@@ -189,8 +217,21 @@ export class Room {
   // ----- both -----
   dispatch(action: LiveAction) {
     if (this.role === 'host') return this.apply(action, this.me.id);
-    if (this.hostConn?.open) this.hostConn.send({ k: 'act', action, from: this.me.id } satisfies Msg);
-    else this.queue.push(action);
+    if (this.hostConn?.open && this.status === 'online' && !this.offlineChanges) {
+      this.hostConn.send({ k: 'act', action, from: this.me.id } satisfies Msg);
+      return;
+    }
+    // Cut off from the host: keep playing on our own copy; it's merged when the host is back.
+    if (!this.state) return;
+    const next = reduce(this.state, action, LOCAL);
+    if (next === this.state) return;
+    this.offlineChanges = true;
+    void this.persist(next);
+  }
+
+  /** True while this guest is playing on its own copy (cut off from the host). */
+  get cutOff(): boolean {
+    return this.role === 'guest' && this.status !== 'online';
   }
 
   private async persist(state: LiveState) {

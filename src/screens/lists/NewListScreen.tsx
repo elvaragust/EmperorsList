@@ -9,6 +9,7 @@ import type { BattleSize, Roster } from '@/engine/types';
 import { db } from '@/data/db';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
+import { WizardSteps } from '@/ui/WizardSteps';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 const SIZES: { size: BattleSize; label: string; points: number; note: string }[] = [
@@ -55,6 +56,16 @@ export function NewListScreen() {
 
   const engine = useMemo(() => (index && roster ? new RosterEngine(index, roster, rootsFor(index, roster.catalogueId)) : undefined), [index, roster]);
   const choices = useMemo(() => (engine ? configChoices(engine) : undefined), [engine]);
+  // Most games are Strike Force: have it chosen already, so Next works straight away.
+  useEffect(() => {
+    if (step === 1 && engine && roster && !roster.config.length) setRoster(setBattleSize(engine, roster, 'strikeForce'));
+  }, [step, engine, roster]);
+  // One Force Disposition allowed (or none picked yet): pick the first allowed one.
+  useEffect(() => {
+    if (step !== 3 || !engine || !roster || roster.forceDisposition) return;
+    const first = allowedDispositions(engine)[0];
+    if (first) setRoster(setDisposition(engine, roster, first.key));
+  }, [step, engine, roster]);
 
   const pickFaction = async (f: FactionFile) => {
     setError('');
@@ -103,12 +114,8 @@ export function NewListScreen() {
   const titles = ['Faction', 'Battle size', 'Detachments', 'Disposition'];
 
   return (
-    <Screen title={`New list · ${titles[step]}`} back>
-      <div className="wizard-steps" aria-hidden="true">
-        {titles.map((t, i) => (
-          <span key={t} className={i <= step ? 'done' : undefined} />
-        ))}
-      </div>
+    <Screen title="New list" back="/lists" onBack={step > 0 ? () => setStep(step - 1) : undefined}>
+      <WizardSteps titles={titles} step={step} />
       {error && <p className="issue-title">{error}</p>}
       {indexError && step > 0 && <p className="issue-title">{indexError}</p>}
       {busy && <p className="muted">{busy}</p>}
@@ -124,7 +131,7 @@ export function NewListScreen() {
                 {list.map((f) => (
                   <button key={f.path} className="choice" disabled={Boolean(busy)} onClick={() => pickFaction(f)}>
                     <span style={{ flex: 1 }}>{f.name}</span>
-                    <span className="muted small">{f.downloaded ? '' : 'Loading…'}</span>
+                    {busy && busy.includes(f.name) ? <span className="muted small">Getting it…</span> : !f.downloaded ? <span className="muted small">downloads when picked</span> : null}
                   </button>
                 ))}
               </div>
@@ -167,8 +174,8 @@ export function NewListScreen() {
           )}
           <div className="sticky-bar">
             {step > 0 && (
-              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
-                ‹
+              <button className="btn" onClick={() => setStep(step - 1)}>
+                Back
               </button>
             )}
             <button className="btn btn-primary" style={{ flex: 1 }} disabled={!roster.config.length} onClick={() => setStep(2)}>
@@ -192,8 +199,8 @@ export function NewListScreen() {
           {dp?.max !== undefined && dp.used > dp.max && <p className="issue-title">Over the Detachment Point limit by {dp.used - dp.max}.</p>}
           <div className="sticky-bar">
             {step > 0 && (
-              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
-                ‹
+              <button className="btn" onClick={() => setStep(step - 1)}>
+                Back
               </button>
             )}
             <button className="btn btn-primary" style={{ flex: 1 }} disabled={!roster.detachmentIds.length} onClick={() => setStep(3)}>
@@ -227,8 +234,8 @@ export function NewListScreen() {
           </label>
           <div className="sticky-bar">
             {step > 0 && (
-              <button className="btn" onClick={() => setStep(step - 1)} aria-label="Back a step">
-                ‹
+              <button className="btn" onClick={() => setStep(step - 1)}>
+                Back
               </button>
             )}
             <button className="btn btn-primary" style={{ flex: 1 }} onClick={finish}>

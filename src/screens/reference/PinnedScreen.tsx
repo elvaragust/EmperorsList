@@ -14,7 +14,7 @@ export function PinnedScreen() {
   const { index } = useAllIndex();
   const pins = useLiveQuery(() => db.pins.orderBy('createdAt').reverse().toArray(), []);
   return (
-    <Screen title="Pinned" back>
+    <Screen title="Pinned" back="/reference">
       {pins?.length === 0 && <p className="muted">Nothing pinned yet. Tap the ★ on a unit, stratagem, enhancement, detachment or rule to keep it here.</p>}
       <div className="card">
         {pins?.map((p) => (

@@ -49,11 +49,11 @@ export function FactionScreen() {
   }, [index, catalogueId]);
 
   const title = (cat?.name ?? 'Faction').replace(/^(Imperium|Chaos|Xenos|Aeldari) - (Adeptus Astartes - )?/, '');
-  if (error) return <Screen title={title} back><p className="muted">{error}</p></Screen>;
-  if (!data) return <Screen title={title} back><p className="muted">Loading…</p></Screen>;
+  if (error) return <Screen title={title} back="/reference"><p className="muted">{error}</p></Screen>;
+  if (!data) return <Screen title={title} back="/reference"><p className="muted">Loading…</p></Screen>;
 
   return (
-    <Screen title={title} back>
+    <Screen title={title} back="/reference">
       {data.armyRules.length > 0 && (
         <Collapse title={`Army rules · ${data.armyRules.length}`}>
           {data.armyRules.map((r) => (

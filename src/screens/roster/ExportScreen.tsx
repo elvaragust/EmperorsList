@@ -42,9 +42,9 @@ export function ExportScreen() {
     }
   };
 
-  if (!roster) return <Screen title="Export" back>{null}</Screen>;
+  if (!roster) return <Screen title="Export" back={`/roster/${id}`}>{null}</Screen>;
   return (
-    <Screen title="Export & share" back>
+    <Screen title="Export & share" back={`/roster/${id}`}>
       <div className="section-label">Text (same layout as the official app)</div>
       <textarea className="input" readOnly value={text} style={{ minHeight: 220, fontSize: 13 }} aria-label="List as text" />
       <div className="btn-row">
