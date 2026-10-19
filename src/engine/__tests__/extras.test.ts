@@ -153,3 +153,34 @@ describe('core rules page', () => {
     setCoreSections([]);
   });
 });
+
+describe('core rules page with numbered headings', () => {
+  it('reads every h_number heading, names moves and abilities nicely, and skips tooltip copies', async () => {
+    const { parseCoreRules } = await import('../coreRules');
+    const html = `<h2 id="Moving-Units">Moving Units <span class="h_number">03.01</span></h2><p>Units move in the Movement phase, one at a time.</p>
+<div class="tooltip_templates"><span><div class="abName">FIGHTS FIRST<span class="h_number">24.13</span></div><p>Copy of the rule in a tooltip, longer than twenty characters.</p></span></div>
+<div class="mvName">FALL-BACK MOVE<span class="h_number">09.07</span></div><p>A unit that is engaged can fall back up to its Move characteristic.</p>
+<h3 id="Desperate-Escape">Desperate Escape <span class="h_number">09.07.01</span></h3><p>Roll for each model that would fall back over enemy models.</p>
+<div class="abName">[LETHAL HITS]<span class="h_number">24.23</span></div><p>Critical hits automatically wound the target.</p>
+<div class="abName">LEADER <span class="h_number">24.22</span> / SUPPORT <span class="h_number">24.34</span></div><p>Some characters can be attached to other units before the battle.</p>`;
+    const sections = parseCoreRules(html);
+    expect(sections.map((s) => `${s.num} ${s.title}`)).toEqual(['03.01 Moving Units', '09.07 Fall-Back Move', '09.07.01 Desperate Escape', '24.23 Lethal Hits', '24.22 Leader / Support']);
+    expect(sections[1]!.text).toContain('fall back up to');
+    expect(sections[1]!.text).not.toContain('Roll for each');
+    const { setCoreSections, findCoreSection } = await import('../rules/glossary');
+    setCoreSections(sections);
+    expect(findCoreSection('Fall Back')?.num).toBe('09.07');
+    expect(findCoreSection('Fell Back')?.num).toBe('09.07');
+    setCoreSections([]);
+  });
+});
+
+describe('Wahapedia rows over several lines', () => {
+  it('keeps reading a row until its closing "|"', () => {
+    const csv = 'id|name|description|\n1|Martial Ka’tah|Intro text.\n\n<b>CONSERVAI</b><br>More text.|\n2|Next|One line.|\n';
+    expect(parsePipeCsv(csv).map((r) => [r.name, r.description])).toEqual([
+      ['Martial Ka’tah', 'Intro text.\n<b>CONSERVAI</b><br>More text.'],
+      ['Next', 'One line.'],
+    ]);
+  });
+});

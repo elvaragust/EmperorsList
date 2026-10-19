@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeRoomCode, newLiveState, reduce, teamNames, type LivePlayer } from '../live';
+import { makeRoomCode, missionsOf, newLiveState, reduce, teamNames, teamsReady, turnOrder, type LivePlayer } from '../live';
 
 const p = (id: string, name: string): LivePlayer => ({ id, name, team: 'A', army: `${name}'s army`, faction: 'X', detachments: [] });
 
@@ -8,9 +8,9 @@ describe('live game reducer', () => {
     let s = newLiveState('ROOM42', p('h', 'Host'));
     s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
     expect(s.players.map((x) => x.team)).toEqual(['A', 'B']);
-    // A third player turns the lobby into a 2v2
+    // A third player turns the lobby into a 2v1
     const three = reduce(s, { t: 'join', player: p('x', 'Extra') }, 'x');
-    expect(three.mode).toBe('2v2');
+    expect(three.mode).toBe('2v1');
     expect(three.players).toHaveLength(3);
     // Only the host starts
     expect(reduce(s, { t: 'start' }, 'g')).toBe(s);
@@ -68,6 +68,104 @@ describe('live game reducer', () => {
     expect(s).toMatchObject({ turn: 'B', phase: 'command' });
     // The team whose turn it is can hand it back.
     expect(reduce(s, { t: 'turn' }, 'g').turn).toBe('A');
+  });
+
+  it('plays a 2v1 with the pair on either team', () => {
+    let s = newLiveState('R', p('h', 'Host'));
+    s = reduce(s, { t: 'setMode', mode: '2v1' }, 'h');
+    s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
+    s = reduce(s, { t: 'join', player: p('x', 'Extra') }, 'x');
+    expect(teamsReady(s)).toBe(true);
+    expect(s.players.map((x) => x.team).sort()).toEqual(['A', 'A', 'B']);
+    // The pair can be team B instead.
+    s = reduce(s, { t: 'setTeam', id: 'h', team: 'B' }, 'h');
+    expect(teamsReady(s)).toBe(true);
+    s = reduce(s, { t: 'setTeam', id: 'g', team: 'B' }, 'h');
+    expect(teamsReady(s)).toBe(false);
+  });
+
+  it('runs a three-player free-for-all turn by turn', () => {
+    let s = newLiveState('R', p('a', 'Ann'));
+    s = reduce(s, { t: 'setMode', mode: 'ffa' }, 'a');
+    s = reduce(s, { t: 'join', player: p('b', 'Bob') }, 'b');
+    s = reduce(s, { t: 'join', player: p('c', 'Cat') }, 'c');
+    expect(s.players.map((x) => x.team)).toEqual(['A', 'B', 'C']);
+    s = reduce(s, { t: 'setFirst', team: 'B' }, 'a');
+    expect(turnOrder(s)).toEqual(['B', 'C', 'A']);
+    s = reduce(s, { t: 'start' }, 'a');
+    expect(s.vp.C).toBeDefined();
+    const fights = (st: typeof s) => {
+      for (let i = 0; i < 5; i++) st = reduce(st, { t: 'next' }, 'a');
+      return st;
+    };
+    s = fights(s);
+    expect(s).toMatchObject({ round: 1, turn: 'C', phase: 'command' });
+    s = fights(s);
+    expect(s).toMatchObject({ round: 1, turn: 'A' });
+    s = fights(s);
+    expect(s).toMatchObject({ round: 2, turn: 'B' });
+    // Back over the round boundary.
+    s = reduce(s, { t: 'prev' }, 'a');
+    expect(s).toMatchObject({ round: 1, turn: 'A', phase: 'fight' });
+    s = reduce(s, { t: 'vp', team: 'C', kind: 'primary', round: 0, value: 7 }, 'c');
+    s = reduce(s, { t: 'end' }, 'a');
+    expect(s.winner).toBe('C');
+  });
+
+  it('shares one CP pool per team when asked', () => {
+    let s = newLiveState('R', p('a1', 'Ann'));
+    s = reduce(s, { t: 'setMode', mode: '2v2' }, 'a1');
+    for (const [id, n] of [['b1', 'Bob'], ['a2', 'Cat'], ['b2', 'Dan']]) s = reduce(s, { t: 'join', player: p(id!, n!) }, id!);
+    expect(s.sharedCp).toBe(true);
+    s = reduce(s, { t: 'start' }, 'a1');
+    s = reduce(s, { t: 'cp', id: 'a2', value: 4 }, 'a1');
+    expect([s.cp.a1, s.cp.a2, s.cp.b1]).toEqual([4, 4, 1]);
+    s = reduce(s, { t: 'strat', name: 'Command Re-roll', cost: 1 }, 'a2');
+    expect([s.cp.a1, s.cp.a2]).toEqual([3, 3]);
+    // Not the other team's pool.
+    expect(reduce(s, { t: 'cp', id: 'b1', value: 9 }, 'a1')).toBe(s);
+    // Separate pools when turned off.
+    let t = reduce(newLiveState('R', p('a1', 'Ann')), { t: 'setSharedCp', on: false }, 'a1');
+    t = reduce(t, { t: 'join', player: p('b1', 'Bob') }, 'b1');
+    t = reduce(t, { t: 'start' }, 'a1');
+    expect(reduce(t, { t: 'cp', id: 'b1', value: 3 }, 'a1')).toBe(t);
+  });
+
+  it('keeps each team secondaries in the shared state, read by everyone', () => {
+    let s = newLiveState('R', p('a1', 'Ann'));
+    s = reduce(s, { t: 'setMode', mode: '2v2' }, 'a1');
+    for (const [id, n] of [['b1', 'Bob'], ['a2', 'Cat'], ['b2', 'Dan']]) s = reduce(s, { t: 'join', player: p(id!, n!) }, id!);
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'mode', mode: 'tactical', deck: ['Cleanse', 'Plunder', 'Beacon', 'Outflank'] } }, 'a2');
+    // The other team can't change it.
+    expect(reduce(s, { t: 'sec', team: 'A', op: { op: 'draw', n: 2, key: '1-A' } }, 'b1')).toBe(s);
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'draw', n: 2, key: '1-A' } }, 'a1');
+    expect(missionsOf(s, 'A').tactical?.active).toEqual(['Cleanse', 'Plunder']);
+    // Once per turn.
+    expect(reduce(s, { t: 'sec', team: 'A', op: { op: 'draw', n: 2, key: '1-A' } }, 'a2')).toBe(s);
+    // Redraw as often as you like.
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'redraw', name: 'Cleanse' } }, 'a2');
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'redraw', name: 'Plunder' } }, 'a2');
+    expect(missionsOf(s, 'A').tactical).toMatchObject({ active: ['Beacon', 'Outflank'], redraws: 2 });
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'primaryDone', round: 1, done: true } }, 'a1');
+    expect(missionsOf(s, 'A').primaryDone).toEqual([1]);
+    expect(missionsOf(s, 'B')).toEqual({ fixed: [] });
+  });
+
+  it('works out primaries from the dispositions; a team shares one', () => {
+    let s = newLiveState('R', p('a1', 'Ann'));
+    s = reduce(s, { t: 'setMode', mode: '2v2' }, 'a1');
+    for (const [id, n] of [['b1', 'Bob'], ['a2', 'Cat'], ['b2', 'Dan']]) s = reduce(s, { t: 'join', player: p(id!, n!) }, id!);
+    s = reduce(s, { t: 'setPrimary', disposition: 'Purge the Foe' }, 'a2');
+    expect(s.players.filter((x) => x.team === 'A').map((x) => x.disposition)).toEqual(['Purge the Foe', 'Purge the Foe']);
+    expect(s.players.find((x) => x.id === 'a1')!.primary).toBeUndefined();
+    s = reduce(s, { t: 'setPrimary', disposition: 'Take and Hold' }, 'b1');
+    expect(s.players.find((x) => x.id === 'a1')!.primary).toBe('Unstoppable Force');
+    expect(s.players.find((x) => x.id === 'b2')!.primary).toBe('Immovable Object');
+    // Picked by hand: kept when the dispositions change.
+    s = reduce(s, { t: 'setPrimary', mission: 'Sabotage', manual: true }, 'a1');
+    s = reduce(s, { t: 'setPrimary', disposition: 'Disruption' }, 'b2');
+    expect(s.players.find((x) => x.id === 'a2')!.primary).toBe('Sabotage');
+    expect(s.players.find((x) => x.id === 'b1')!.primary).toBe('Delaying Action');
   });
 
   it('makes readable room codes', () => {

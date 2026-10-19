@@ -7,7 +7,7 @@ import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
 import { autoFill, instAt, setForWholeUnit, setOptionCount, type SelPath } from '@/engine/rules/edit';
 import { datasheet, unitModels } from '@/engine/rules/models';
-import { modelTypes, setModelsWithOption, type ModelGroup, type ModelOption, type ModelType } from '@/engine/rules/modelTypes';
+import { groupVariants, modelTypes, setModelsWithOption, variantOf, type ModelGroup, type ModelOption, type ModelType } from '@/engine/rules/modelTypes';
 import { RosterEngine, WARLORD_CATEGORY, type OptionView } from '@/engine/rules/rosterEngine';
 import type { DataIndex } from '@/engine/bsdata/index';
 import { GearDetails, hasGearInfo } from '@/ui/GearDetails';
@@ -241,10 +241,27 @@ export function UnitScreen() {
       )}
 
       {engine &&
-        types.map((t) => (
+        groupVariants(types).flatMap((g) => [
+          ...(g.types.length > 1
+            ? [
+                <div key={`v-${g.base}`} className="model-band variant-head">
+                  <span style={{ flex: 1 }}>
+                    {g.base}
+                    <span className="sub">
+                      {g.types.length} weapon variants · + adds a model with that loadout
+                    </span>
+                  </span>
+                  <span className="num" style={{ padding: '0 12px' }}>
+                    {g.types.reduce((n, t) => n + t.count, 0)}
+                  </span>
+                </div>,
+              ]
+            : []),
+          ...g.types.map((t) => (
           <ModelSection
             key={t.key || 'self'}
             t={t}
+            variant={g.types.length > 1 ? variantOf(t.name).variant ?? 'standard' : undefined}
             single={singleModel}
             index={index}
             hideGroups={pickKeys}
@@ -271,7 +288,13 @@ export function UnitScreen() {
             }}
             onCount={(n) => commit(setOptionCount(engine, unit, [], t.key, n))}
             onCarry={(optionKey, n, group) => {
-              let next = setModelsWithOption(engineFor, unit, t.key, optionKey, n, group);
+              const before = [...(group?.options ?? []), ...t.extras].find((o) => o.key === optionKey)?.carried ?? 0;
+              // Several models: + and − change only this weapon; nothing is swapped out by itself.
+              let next = setModelsWithOption(engineFor, unit, t.key, optionKey, n, group, undefined, t.count > 1);
+              if (next === unit && n > before) {
+                showToast(`Every ${t.name} already has one of these — use − on another first`);
+                return;
+              }
               const after = modelTypes(engineFor(next), unit.id).find((x) => x.key === t.key);
               const carried = [...(after?.groups.flatMap((g) => g.options) ?? []), ...(after?.extras ?? [])].find((o) => o.key === optionKey)?.carried;
               if (carried !== undefined && carried !== Math.min(n, t.count)) {
@@ -285,7 +308,8 @@ export function UnitScreen() {
               saveUnit(next);
             }}
           />
-        ))}
+          )),
+        ])}
 
       {engine && others.length > 0 && (
         <Collapse title="Other options" defaultOpen={others.some((o) => o.selected > 0)}>
@@ -316,7 +340,24 @@ export function UnitScreen() {
           <div className="section-label">Datasheet{attached.length ? ` · with ${attached.map((a) => a.nickname || a.name).join(' & ')}` : ''}</div>
           {(() => {
             const m = engine && attached.length ? combinedModels(engine, [unit, ...attached]) : ownModels;
-            return <DatasheetView sheet={sheet} weapons={[...m.weapons.values()]} index={index} attached={leaderSheets} detachmentRules={unitDetRules} weaponCounts={weaponCounts(m.loadouts, m.models)} weaponGroups={(m as { byUnit?: { name: string; ids: string[] }[] }).byUnit} />;
+            return (
+              <DatasheetView
+                sheet={sheet}
+                weapons={[...m.weapons.values()]}
+                index={index}
+                attached={leaderSheets}
+                detachmentRules={unitDetRules}
+                weaponCounts={weaponCounts(m.loadouts, m.models)}
+                weaponGroups={(m as { byUnit?: { name: string; ids: string[] }[] }).byUnit}
+                weaponNotes={unit.weaponNotes}
+                onWeaponNote={(weaponId, text) => {
+                  const notes = { ...unit.weaponNotes };
+                  if (text) notes[weaponId] = text;
+                  else delete notes[weaponId];
+                  saveUnit({ ...unit, weaponNotes: Object.keys(notes).length ? notes : undefined });
+                }}
+              />
+            );
           })()}
         </div>
       )}
@@ -391,7 +432,10 @@ function ModelSection({
   index,
   nested,
   hideGroups,
+  variant,
 }: {
+  /** One weapon variant of a model shown under its model's band ("w/Pyreblaster"). */
+  variant?: string;
   hideGroups?: Set<string>;
   index?: DataIndex;
   /** Choices inside a picked option (e.g. "Pistol and Melee Weapon" → which pistol, which melee weapon). */
@@ -409,9 +453,9 @@ function ModelSection({
   const empty = t.count === 0;
   return (
     <>
-      <div className={`model-band ${empty ? 'empty' : ''}`}>
+      <div className={`model-band ${empty ? 'empty' : ''} ${variant ? 'variant' : ''}`}>
         <span style={{ flex: 1 }}>
-          {t.name}
+          {variant ?? t.name}
           {t.group && !single && (
             <span className="sub">
               {t.group.name} · {t.group.selected} of {t.group.max > 0 ? (t.group.min === t.group.max ? t.group.max : `${t.group.min}–${t.group.max}`) : `${t.group.min}+`}
@@ -430,20 +474,25 @@ function ModelSection({
               ))}
             </div>
           )}
-          {t.groups.filter((g) => !hideGroups?.has(g.key)).map((g) => (
+          {t.groups.filter((g) => !hideGroups?.has(g.key)).map((g) => {
+            const chosen = g.options.reduce((n, o) => n + o.carried, 0);
+            const short = g.chooseOne && !g.optional && t.count > 1 ? t.count - chosen : 0;
+            return (
             <div className="gear-box" key={g.key}>
               <div className="gear-box-head">
                 {g.name}
                 <span className="muted small" style={{ fontWeight: 500 }}>
                   {' '}
-                  · {g.chooseOne ? (t.count > 1 ? `one per model — set how many carry each` : 'choose one') : 'any of these'}
+                  · {g.chooseOne ? (t.count > 1 ? `one per model · ${chosen} of ${t.count} chosen` : 'choose one') : 'any of these'}
                 </span>
+                {short > 0 && <div className="small issue-title">{short === 1 ? '1 model has' : `${short} models have`} no {g.name.toLowerCase()} yet — use + on one</div>}
               </div>
               {g.options.map((o) => (
                 <GearRow key={o.key} o={o} count={t.count} onSet={(n) => onCarry(o.key, n, g)} radio={g.chooseOne && t.count === 1} lockOn={g.chooseOne && !g.optional && t.count === 1} index={index} nested={nested?.(t, o)} />
               ))}
             </div>
-          ))}
+            );
+          })}
           {t.extras.length > 0 && (
             <div className="gear-box">
               <div className="gear-box-head">Options</div>

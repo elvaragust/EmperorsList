@@ -7,7 +7,7 @@ import type { RawProfile } from '@/engine/bsdata/raw';
 import type { Datasheet } from '@/engine/rules/models';
 import { ruleText } from '@/engine/rules/nodes';
 import type { WeaponProfile } from '@/engine/types';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Collapse } from './Collapse';
 import { RulesText, Term } from './RulesText';
 import { useRulePopup } from './RulePopup';
@@ -41,6 +41,9 @@ export function WeaponTable({
   melee,
   counts,
   groups,
+  gone,
+  notes,
+  onNote,
 }: {
   weapons: WeaponProfile[];
   index?: DataIndex;
@@ -48,7 +51,14 @@ export function WeaponTable({
   counts?: Map<string, number>;
   /** Weapons unit by unit (a squad and the characters leading it): listed with a divider between units. */
   groups?: { name: string; ids: string[] }[];
+  /** Weapons no living model carries any more: shown greyed out. */
+  gone?: Set<string>;
+  /** The player's own note per weapon id ("+1 attacks"), shown under its name. */
+  notes?: Record<string, string>;
+  /** Tap a weapon's name to write a note under it. */
+  onNote?: (weaponId: string, text: string) => void;
 }) {
+  const [editing, setEditing] = useState<string>();
   if (!weapons.length) return null;
   const byId = new Map(weapons.map((w) => [w.id, w]));
   const sections = (groups ?? [])
@@ -59,11 +69,25 @@ export function WeaponTable({
   const row = (w: WeaponProfile, k: string) => {
     const first = !seen.has(w.id);
     seen.add(w.id);
+    const note = notes?.[w.id];
+    const isGone = gone?.has(w.id);
     return (
-      <tr key={k} id={first ? `weapon-${w.id}` : undefined}>
+      <Fragment key={k}>
+      <tr id={first ? `weapon-${w.id}` : undefined} className={isGone ? 'gone' : undefined}>
         <td>
           {(counts?.get(w.id) ?? 0) > 1 && <span className="weapon-count">{counts!.get(w.id)}×</span>}
-          {w.name}
+          {onNote ? (
+            <button className="weapon-name-btn" onClick={() => setEditing(editing === k ? undefined : k)} aria-expanded={editing === k} title="Tap to add a note">
+              {w.name}
+              <span className="note-pen" aria-hidden="true">
+                ✎
+              </span>
+            </button>
+          ) : (
+            w.name
+          )}
+          {isGone && <span className="gone-tag">no model left</span>}
+          {note && editing !== k && <div className="weapon-note">{note}</div>}
           {w.keywords.length > 0 && (
             <div className="wkw">
               {w.keywords.map((kw, i) => (
@@ -82,6 +106,28 @@ export function WeaponTable({
         <td>{w.ap}</td>
         <td>{w.damage}</td>
       </tr>
+      {onNote && editing === k && (
+        <tr className="note-row">
+          <td colSpan={7}>
+            <input
+              className="input"
+              autoFocus
+              defaultValue={note ?? ''}
+              placeholder="Note, e.g. +1 attacks"
+              aria-label={`Note for ${w.name}`}
+              onBlur={(e) => {
+                onNote(w.id, e.target.value.trim());
+                setEditing(undefined);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') setEditing(undefined);
+              }}
+            />
+          </td>
+        </tr>
+      )}
+      </Fragment>
     );
   };
   return (
@@ -259,7 +305,15 @@ export function DatasheetView({
   detachmentRules = [],
   weaponCounts,
   weaponGroups,
+  goneWeapons,
+  weaponNotes,
+  onWeaponNote,
 }: {
+  /** Weapons no living model carries (in a game): greyed out until the model comes back. */
+  goneWeapons?: Set<string>;
+  /** The player's notes per weapon id, and how to change one (tap a weapon's name). */
+  weaponNotes?: Record<string, string>;
+  onWeaponNote?: (weaponId: string, text: string) => void;
   /** The unit's and each leader's weapons, for dividers in the weapon tables. */
   weaponGroups?: { name: string; ids: string[] }[];
   /** How many of each weapon the unit carries ("2×" next to the name). */
@@ -289,9 +343,9 @@ export function DatasheetView({
       <StatTable profiles={profiles} />
       {showWeapons && (
         <>
-          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} counts={weaponCounts} groups={weaponGroups} />
+          <WeaponTable weapons={weapons.filter((w) => !w.melee)} index={index} melee={false} counts={weaponCounts} groups={weaponGroups} gone={goneWeapons} notes={weaponNotes} onNote={onWeaponNote} />
           <div style={{ height: 8 }} />
-          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee counts={weaponCounts} groups={weaponGroups} />
+          <WeaponTable weapons={weapons.filter((w) => w.melee)} index={index} melee counts={weaponCounts} groups={weaponGroups} gone={goneWeapons} notes={weaponNotes} onNote={onWeaponNote} />
         </>
       )}
       <div className="section-label">Abilities</div>

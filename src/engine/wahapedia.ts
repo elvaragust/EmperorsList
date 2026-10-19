@@ -38,6 +38,9 @@ export function parsePipeCsv(text: string): Record<string, string>[] {
     return parts;
   };
   const header = split(lines[0]!).map((h) => h.trim().toLowerCase());
+  // Files whose header ends with "|" end every row with one too: a row isn't
+  // finished until that last "|" (the last column often spans several lines).
+  const closed = lines[0]!.trimEnd().endsWith('|');
   const rows: Record<string, string>[] = [];
   let pending = '';
   for (const raw of lines.slice(1)) {
@@ -45,6 +48,7 @@ export function parsePipeCsv(text: string): Record<string, string>[] {
     pending = pending ? `${pending}\n${raw}` : raw;
     const parts = split(pending);
     if (parts.length < header.length) continue;
+    if (closed && !pending.trimEnd().endsWith('|')) continue;
     const row: Record<string, string> = {};
     header.forEach((h, i) => (row[h] = (parts[i] ?? '').trim()));
     rows.push(row);
@@ -68,6 +72,9 @@ export function htmlToText(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&rsquo;|&lsquo;/g, "'")
     .replace(/&ldquo;|&rdquo;/g, '"')
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

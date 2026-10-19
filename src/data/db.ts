@@ -67,15 +67,21 @@ export interface SavedGame {
   secondaries?: { me: string; them: string };
   /** Fixed: two Fixed-marked cards all game. Tactical: draw two each Command phase. */
   secondaryMode?: { me?: 'fixed' | 'tactical'; them?: 'fixed' | 'tactical' };
+  /** Battle rounds whose primary I have scored (the card is locked for that round until enabled again). */
+  primaryDone?: number[];
   /** My Tactical secondaries deck and hand. */
   tactical?: import('@/engine/missions').TacticalState;
   /** Force Dispositions for this game (mine defaults to the list's). */
   disposition?: string;
   opponentDisposition?: string;
+  /** The primary was picked by hand instead of from the two Force Dispositions. */
+  manualPrimary?: boolean;
   /** Attacker or Defender, from the deployment roll-off. */
   role?: 'attacker' | 'defender';
   /** The opponent's army read from the list they pasted (for read-only unit views). */
   opponentRoster?: Roster;
+  /** Notes typed under weapons during this game (unit id -> weapon id -> text). Only for this game, never saved to the list. */
+  weaponNotes?: Record<string, Record<string, string>>;
   /** Wounds lost per model ("unitId/modelId" -> damage taken). */
   wounds?: Record<string, number>;
   checklist?: Record<string, boolean>;

@@ -1,0 +1,2 @@
+# Node scripts with a #! line must keep LF endings (Vite/Vitest can't parse them with CRLF on Windows).
+*.mjs text eol=lf

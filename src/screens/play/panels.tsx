@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/ui/Collapse';
 import { PinButton, pinId } from '@/ui/PinButton';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { db } from '@/data/db';
 import { abilityInPhase, type Phase } from '@/engine/game';
 import type { UnitSummary } from '@/engine/live';
@@ -115,9 +115,18 @@ export interface UnitLeft {
   name: string;
   total: number;
   dead: number;
+  /** Points of the unit and the characters leading it. */
+  points: number;
 }
 
-/** Bodyguard units (with attached characters folded in) and how many models are left. */
+/** A unit's name: its nickname, the cached name, or (for a list shared as ids only) the data's name. */
+export function unitName(engine: RosterEngine, u: { id: string; name: string; nickname?: string }): string {
+  if (u.nickname || u.name) return u.nickname || u.name;
+  const inst = engine.unitInst(u.id);
+  return inst ? engine.ev.name(inst) : 'Unit';
+}
+
+/** Bodyguard units (with attached characters folded in), how many models are left and their points. */
 export function unitsLeft(engine: RosterEngine, casualties: Record<string, string[]>): UnitLeft[] {
   return engine.roster.units
     .filter((u) => !u.leaderOf || !engine.roster.units.some((b) => b.id === u.leaderOf))
@@ -125,29 +134,32 @@ export function unitsLeft(engine: RosterEngine, casualties: Record<string, strin
       const group = [u, ...engine.roster.units.filter((x) => x.leaderOf === u.id)];
       let total = 0;
       let dead = 0;
+      let points = 0;
       for (const m of group) {
         const n = unitModels(engine, m.id).models.length;
         total += n;
         dead += Math.min(n, casualties[m.id]?.length ?? 0);
+        points += engine.unitPoints(m.id);
       }
-      return { id: u.id, name: group.map((x) => x.nickname || x.name).join(' + '), total, dead };
+      return { id: u.id, name: group.map((x) => unitName(engine, x)).join(' + '), total, dead, points };
     });
 }
 
-export const toSummaries = (list: UnitLeft[]): UnitSummary[] => list.map((u) => ({ name: u.name, alive: u.total - u.dead, total: u.total }));
+export const toSummaries = (list: UnitLeft[]): UnitSummary[] => list.map((u) => ({ name: u.name, alive: u.total - u.dead, total: u.total, points: u.points }));
 
 export function UnitsPanel({ gameId, units }: { gameId: string; units: UnitLeft[] }) {
   return (
     <div className="card">
       {units.map((u) => (
-        <Link key={u.id} className="unit-row" to={`/play/${gameId}/unit/${u.id}`}>
+        <NavLink key={u.id} className={({ isActive }) => `unit-row${isActive ? ' active' : ''}`} to={`/play/${gameId}/unit/${u.id}`}>
           <span style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, textDecoration: u.dead >= u.total ? 'line-through' : undefined }}>{u.name}</div>
             <div className="muted small">
               {u.total - u.dead}/{u.total} models
             </div>
           </span>
-        </Link>
+          <span className="num muted small">{u.points} pts</span>
+        </NavLink>
       ))}
     </div>
   );
@@ -161,6 +173,7 @@ export function SummaryList({ units }: { units: UnitSummary[] }) {
           <span style={{ flex: 1, textDecoration: u.alive <= 0 ? 'line-through' : undefined }}>{u.name}</span>
           <span className="muted small">
             {u.alive}/{u.total}
+            {u.points ? ` · ${u.points} pts` : ''}
           </span>
         </div>
       ))}
@@ -211,11 +224,22 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
   const index = engine?.index;
   const data = useMemo(() => {
     if (!engine) return undefined;
-    const wpArmy = new Map((imported ?? []).filter((r) => r.kind === 'armyRule').map((r) => [r.name.toLowerCase(), r]));
+    const wpArmyRules = (imported ?? []).filter((r) => r.kind === 'armyRule');
+    const faction = engine.roster.factionName;
+    // Same name, ignoring punctuation ("Ka’tah" / "Ka'tah"); this army's own copy first.
+    const wpFor = (name: string) => {
+      const hits = wpArmyRules.filter((r) => sameName(r.name, name));
+      return hits.find((r) => sameName(r.faction, faction)) ?? hits[0];
+    };
     const army = armyRules(engine).map((r) => {
-      const wp = wpArmy.get(r.name.toLowerCase());
+      const wp = wpFor(r.name);
       return { name: r.name, text: wp?.text ?? ruleText(r), wp: Boolean(wp) };
     });
+    // Wahapedia lists more army rules for this faction than the unit data links (e.g. Dark Pacts for Thousand Sons).
+    const generic = /^(special move types|designer.s note|super-heavy walker|leader|support|deep strike|scouts|infiltrators|stealth|lone operative|feel no pain|deadly demise|fights first|hover|firing deck|damaged)$/i;
+    const more = wpArmyRules
+      .filter((r) => sameName(r.faction, faction) && !generic.test(r.name) && !army.some((a) => sameName(a.name, r.name)))
+      .map((r) => ({ name: r.name, text: r.text, wp: true }));
     const dets = engine.roster.detachmentNames ?? [];
     const wpDet = (imported ?? []).filter((r) => r.kind === 'detachmentRule' && dets.some((d) => sameName(d, r.detachment ?? '')));
     const fromData = detachmentRules(engine);
@@ -223,7 +247,7 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
       const wp = wpDet.filter((r) => sameName(r.detachment ?? '', d));
       return { detachment: d, rules: wp.length ? wp.map((r) => ({ name: r.name, text: r.text, wp: true })) : fromData.filter((r) => r.detachment === d).map((r) => ({ name: r.name, text: r.text, wp: false })) };
     });
-    return { army, detRules };
+    return { army, more, detRules };
   }, [engine, imported]);
   if (!data) return <p className="muted">Loading…</p>;
   const item = (r: { name: string; text: string; wp: boolean }, key: string, open = false) => (
@@ -237,8 +261,16 @@ export function RulesPanel({ engine }: { engine?: RosterEngine }) {
       <div className="section-label">Army rules</div>
       <div className="card" style={{ padding: '0 12px' }}>
         {data.army.map((r) => item(r, `a-${r.name}`, data.army.length === 1))}
-        {data.army.length === 0 && <div className="row muted small">No army rules found in the data.</div>}
+        {data.army.length === 0 && data.more.length === 0 && <div className="row muted small">No army rules found in the data.</div>}
       </div>
+      {data.more.length > 0 && (
+        <>
+          <div className="section-label">More {engine?.roster.factionName} army rules · check which apply</div>
+          <div className="card" style={{ padding: '0 12px' }}>
+            {data.more.map((r) => item(r, `m-${r.name}`))}
+          </div>
+        </>
+      )}
       {data.detRules.map((d) => (
         <div key={d.detachment}>
           <div className="section-label">{d.detachment}</div>

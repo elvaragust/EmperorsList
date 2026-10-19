@@ -24,7 +24,25 @@ export const MISSION_DECK = {
   twists: ['Nowhere to Hide', 'Mirrored World', 'Scrambled Communications', 'Martial Pride', 'Ruinscape', 'Night Fighting'],
 };
 
+/**
+ * Force Dispositions. Each one's primary missions above are listed in this
+ * same order of the OPPONENT's disposition: on the Purge the Foe card, the
+ * mission under the Take and Hold symbol is the first one (Unstoppable Force).
+ */
 export const DISPOSITIONS = Object.keys(MISSION_DECK.primaries);
+
+/** Your primary mission: the one on your Force Disposition card under your opponent's symbol. */
+export function primaryFor(mine?: string, theirs?: string): string | undefined {
+  if (!mine || !theirs) return undefined;
+  const i = DISPOSITIONS.indexOf(theirs);
+  return i >= 0 ? MISSION_DECK.primaries[mine]?.[i] : undefined;
+}
+
+/** For each disposition you may pick: the primary it gives you against theirs. */
+export function primaryOptions(allowed: string[], theirs?: string): { disposition: string; primary?: string }[] {
+  const list = allowed.length ? DISPOSITIONS.filter((d) => allowed.includes(d)) : DISPOSITIONS;
+  return list.map((d) => ({ disposition: d, primary: primaryFor(d, theirs) }));
+}
 
 /** Secondary cards you may pick as Fixed: the deck's Fixed-marked cards (from card text when loaded). */
 export function fixedSecondaries(tags?: Map<string, string[]>): string[] {
@@ -60,8 +78,10 @@ export interface TacticalState {
   discarded: string[];
   /** Discarded cards that gave 1CP (taken back if the discard is undone). */
   discardCp?: string[];
-  /** The once-per-battle "spend 1CP: discard one and draw a new one" has been used. */
+  /** Older saves: the once-per-battle redraw was used. Redraws are now unlimited and counted in `redraws`. */
   newOrdersUsed?: boolean;
+  /** How many times "spend 1CP: discard one and draw a new one" was used. */
+  redraws?: number;
   /** Battle round + turn of the last draw, so it is offered once per Command phase. */
   drawnFor?: string;
 }
@@ -103,6 +123,71 @@ export function restoreTactical(t: TacticalState, name: string): TacticalState {
   const cp = t.discardCp ?? [];
   const c = i >= 0 ? cp.lastIndexOf(name) : -1;
   return { ...t, discarded, scored, discardCp: c >= 0 ? cp.filter((_, k) => k !== c) : cp, active: [...t.active, name] };
+}
+
+/**
+ * Everything about one side's missions during a battle: how they play
+ * secondaries (two Fixed cards, or a Tactical deck and hand) and in which
+ * rounds the primary has been scored. In a live game each team has one, kept
+ * in the shared state, so teammates manage it together and opponents can read it.
+ */
+export interface SecondaryState {
+  mode?: 'fixed' | 'tactical';
+  fixed: string[];
+  tactical?: TacticalState;
+  /** Battle rounds whose primary has been scored (its card is locked until enabled again). */
+  primaryDone?: number[];
+}
+
+export type SecOp =
+  /** Tactical needs a shuffled deck: the phone that picks it shuffles, so every copy gets the same order. */
+  | { op: 'mode'; mode: 'fixed' | 'tactical'; deck?: string[] }
+  | { op: 'fixed'; cards: string[] }
+  /** Draw up to two at the start of a Command phase; `key` (round-turn) makes it once per turn. */
+  | { op: 'draw'; n: number; key: string }
+  | { op: 'score'; name: string; round: number }
+  | { op: 'discard'; name: string }
+  | { op: 'restore'; name: string }
+  /** Spend 1CP: discard a card and draw a new one. As many times as you like. */
+  | { op: 'redraw'; name: string }
+  | { op: 'primaryDone'; round: number; done: boolean };
+
+export const emptySecondaries = (): SecondaryState => ({ fixed: [] });
+
+export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
+  const t = s.tactical;
+  switch (o.op) {
+    case 'mode':
+      if (o.mode === s.mode) return s;
+      return {
+        ...s,
+        mode: o.mode,
+        fixed: o.mode === 'fixed' ? s.fixed : [],
+        tactical: o.mode === 'tactical' ? (o.deck ? { deck: [...o.deck], active: [], scored: [], discarded: [] } : newTactical(MISSION_DECK.secondaries)) : undefined,
+      };
+    case 'fixed':
+      return { ...s, fixed: o.cards.slice(0, 2) };
+    case 'draw':
+      if (!t || t.drawnFor === o.key) return s;
+      return { ...s, tactical: { ...drawTactical(t, o.n), drawnFor: o.key } };
+    case 'score':
+      return t && t.active.includes(o.name) ? { ...s, tactical: scoreTactical(t, o.name, o.round) } : s;
+    case 'discard':
+      return t && t.active.includes(o.name) ? { ...s, tactical: discardTactical(t, o.name) } : s;
+    case 'restore':
+      return t ? { ...s, tactical: restoreTactical(t, o.name) } : s;
+    case 'redraw':
+      if (!t || !t.active.includes(o.name)) return s;
+      return { ...s, tactical: { ...drawTactical(discardTactical(t, o.name), 1), redraws: (t.redraws ?? 0) + 1 } };
+    case 'primaryDone': {
+      const set = new Set(s.primaryDone ?? []);
+      if (o.done) set.add(o.round);
+      else set.delete(o.round);
+      return { ...s, primaryDone: [...set].sort((a, b) => a - b) };
+    }
+    default:
+      return s;
+  }
 }
 
 /** Primary missions, with the ones for your Force Disposition first. */

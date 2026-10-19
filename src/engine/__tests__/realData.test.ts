@@ -349,7 +349,7 @@ describe.skipIf(!have)('squads that must share a weapon', () => {
   it('picking the sergeant weapon changes the whole Aggressor Squad', async () => {
     const { setForWholeUnit } = await import('../rules/edit');
     const index = load();
-    const sm = [...index.catalogues.values()].find((c) => /Space Marines/.test(c.name))!;
+    const sm = [...index.catalogues.values()].find((c) => /^Imperium - .*Space Marines$/.test(c.name))!;
     const roots = rootOptions(index, sm.id);
     let roster = blank(sm.id);
     roster = setBattleSize(new RosterEngine(index, roster, roots), roster, 'strikeForce');
@@ -367,7 +367,7 @@ describe.skipIf(!have)('model kinds and per-model wargear counts', () => {
   it('lists Crusader Squad model kinds and lets 1 Initiate... style counts change', async () => {
     const { modelTypes, setModelsWithOption } = await import('../rules/modelTypes');
     const index = load();
-    const sm = [...index.catalogues.values()].find((c) => /Space Marines/.test(c.name))!;
+    const sm = [...index.catalogues.values()].find((c) => /^Imperium - .*Space Marines$/.test(c.name))!;
     const roots = rootOptions(index, sm.id);
     let roster = blank(sm.id);
     roster = setBattleSize(new RosterEngine(index, roster, roots), roster, 'strikeForce');

@@ -43,6 +43,18 @@ export async function saveGame(g: SavedGame) {
   await db.games.put(g);
 }
 
+/**
+ * Change the latest saved copy of a game in one transaction, so two changes
+ * made at once (a redraw and its CP) can't overwrite each other.
+ */
+export async function updateGame(id: string, fn: (g: SavedGame) => SavedGame | undefined) {
+  await db.transaction('rw', db.games, async () => {
+    const g = await db.games.get(id);
+    const next = g && fn(g);
+    if (next) await db.games.put(next);
+  });
+}
+
 export function withLog(g: SavedGame, text: string, kind: GameLogEntry['kind']): SavedGame {
   return { ...g, log: [...g.log, { at: Date.now(), round: g.round, turn: g.turn, phase: g.phase, text, kind }] };
 }
