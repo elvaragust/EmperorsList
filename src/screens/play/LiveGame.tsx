@@ -17,11 +17,13 @@ import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
+import { useHealthRecorder } from './games';
 import { ScoreRow } from './GameScreen';
-import { PhasePanel, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
+import { healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
+import { gameDuration, ResultLog, ResultView } from './ResultView';
 
 /** A game played live across phones (1v1, 2v2, 2v1 or three players). The host's phone is the referee. */
 export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
@@ -45,7 +47,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
   };
 
   // Share how many models (and points) each of my units has left, so the other players can see it.
-  const mine = useMemo(() => (engine ? toSummaries(unitsLeft(engine, game.casualties)) : undefined), [engine, game.casualties]);
+  const mine = useMemo(() => (engine ? toSummaries(unitsLeft(engine, game.casualties, game.wounds)) : undefined), [engine, game.casualties, game.wounds]);
   const sent = JSON.stringify(state?.units[myId] ?? null);
   useEffect(() => {
     if (!mine || !state || state.stage === 'lobby' || room?.status !== 'online') return;
@@ -158,15 +160,7 @@ function Lobby({ game, state, room, dispatch, allowed }: { game: SavedGame; stat
           </button>
         ))}
       </div>
-      {mode.sizes.some((n) => n > 1) && (
-        <button className="choice" role="switch" aria-checked={Boolean(state.sharedCp)} disabled={!isHost} onClick={() => dispatch({ t: 'setSharedCp', on: !state.sharedCp })}>
-          <span style={{ flex: 1 }}>
-            Teammates share CP
-            <div className="muted small">One CP pool per team: either teammate spends from it, both see the same number</div>
-          </span>
-          <span className={`switch ${state.sharedCp ? 'on' : ''}`} aria-hidden="true" />
-        </button>
-      )}
+      {mode.sizes.some((n) => n > 1) && <p className="small muted">Teammates share one CP pool: either of you can spend it, and you both see the same number.</p>}
 
       {teams.map((t) => (
         <div key={t}>
@@ -338,15 +332,20 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const lastTurn = order.indexOf(state.turn) === order.length - 1;
   const gameOver = state.phase === 'fight' && lastTurn && state.round >= ROUNDS;
   const nextText = gameOver ? 'end of game' : state.phase === 'fight' ? `${teamNames(state, lastTurn ? order[0]! : order[order.indexOf(state.turn) + 1]!)}'s turn` : PHASE_NAMES[PHASES[PHASES.indexOf(state.phase) + 1]!];
-  const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties) : []), [engine, game.casualties]);
+  const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties, game.wounds) : []), [engine, game.casualties, game.wounds]);
+  // Each team's health this round: my own units as I see them, everyone else's from what their phones share.
+  const health = Object.fromEntries(
+    teams.map((t) => [t, healthOf(membersOf(state, t).flatMap((p) => (p.id === myId ? toSummaries(myUnits) : (state.units[p.id] ?? []))))]),
+  );
+  useHealthRecorder(game.id, state.round, health, 'battle');
   const usedThisPhase = useLiveQuery(() => db.games.get(game.id).then((g) => g?.used ?? []), [game.id]);
-  const mine = (id: string) => free || id === myId;
   const myScore = totalScore(vpOf(state, myTeam));
   const best = Math.max(...others.map((t) => totalScore(vpOf(state, t))));
   // With a shared pool, one CP counter per team; otherwise one per player.
-  const cpRows = state.sharedCp
-    ? [myTeam, ...others].filter((t) => membersOf(state, t).length).map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Our CP' : 'Your CP') : `${teamNames(state, t)} CP`, id: membersOf(state, t)[0]!.id, editable: free || t === myTeam }))
-    : [...state.players].sort((a, b) => Number(b.team === myTeam) - Number(a.team === myTeam)).map((p) => ({ key: p.id, label: p.id === myId ? 'Your CP' : `${p.name} CP`, id: p.id, editable: mine(p.id), team: p.team }));
+  // One CP pool per team (teammates share it).
+  const cpRows = [myTeam, ...others]
+    .filter((t) => membersOf(state, t).length)
+    .map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Our CP' : 'Your CP') : `${teamNames(state, t)} CP`, id: membersOf(state, t)[0]!.id, editable: free || t === myTeam }));
   const secOf = (t: Team) => missionsOf(state, t);
   const primaryOfTeam = (t: Team) => membersOf(state, t).find((p) => p.primary)?.primary ?? (t === myTeam ? state.mission : undefined);
 
@@ -410,20 +409,12 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             onSwitch={mayAdvance ? () => dispatch({ t: 'turn' }) : undefined}
             switchTo={teamNames(state, order[(order.indexOf(state.turn) + 1) % order.length]!)}
           />
-          <div className="phase-strip" aria-label="Look at a phase (only on your screen)">
-            {PHASES.map((p) => (
-              <button key={p} className={`filter ${viewPhase === p ? 'on' : ''}`} onClick={() => setViewPhase(p)}>
-                {PHASE_NAMES[p]}
-                {p === state.phase ? ' •' : ''}
-              </button>
-            ))}
-          </div>
+          <PhaseStrip value={viewPhase} current={state.phase} onPick={setViewPhase} label="Look at a phase (only on your screen)" />
           <div className="card cp-card">
             {cpRows.map((r) => (
               <div key={r.key} className="counter" style={{ marginTop: 4 }}>
                 <span>
                   {r.label}
-                  {'team' in r && r.team ? <span className="muted small"> · Team {r.team}</span> : null}
                 </span>
                 {r.editable ? (
                   <Stepper value={state.cp[r.id] ?? 0} onChange={(v) => dispatch({ t: 'cp', id: r.id, value: v })} label={r.label} />
@@ -618,55 +609,44 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
   const [askDelete, setAskDelete] = useState(false);
   const isHost = game.live?.role === 'host';
   const myTeam = state.players.find((p) => p.id === game.live!.myId)?.team ?? 'A';
-  const result = state.winner === 'draw' ? 'DRAW' : state.winner === myTeam ? 'WIN' : 'LOSS';
-  const others = opponentsOf(state, myTeam);
+  const teams = teamsOf(state);
   return (
     <Screen title="Result" back="/play">
       <Status room={room} />
-      <div className="big-num" style={{ textAlign: 'center', margin: '12px 0' }}>
-        {[myTeam, ...others].map((t) => totalScore(vpOf(state, t))).join(' – ')}
-      </div>
-      <p className="tag" style={{ textAlign: 'center' }}>
-        {result} · {teamNames(state, myTeam)} vs {others.map((t) => teamNames(state, t)).join(' vs ')}
-      </p>
-      <p className="small muted" style={{ textAlign: 'center' }}>
-        {MODES[state.mode]?.label ?? state.mode} · {state.players.find((p) => p.team === myTeam)?.primary || state.mission || 'mission not set'}
-        {state.deployment ? ` · ${state.deployment}` : ''}
-      </p>
-      <label className="field">
-        <span>Your notes</span>
-        <textarea className="input" defaultValue={game.notes ?? ''} onBlur={(e) => db.games.update(game.id, { notes: e.target.value })} />
-      </label>
-      <div className="section-label">Log</div>
-      <div className="card">
-        {state.log.map((l, i) => (
-          <div key={i} className="row small">
-            <span className="muted" style={{ width: 30 }}>
-              R{l.round}
-            </span>
-            <span style={{ flex: 1 }}>{l.text}</span>
-          </div>
-        ))}
-      </div>
-      <div className="btn-row">
-        {isHost && (
-          <button className="btn" onClick={() => dispatch({ t: 'reopen' })}>
-            Reopen game
-          </button>
-        )}
-        <button
-          className="btn btn-ghost"
-          onClick={() => {
-            closeRoom(game.id);
-            navigate('/play');
-          }}
-        >
-          Close
-        </button>
-        <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
-          Delete game
-        </button>
-      </div>
+      <ResultView
+        game={game}
+        roundsPlayed={state.round}
+        sides={teams.map((t) => ({ key: t, name: teamNames(state, t), score: vpOf(state, t), isMe: t === myTeam }))}
+        details={[
+          MODES[state.mode]?.label ?? state.mode,
+          state.players.find((p) => p.team === myTeam)?.primary || state.mission || '',
+          state.deployment ?? '',
+          new Date(game.startedAt).toLocaleDateString(),
+          gameDuration(game) ?? '',
+        ]}
+        actions={
+          <>
+            {isHost && (
+              <button className="btn" onClick={() => dispatch({ t: 'reopen' })}>
+                Reopen for everyone
+              </button>
+            )}
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                closeRoom(game.id);
+                navigate('/play');
+              }}
+            >
+              Back to games
+            </button>
+            <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
+              Delete game
+            </button>
+          </>
+        }
+      />
+      <ResultLog entries={state.log} />
       <ConfirmSheet
         open={askDelete}
         onClose={() => setAskDelete(false)}
