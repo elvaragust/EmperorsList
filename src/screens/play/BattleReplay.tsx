@@ -154,7 +154,7 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
   const me = lines[0]!;
   // One chart at a time: VP, or army left. Switching plays the new one from the start.
   const [view, setView] = useState<'vp' | 'wounds'>('vp');
-  const showing = view === 'wounds' && anyHealth ? 'wounds' : 'vp';
+  const showing = view;
   const switchTo = (v: 'vp' | 'wounds') => {
     if (v === showing) return;
     setView(v);
@@ -170,8 +170,8 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
           <button role="tab" aria-selected={showing === 'vp'} className={showing === 'vp' ? 'on' : undefined} onClick={() => switchTo('vp')}>
             Victory points
           </button>
-          <button role="tab" aria-selected={showing === 'wounds'} className={showing === 'wounds' ? 'on' : undefined} onClick={() => switchTo('wounds')} disabled={!anyHealth} title={anyHealth ? undefined : 'Losses were not recorded for this game'}>
-            Army left
+          <button role="tab" aria-selected={showing === 'wounds'} className={showing === 'wounds' ? 'on' : undefined} onClick={() => switchTo('wounds')}>
+            Battle wounds
           </button>
         </div>
         <div className="replay-legend small">
@@ -187,7 +187,14 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
         {showing === 'vp' ? (
           <FlowChart key="vp" lines={lines} value={(l) => l.vp} max={niceVp} t={t} rounds={AXIS} played={rounds} title="Victory points, running total" unit="" onPick={pick} />
         ) : (
-          <FlowChart key="wounds" lines={lines} value={(l) => l.health} max={100} t={t} rounds={AXIS} played={rounds} title="Army left: share of each army's own starting wounds" unit="%" onPick={pick} />
+          anyHealth ? (
+            <FlowChart key="wounds" lines={lines} value={(l) => l.health} max={100} t={t} rounds={AXIS} played={rounds} title="Battle wounds: share of each army's starting wounds still on the table" unit="%" onPick={pick} />
+          ) : (
+            <div className="replay-empty">
+              <strong>No battle wounds recorded for this game</strong>
+              <span className="small muted">They're recorded from now on: remove models or mark wounds on your units during a game, and this chart shows how each army wore down round by round.</span>
+            </div>
+          )
         )}
 
         <div className="replay-readout" aria-live="polite">
@@ -205,7 +212,7 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
                   </>
                 ) : l.health ? (
                   <>
-                    <span className="num">{l.health[round]}% left</span>
+                    <span className="num">{l.health[round]}% wounds left</span>
                     <span className="muted small">{lost ? `lost ${lost}% this round` : 'no losses this round'}</span>
                   </>
                 ) : (
@@ -230,7 +237,7 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
           </div>
         </div>
         {showing === 'wounds' && !lines.slice(1).some((l) => l.health) && me.health && <p className="small muted replay-note">Only your army's losses are known in a game on one phone.</p>}
-        {!anyHealth && <p className="small muted replay-note">Army losses weren't recorded for this game (games from before this update, or with no units tracked).</p>}
+
       </div>
     </>
   );

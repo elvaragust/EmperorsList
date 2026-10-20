@@ -2906,41 +2906,46 @@ tr.pulse > td {
   }
 }
 
-/* CP: one short row, each side's name with its own − n + */
+/* CP: a row per side — name on the left (cut with …), "CP" and − n + on the right */
 .cp-bar {
   display: flex;
-  align-items: center;
-  gap: 6px 12px;
-  flex-wrap: wrap;
-  padding: 6px 10px;
+  flex-direction: column;
+  padding: 2px 10px;
 }
-.cp-bar-title {
+.cp-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  flex-wrap: nowrap !important;
+}
+.cp-side + .cp-side {
+  border-top: 1px solid var(--line-soft);
+}
+.cp-name {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-right {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp-label {
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
   color: var(--text-muted);
 }
-.cp-side {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-.cp-name {
-  min-width: 0;
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .cp-step {
-  flex: none;
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
@@ -2959,89 +2964,25 @@ tr.pulse > td {
   opacity: 0.35;
 }
 .cp-val {
-  min-width: 30px;
+  min-width: 32px;
   text-align: center;
   font-size: 18px;
 }
-
-/* All secondaries: every card, yours highlighted */
-.all-sec-btn {
-  margin: 0 0 8px;
-}
-.all-sec {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.all-sec-item {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.all-sec-item.mine {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-}
-.all-sec-item.done .all-sec-name {
-  color: var(--text-muted);
-}
-.all-sec-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: var(--tap);
-  padding: 8px 12px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.all-sec-name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.all-sec-tag {
-  flex: none;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.all-sec-item.done .all-sec-tag {
-  color: var(--text-muted);
-}
-.all-sec-body {
-  padding: 0 12px 10px;
-}
-.all-sec-body .card-text {
-  margin: 0;
+/* Someone else's CP: just the number, lined up with the counters above */
+.cp-readonly {
+  min-width: 112px;
 }
 /* Column widths follow the labels: Missions is the longest, Log the shortest. */
 .battle-tabs {
   grid-template-columns: 1fr 1.25fr 1fr 1fr 1fr 0.8fr;
 }
-@container (max-width: 300px) {
-  .cp-bar-title {
-    display: none;
-  }
-  .cp-bar {
-    gap: 6px 8px;
-    padding: 6px 8px;
-  }
-  .cp-step button {
-    width: 36px;
-    height: 40px;
-  }
-  .cp-val {
-    min-width: 24px;
-  }
+.replay-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 14px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  line-height: 1.45;
 }
