@@ -152,10 +152,28 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
   };
   const anyHealth = lines.some((l) => l.health);
   const me = lines[0]!;
+  // One chart at a time: VP, or army left. Switching plays the new one from the start.
+  const [view, setView] = useState<'vp' | 'wounds'>('vp');
+  const showing = view === 'wounds' && anyHealth ? 'wounds' : 'vp';
+  const switchTo = (v: 'vp' | 'wounds') => {
+    if (v === showing) return;
+    setView(v);
+    if (reduce) return setT(rounds);
+    setT(0);
+    setPlaying(true);
+  };
   return (
     <>
       <div className="section-label">Round by round replay</div>
       <div className="card replay" ref={box}>
+        <div className="seg replay-switch" role="tablist" aria-label="What to replay">
+          <button role="tab" aria-selected={showing === 'vp'} className={showing === 'vp' ? 'on' : undefined} onClick={() => switchTo('vp')}>
+            Victory points
+          </button>
+          <button role="tab" aria-selected={showing === 'wounds'} className={showing === 'wounds' ? 'on' : undefined} onClick={() => switchTo('wounds')} disabled={!anyHealth} title={anyHealth ? undefined : 'Losses were not recorded for this game'}>
+            Army left
+          </button>
+        </div>
         <div className="replay-legend small">
           {lines.map((l) => (
             <span key={l.key}>
@@ -166,8 +184,11 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
             </span>
           ))}
         </div>
-        <FlowChart lines={lines} value={(l) => l.vp} max={niceVp} t={t} rounds={AXIS} played={rounds} title="Victory points, running total" unit="" onPick={pick} />
-        {anyHealth && <FlowChart lines={lines} value={(l) => l.health} max={100} t={t} rounds={AXIS} played={rounds} title="Army left (share of its starting wounds)" unit="%" onPick={pick} />}
+        {showing === 'vp' ? (
+          <FlowChart key="vp" lines={lines} value={(l) => l.vp} max={niceVp} t={t} rounds={AXIS} played={rounds} title="Victory points, running total" unit="" onPick={pick} />
+        ) : (
+          <FlowChart key="wounds" lines={lines} value={(l) => l.health} max={100} t={t} rounds={AXIS} played={rounds} title="Army left: share of each army's own starting wounds" unit="%" onPick={pick} />
+        )}
 
         <div className="replay-readout" aria-live="polite">
           <div className="replay-round">Round {round}</div>
@@ -177,12 +198,18 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
               <div key={l.key} className="replay-side">
                 <span className="replay-key" style={{ background: l.color }} aria-hidden="true" />
                 <span className="replay-name">{l.name}</span>
-                <span className="num">+{l.per[round - 1]} VP</span>
-                <span className="muted small">({l.vp[round]} total)</span>
-                {l.health && (
-                  <span className="small">
-                    {l.health[round]}% left{lost ? ` · lost ${lost}%` : ''}
-                  </span>
+                {showing === 'vp' ? (
+                  <>
+                    <span className="num">+{l.per[round - 1]} VP</span>
+                    <span className="muted small">({l.vp[round]} total)</span>
+                  </>
+                ) : l.health ? (
+                  <>
+                    <span className="num">{l.health[round]}% left</span>
+                    <span className="muted small">{lost ? `lost ${lost}% this round` : 'no losses this round'}</span>
+                  </>
+                ) : (
+                  <span className="muted small">not tracked</span>
                 )}
               </div>
             );
@@ -202,7 +229,7 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
             ))}
           </div>
         </div>
-        {!lines.slice(1).some((l) => l.health) && me.health && <p className="small muted replay-note">Only your army's losses are known in a game on one phone.</p>}
+        {showing === 'wounds' && !lines.slice(1).some((l) => l.health) && me.health && <p className="small muted replay-note">Only your army's losses are known in a game on one phone.</p>}
         {!anyHealth && <p className="small muted replay-note">Army losses weren't recorded for this game (games from before this update, or with no units tracked).</p>}
       </div>
     </>

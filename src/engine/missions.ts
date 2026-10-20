@@ -152,6 +152,8 @@ export type SecOp =
   | { op: 'redraw'; name: string }
   /** Draw one card for free, any time (a card's own rule, a missed draw, a house rule). */
   | { op: 'drawFree' }
+  /** Put a chosen card into the hand, from the deck or the discards (picked from the list of all secondaries). */
+  | { op: 'take'; name: string }
   /**
    * Put a card back into the deck and draw a new one, free ("WHEN DRAWN: if it
    * is the first battle round, draw a new card and shuffle this one back").
@@ -187,6 +189,20 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
     case 'redraw':
       if (!t || !t.active.includes(o.name)) return s;
       return { ...s, tactical: { ...drawTactical(discardTactical(t, o.name), 1), redraws: (t.redraws ?? 0) + 1 } };
+    case 'take': {
+      if (!t || t.active.includes(o.name)) return s;
+      const i = t.discarded.lastIndexOf(o.name);
+      return {
+        ...s,
+        tactical: {
+          ...t,
+          deck: t.deck.filter((d) => d !== o.name),
+          discarded: i >= 0 ? t.discarded.filter((_, k) => k !== i) : t.discarded,
+          scored: t.scored.filter((x) => x.name !== o.name),
+          active: [...t.active, o.name],
+        },
+      };
+    }
     case 'drawFree':
       return t ? { ...s, tactical: drawTactical(t, 1) } : s;
     case 'shuffleBack': {

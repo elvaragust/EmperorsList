@@ -12,13 +12,12 @@ import { Screen } from '@/ui/Screen';
 import { Icon } from '@/ui/Icon';
 import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
-import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
 import { practiceId, saveGame, startPractice, updateGame, useHealthRecorder, withLog } from './games';
 import { ViewToggle } from '@/ui/ViewToggle';
 import { WizardSteps } from '@/ui/WizardSteps';
 import { useSessionState } from '@/ui/useSessionState';
-import { healthOf, NotesPanel, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
+import { BattleTabs, CpBar, healthOf, NotesPanel, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
 import { LiveGame } from './LiveGame';
 import { gameDuration, ResultLog, ResultView } from './ResultView';
 import { ListChangedSheet, useGameRoster } from './gameRoster';
@@ -298,28 +297,18 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
         }}
       />
       <PhaseStrip value={game.phase} onPick={(p) => save({ ...game, phase: p })} />
-      <div className="card cp-card">
-        <div className="counter">
-          <span>Your CP</span>
-          <Stepper value={game.cp.me} onChange={(v) => save(withLog({ ...game, cp: { ...game.cp, me: v } }, `Your CP → ${v}`, 'cp'))} label="your CP" />
-        </div>
-        <div className="counter" style={{ marginTop: 8 }}>
-          <span>{who('them')} CP</span>
-          <Stepper value={game.cp.them} onChange={(v) => save({ ...game, cp: { ...game.cp, them: v } })} label="opponent CP" />
-        </div>
-      </div>
+      <CpBar
+        sides={[
+          { key: 'me', label: 'You', value: game.cp.me, onChange: (v) => save(withLog({ ...game, cp: { ...game.cp, me: v } }, `Your CP → ${v}`, 'cp')) },
+          { key: 'them', label: who('them'), value: game.cp.them, onChange: (v) => save({ ...game, cp: { ...game.cp, them: v } }) },
+        ]}
+      />
       
       <NotesPanel gameId={game.id} notes={game.notes} />
       </div>
 
       <div className="game-main">
-      <div className="seg" role="tablist">
-        {(['phase', 'missions', 'units', 'score', 'rules', 'log'] as const).map((t) => (
-          <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-            {t === 'phase' ? PHASE_NAMES[game.phase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
-          </button>
-        ))}
-      </div>
+      <BattleTabs tab={tab} onTab={setTab} phase={game.phase} />
 
       {tab === 'phase' && (
         <PhasePanel
