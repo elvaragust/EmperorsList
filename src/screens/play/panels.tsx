@@ -395,3 +395,59 @@ export function PhaseStrip({ value, current, onPick, label }: { value: Phase; cu
     </div>
   );
 }
+
+export type BattleTab = 'phase' | 'missions' | 'rules' | 'units' | 'score' | 'log';
+const TAB_ORDER: BattleTab[] = ['phase', 'missions', 'rules', 'units', 'score', 'log'];
+const TAB_NAMES: Record<Exclude<BattleTab, 'phase'>, [string, string]> = {
+  missions: ['Missions', 'Mission'],
+  rules: ['Rules', 'Rules'],
+  units: ['Units', 'Units'],
+  score: ['Score', 'Score'],
+  log: ['Log', 'Log'],
+};
+
+/** The battle screen's tabs as one row that always fits (like the phase strip): the first is the phase being looked at. */
+export function BattleTabs({ tab, onTab, phase }: { tab: BattleTab; onTab: (t: BattleTab) => void; phase: Phase }) {
+  return (
+    <div className="battle-tabs" role="tablist" aria-label="Battle">
+      {TAB_ORDER.map((t) => {
+        const [full, short] = t === 'phase' ? [PHASE_NAMES[phase], SHORT_PHASE[phase]] : TAB_NAMES[t];
+        return (
+          <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : undefined} onClick={() => onTab(t)} aria-label={full}>
+            <span className="tab-full">{full}</span>
+            <span className="tab-short">{short}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** CP for each side in one short row: "CP  You − 3 +   Bob − 1 +". Sides without `onChange` are shown, not changed. */
+export function CpBar({ sides }: { sides: { key: string; label: string; value: number; onChange?: (v: number) => void }[] }) {
+  return (
+    <div className="card cp-bar" role="group" aria-label="Command points">
+      <span className="cp-bar-title">CP</span>
+      {sides.map((s) => (
+        <div key={s.key} className="cp-side">
+          <span className="cp-name">{s.label}</span>
+          {s.onChange ? (
+            <span className="cp-step">
+              <button aria-label={`${s.label}: one CP less`} disabled={s.value <= 0} onClick={() => s.onChange!(s.value - 1)}>
+                −
+              </button>
+              <span className="cp-val num" aria-live="polite">
+                {s.value}
+              </span>
+              <button aria-label={`${s.label}: one CP more`} onClick={() => s.onChange!(s.value + 1)}>
+                +
+              </button>
+            </span>
+          ) : (
+            <span className="cp-val num">{s.value}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

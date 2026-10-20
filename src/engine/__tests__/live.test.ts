@@ -151,6 +151,11 @@ describe('live game reducer', () => {
     expect(missionsOf(s, 'A').tactical!.active).not.toContain(back);
     expect(missionsOf(s, 'A').tactical!.active).toHaveLength(3);
     expect(missionsOf(s, 'A').tactical!.deck).toContain(back);
+    // Pick a card from the list of all secondaries: it leaves the deck or the discards.
+    const pickable = missionsOf(s, 'A').tactical!.discarded[0]!;
+    s = reduce(s, { t: 'sec', team: 'A', op: { op: 'take', name: pickable } }, 'a1');
+    expect(missionsOf(s, 'A').tactical!.active).toContain(pickable);
+    expect(missionsOf(s, 'A').tactical!.discarded).not.toContain(pickable);
     s = reduce(s, { t: 'sec', team: 'A', op: { op: 'primaryDone', round: 1, done: true } }, 'a1');
     expect(missionsOf(s, 'A').primaryDone).toEqual([1]);
     expect(missionsOf(s, 'B')).toEqual({ fixed: [] });
