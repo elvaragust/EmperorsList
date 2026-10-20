@@ -3,6 +3,7 @@ import { db, type SavedGame } from '@/data/db';
 import { emptyScore, ROUNDS, totalScore, type Score } from '@/engine/game';
 import { Collapse } from '@/ui/Collapse';
 import { Icon } from '@/ui/Icon';
+import { BattleReplay } from './BattleReplay';
 
 export interface ResultSide {
   /** Stable key for local edits: 'me' / 'them' in a local game, the team letter in a live one. */
@@ -102,7 +103,7 @@ export function ResultView({ game, sides, details, actions, roundsPlayed }: { ga
 
       <p className="small muted result-details">{details.filter(Boolean).join(' · ')}</p>
 
-      <BattleSwing sides={view} health={game.health} rounds={rounds} />
+      <BattleReplay sides={view} health={game.health} rounds={rounds} />
 
       <div className="section-label">Round by round</div>
       <div className="card result-table-wrap">
@@ -167,103 +168,6 @@ export function ResultView({ game, sides, details, actions, roundsPlayed }: { ga
       </label>
       <div className="btn-row">{actions}</div>
     </div>
-  );
-}
-
-/** Share of starting wounds left at the end of round r (1 = untouched), carried forward through rounds with no losses. */
-function healthAt(list: (number | null)[] | undefined, r: number): number | undefined {
-  if (!list) return undefined;
-  for (let i = r - 1; i >= 0; i--) if (list[i] != null) return list[i]!;
-  return 1;
-}
-
-/**
- * How the battle swung, round by round: VP won that round, and how much of
- * each army fell that round as a share of its own starting wounds (so a horde
- * and an elite army compare fairly). Each bar leans toward the side that came
- * out ahead; the numbers are written next to it.
- */
-export function BattleSwing({ sides, health, rounds }: { sides: (ResultSide & { shown: Score })[]; health?: SavedGame['health']; rounds: number }) {
-  const me = sides.find((s) => s.isMe);
-  const others = sides.filter((s) => !s.isMe);
-  if (!me || !others.length || rounds < 1) return null;
-  const vpIn = (s: { shown: Score }, r: number) => (s.shown.primary[r - 1] ?? 0) + (s.shown.secondary[r - 1] ?? 0);
-  const lossIn = (key: string, r: number) => {
-    const list = health?.[key];
-    if (!list || list.every((x) => x == null)) return undefined;
-    return Math.max(0, (healthAt(list, r - 1) ?? 1) - (healthAt(list, r) ?? 1)) * 100;
-  };
-  const rows = Array.from({ length: rounds }, (_, i) => {
-    const r = i + 1;
-    // In a free-for-all, each round compares you with whoever did best against you.
-    const rival = [...others].sort((a, b) => vpIn(b, r) - vpIn(a, r))[0]!;
-    const myVp = vpIn(me, r);
-    const theirVp = vpIn(rival, r);
-    const myLoss = lossIn(me.key, r);
-    const theirLosses = others.map((o) => lossIn(o.key, r)).filter((x): x is number => x !== undefined);
-    const theirLoss = theirLosses.length ? Math.max(...theirLosses) : undefined;
-    return { r, rival, myVp, theirVp, myLoss, theirLoss };
-  });
-  const vpMax = Math.max(5, ...rows.map((x) => Math.abs(x.myVp - x.theirVp)));
-  const lossMax = Math.max(10, ...rows.map((x) => Math.abs((x.theirLoss ?? 0) - (x.myLoss ?? 0))));
-  const tracked = rows.some((x) => x.theirLoss !== undefined);
-  const pct = (v?: number) => (v === undefined ? '–' : `${Math.round(v)}%`);
-  const opp = others.length === 1 ? others[0]!.name : 'Opponents';
-  const bar = (diff: number, max: number, label: string) => {
-    const w = Math.min(50, (Math.abs(diff) / max) * 50);
-    const side = diff > 0 ? 'me' : diff < 0 ? 'them' : 'even';
-    return (
-      <div className="swing-track" role="img" aria-label={label} title={label}>
-        <span className="swing-axis" aria-hidden="true" />
-        {side !== 'even' && <span className={`swing-bar ${side}`} style={{ width: `${Math.max(w, 1.5)}%` }} aria-hidden="true" />}
-      </div>
-    );
-  };
-  return (
-    <>
-      <div className="section-label">How the battle swung</div>
-      <div className="card swing">
-        <div className="swing-legend small">
-          <span>
-            <span className="swing-key me" aria-hidden="true" />
-            {me.name}
-          </span>
-          <span className="muted">← ahead · ahead →</span>
-          <span>
-            {opp}
-            <span className="swing-key them" aria-hidden="true" />
-          </span>
-        </div>
-        {rows.map((x) => {
-          const vpDiff = x.myVp - x.theirVp;
-          const lossDiff = x.theirLoss !== undefined && x.myLoss !== undefined ? x.theirLoss - x.myLoss : x.myLoss !== undefined ? -x.myLoss : 0;
-          return (
-            <div key={x.r} className="swing-round">
-              <div className="swing-r num">R{x.r}</div>
-              <div className="swing-rows">
-                <div className="swing-line">
-                  <span className="swing-what small muted">VP</span>
-                  {bar(vpDiff, vpMax, `Round ${x.r} VP: ${me.name} ${x.myVp}, ${x.rival.name} ${x.theirVp}`)}
-                  <span className="swing-vals small num">
-                    {x.myVp} – {x.theirVp}
-                  </span>
-                </div>
-                <div className="swing-line">
-                  <span className="swing-what small muted">Losses</span>
-                  {bar(lossDiff, lossMax, `Round ${x.r} army lost: ${me.name} ${pct(x.myLoss)}, ${opp} ${pct(x.theirLoss)}`)}
-                  <span className="swing-vals small num">
-                    {pct(x.myLoss)} – {pct(x.theirLoss)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        <p className="small muted swing-note">
-          VP: points scored that round. Losses: how much of each army was removed that round, as a share of its own starting wounds{tracked ? '' : ` — ${opp}'s losses aren't tracked in a game on one phone, so the bar shows yours`}.
-        </p>
-      </div>
-    </>
   );
 }
 
