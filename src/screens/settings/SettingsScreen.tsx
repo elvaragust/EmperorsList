@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { db } from '@/data/db';
 import { currentSource, DEFAULT_SOURCE, setSource, sourceName } from '@/data/dataPacks';
 import { clearIndexCache } from '@/data/gameData';
-import { downloadText, exportBackup, restoreBackup } from '@/data/backup';
+import { lastBackupAt, restoreBackup, saveBackupFile } from '@/data/backup';
 import { coreSectionsToRules, detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
 import { parseCoreRules } from '@/engine/coreRules';
 import { loadCoreRules, syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
@@ -93,8 +93,8 @@ export function SettingsScreen() {
   };
 
   const backup = async () => {
-    downloadText(`emperorslist-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportBackup());
-    setBackupStatus('Backup downloaded.');
+    const how = await saveBackupFile();
+    if (how) setBackupStatus(how === 'shared' ? 'Backup saved.' : 'Backup downloaded.');
   };
   const [pendingRestore, setPendingRestore] = useState<{ name: string; text: string } | null>(null);
   const restore = async (list: FileList | null) => {
@@ -161,7 +161,8 @@ export function SettingsScreen() {
             {store?.usage ? ` · ${(store.usage / 1e6).toFixed(0)} MB used` : ''}
           </div>
           <div className="small muted">
-            Everything is stored only in this browser on this phone (nothing is uploaded). {store?.persisted ? 'The browser has agreed to keep it.' : 'The browser may clear it when the phone runs low on space — installing the app (Add to Home screen) and keeping a backup protects it.'}
+            Everything is stored only in this browser on this phone (nothing is uploaded). It is not the browser's cache: clearing <em>cached images and files</em> leaves it alone, but clearing <em>site data / cookies and site data</em> for this site, or uninstalling the app, deletes it.{' '}
+            {store?.persisted ? 'The browser has agreed to keep it even when the phone runs low on space.' : 'Right now the browser may also clear it when the phone runs low on space — installing the app (Add to Home screen) usually fixes that.'} A backup file is the only copy that survives everything.
           </div>
           {store && !store.persisted && (
             <button className="btn btn-sm" onClick={async () => showToast((await keepStorage()) ? 'Storage will be kept' : 'The browser declined — install the app and keep a backup')}>
@@ -193,7 +194,8 @@ export function SettingsScreen() {
       <div className="section-label">Backup</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
-          <div className="small">Save all your lists, games and collection to a file, or load them on another device. Game data is not included.</div>
+          <div className="small">Save all your lists, games and collection to a file — on a phone you can send it straight to Google Drive, iCloud Files or email — and load it on any device. Game data is not included (it downloads again by itself).</div>
+          <div className="small muted">{lastBackupAt() ? `Last backup from this phone: ${new Date(lastBackupAt()).toLocaleDateString()}` : 'No backup saved from this phone yet.'}</div>
           <input ref={restoreInput} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files)} />
           <div className="btn-row" style={{ margin: 0 }}>
             <button className="btn btn-sm" onClick={backup}>

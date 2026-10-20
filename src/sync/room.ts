@@ -251,7 +251,8 @@ export class Room {
       if (mine || state.mission) update.mission = mine ?? state.mission;
       if (state.stage === 'done') {
         const myTeam = state.players.find((p) => p.id === this.me.id)?.team;
-        update.result = state.winner === 'draw' ? 'draw' : state.winner === myTeam ? 'win' : 'loss';
+        // Corrected on this phone's result screen: that view decides the result here.
+        if (!g.scoreEdits) update.result = state.winner === 'draw' ? 'draw' : state.winner === myTeam ? 'win' : 'loss';
         update.finishedAt = g.finishedAt ?? Date.now();
       }
       await db.games.update(this.gameId, update);

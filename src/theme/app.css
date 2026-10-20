@@ -2272,20 +2272,43 @@ tr.pulse > td {
 
 /* Battle screen: compact controls so the tabs start high; Next always at the bottom */
 .phase-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 8px calc(-1 * var(--gutter, 16px)) 8px;
-  padding: 0 var(--gutter, 16px);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 8px 0;
 }
 .phase-strip .filter {
-  flex: none;
-  min-height: 36px;
-  padding: 0 12px;
+  position: relative;
+  justify-content: center;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 2px;
+  font-size: 13px;
+  overflow: hidden;
 }
 .phase-strip .filter.on::before {
   content: none;
+}
+.phase-strip .phase-short {
+  display: none;
+}
+/* The game's current phase when you're looking at another one */
+.phase-strip .phase-dot {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+@container (max-width: 350px) {
+  .phase-strip .phase-full {
+    display: none;
+  }
+  .phase-strip .phase-short {
+    display: inline;
+  }
 }
 .cp-card {
   display: grid;
@@ -2417,4 +2440,392 @@ tr.pulse > td {
 }
 .mode-choice[aria-expanded='true'] {
   border-color: var(--accent);
+}
+
+/* End of game */
+.result-hero {
+  margin: 4px 0 14px;
+  padding: 18px 16px;
+  border-radius: var(--radius);
+  text-align: center;
+  border: 1px solid var(--line);
+}
+.result-hero.win {
+  background: color-mix(in srgb, var(--ok) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--ok) 60%, var(--line));
+}
+.result-hero.loss {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+.result-hero.draw {
+  background: var(--surface);
+}
+.result-outcome {
+  font-family: var(--font-title);
+  font-size: 40px;
+  line-height: 1.1;
+}
+.result-hero.win .result-outcome {
+  color: var(--ok);
+}
+.result-hero.loss .result-outcome {
+  color: var(--danger);
+}
+.result-sub {
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.result-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.result-side {
+  position: relative;
+  min-width: 0;
+  padding: 16px 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: center;
+}
+.result-side.winner {
+  border-color: var(--ok);
+  box-shadow: inset 0 0 0 1px var(--ok);
+}
+.winner-tag {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--ok);
+  color: #04140a;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.result-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.result-total {
+  font-size: 44px;
+  line-height: 1.1;
+}
+.edited-tag {
+  color: var(--accent);
+  font-family: var(--font-ui);
+}
+.result-details {
+  text-align: center;
+  margin: 12px 0 0;
+}
+.result-table-wrap {
+  overflow-x: auto;
+}
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  text-align: center;
+}
+.result-table th,
+.result-table td {
+  padding: 6px 4px;
+}
+.result-table thead th {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.result-table tbody th {
+  text-align: left;
+  font-weight: 400;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+.result-table tr.first th,
+.result-table tr.first td {
+  border-top: 1px solid var(--line-soft);
+}
+.result-row-name {
+  font-weight: 700;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-table input {
+  width: 100%;
+  min-width: 36px;
+  max-width: 52px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+  font: inherit;
+}
+
+/* Finished games: the outcome at a glance */
+.outcome-badge {
+  flex: none;
+  min-width: 52px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.outcome-badge.win {
+  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  color: var(--ok);
+  border: 1px solid var(--ok);
+}
+.outcome-badge.loss {
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.outcome-badge.draw {
+  background: var(--raised);
+  color: var(--text-muted);
+  border: 1px solid var(--line);
+}
+.backup-nudge {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+/* ---------- Robust layout for large text and narrow phones ----------
+   Rows let their text shrink and wrap, and controls (steppers, ticks, switches,
+   points, buttons) keep their size and drop to the next line when there's no
+   room, instead of running past the edge of the card or the screen. */
+.row > *,
+.choice > *,
+.unit-row > *,
+.menu-item > *,
+.gear-row > *,
+.counter > *,
+.collapse-head > *,
+.score-line > *,
+.screen-header > *,
+.sticky-bar > * {
+  min-width: 0;
+}
+.row,
+.choice,
+.unit-row,
+.gear-row,
+.counter,
+.model-band,
+.btn-row,
+.quick-actions,
+.confirm-actions,
+.score-line {
+  flex-wrap: wrap;
+}
+.row > span:first-child,
+.choice > span[style*='flex: 1'],
+.unit-row > span[style*='flex: 1'],
+.gear-row > span:first-child,
+.counter > span:first-child,
+.model-band > span:first-child,
+.score-line > .score-text {
+  flex: 1 1 8em;
+  overflow-wrap: anywhere;
+}
+.stepper,
+.wounds,
+.check,
+.switch,
+.vp-chip,
+.pts,
+.pts-chip,
+.icon-btn,
+.mark,
+.outcome-badge,
+.status-pill {
+  flex: none;
+}
+.screen-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+.quick-actions .btn,
+.confirm-actions .btn {
+  flex: 1 1 10em;
+}
+.btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+/* Tab bar labels: never wider than their tab */
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+/* Battle tabs: the row scrolls rather than overflow, and shows that it can */
+.seg {
+  scroll-snap-type: x proximity;
+}
+.seg button {
+  scroll-snap-align: start;
+  padding: 12px 8px;
+}
+/* Wide numbers in tables can't push the page sideways */
+.wtable,
+.grid,
+.result-table,
+.score-grid {
+  max-width: 100%;
+}
+.card,
+.gear-box,
+.score-card,
+.result-side {
+  max-width: 100%;
+  min-width: 0;
+}
+/* Rows laid out as a column must not wrap into a second column. */
+.row[style*='flex-direction: column'],
+.cp-card .counter {
+  flex-wrap: nowrap;
+}
+.score-card-head > * {
+  min-width: 0;
+}
+.score-card-name {
+  overflow-wrap: anywhere;
+}
+
+/* How the battle swung: a bar per round leaning toward the side that came out ahead.
+   Side colours validated for colour-blind separation on the dark and light surfaces. */
+:root {
+  --side-me: #a88536;
+  --side-them: #5d8de0;
+}
+[data-mode='light'] {
+  --side-me: #9a7420;
+  --side-them: #3f6aa6;
+}
+.swing {
+  padding: 10px 12px;
+}
+.swing-legend {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+.swing-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swing-key {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.swing-key.me,
+.swing-bar.me {
+  background: var(--side-me);
+}
+.swing-key.them,
+.swing-bar.them {
+  background: var(--side-them);
+}
+.swing-round {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.swing-r {
+  width: 28px;
+  flex: none;
+  color: var(--text-muted);
+}
+.swing-rows {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.swing-line {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 8px;
+}
+.swing-what {
+  font-family: var(--font-ui);
+}
+.swing-vals {
+  text-align: right;
+  white-space: nowrap;
+}
+.swing-track {
+  position: relative;
+  height: 14px;
+}
+.swing-axis {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line);
+}
+.swing-bar {
+  position: absolute;
+  top: 1px;
+  height: 12px;
+}
+/* Your side leans left of the line, theirs right; the outer end is rounded. */
+.swing-bar.me {
+  right: calc(50% + 1px);
+  border-radius: 4px 0 0 4px;
+}
+.swing-bar.them {
+  left: calc(50% + 1px);
+  border-radius: 0 4px 4px 0;
+}
+.swing-note {
+  margin: 8px 0 0;
+}
+@container (max-width: 340px) {
+  .swing-line {
+    grid-template-columns: 44px minmax(0, 1fr) 66px;
+    gap: 6px;
+  }
 }
