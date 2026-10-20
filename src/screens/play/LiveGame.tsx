@@ -12,14 +12,13 @@ import { closeRoom, joinUrl, type Room } from '@/sync/room';
 import { useRoom } from '@/sync/useRoom';
 import { Screen } from '@/ui/Screen';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
-import { Stepper } from '@/ui/Stepper';
 import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
 import { useHealthRecorder } from './games';
 import { ScoreRow } from './GameScreen';
-import { healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
+import { BattleTabs, CpBar, healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionsPanel, SecondarySetup } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
@@ -345,7 +344,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   // One CP pool per team (teammates share it).
   const cpRows = [myTeam, ...others]
     .filter((t) => membersOf(state, t).length)
-    .map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Our CP' : 'Your CP') : `${teamNames(state, t)} CP`, id: membersOf(state, t)[0]!.id, editable: free || t === myTeam }));
+    .map((t) => ({ key: t, label: t === myTeam ? (membersOf(state, t).length > 1 ? 'Us' : 'You') : teamNames(state, t), id: membersOf(state, t)[0]!.id, editable: free || t === myTeam }));
   const secOf = (t: Team) => missionsOf(state, t);
   const primaryOfTeam = (t: Team) => membersOf(state, t).find((p) => p.primary)?.primary ?? (t === myTeam ? state.mission : undefined);
 
@@ -410,34 +409,13 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             switchTo={teamNames(state, order[(order.indexOf(state.turn) + 1) % order.length]!)}
           />
           <PhaseStrip value={viewPhase} current={state.phase} onPick={setViewPhase} label="Look at a phase (only on your screen)" />
-          <div className="card cp-card">
-            {cpRows.map((r) => (
-              <div key={r.key} className="counter" style={{ marginTop: 4 }}>
-                <span>
-                  {r.label}
-                </span>
-                {r.editable ? (
-                  <Stepper value={state.cp[r.id] ?? 0} onChange={(v) => dispatch({ t: 'cp', id: r.id, value: v })} label={r.label} />
-                ) : (
-                  <span className="num" style={{ fontSize: 20, padding: '0 14px' }}>
-                    {state.cp[r.id] ?? 0}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+          <CpBar sides={cpRows.map((r) => ({ key: r.key, label: r.label, value: state.cp[r.id] ?? 0, onChange: r.editable ? (v: number) => dispatch({ t: 'cp', id: r.id, value: v }) : undefined }))} />
           
           <NotesPanel gameId={game.id} notes={game.notes} />
         </div>
 
         <div className="game-main">
-          <div className="seg" role="tablist">
-            {(['phase', 'missions', 'units', 'score', 'rules', 'log'] as const).map((t) => (
-              <button key={t} className={tab === t ? 'on' : undefined} onClick={() => setTab(t)}>
-                {t === 'phase' ? PHASE_NAMES[viewPhase] : t === 'missions' ? 'Missions' : t === 'rules' ? 'Rules' : t === 'units' ? 'Units' : t === 'score' ? 'Score' : 'Log'}
-              </button>
-            ))}
-          </div>
+          <BattleTabs tab={tab} onTab={setTab} phase={viewPhase} />
 
           {tab === 'rules' && <RulesPanel engine={engine} />}
 

@@ -22,6 +22,15 @@ export function cardTags(cards: Map<string, CardInfo>): Map<string, string[]> {
   return new Map([...cards.values()].map((c) => [c.name, c.tags]));
 }
 
+/** A card's rules without the flavour line it opens with (the lore). */
+export function withoutFlavour(text: string): string {
+  const lines = text.split('\n');
+  const first = lines.findIndex((l) => l.trim());
+  // The opening line is flavour when it isn't a rule heading, a WHEN line or a scoring line.
+  if (first >= 0 && lines.length > 1 && !/^(\*\*)?(when|any|first|second|third|fourth|fifth|end of)/i.test(lines[first]!.trim()) && !/\d+\s*VP/i.test(lines[first]!)) lines.splice(first, 1);
+  return lines.join('\n').trim();
+}
+
 /** What a chosen card does, shown right under the picker. */
 export function CardText({ name, cards, compact }: { name?: string; cards: Map<string, CardInfo>; compact?: boolean }) {
   const [open, setOpen] = useState(!compact);
@@ -37,7 +46,7 @@ export function CardText({ name, cards, compact }: { name?: string; cards: Map<s
         {c.tags.includes('fixed') && <span className="tag">FIXED</span>}
         <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
-      {open && <RulesText text={c.text} />}
+      {open && <RulesText text={withoutFlavour(c.text)} />}
     </div>
   );
 }
@@ -100,8 +109,7 @@ export function ScoreCard({
   const [counts, setCounts] = useState<Record<number, number[]>>({});
   const [open, setOpen] = useState(true);
   const sections = parsed?.sections ?? [];
-  // The first intro line is flavour text; the rest (WHEN DRAWN, actions) are rules you need while playing.
-  const flavour = parsed?.intro.slice(0, 1) ?? [];
+  // The first intro line is flavour text (left out); the rest (WHEN DRAWN, actions) are rules you need while playing.
   const introRules = parsed?.intro.slice(1) ?? [];
   const live = (si: number) => round >= sections[si]!.from && round <= sections[si]!.to;
   const total = sections.reduce((sum, s, si) => sum + (live(si) ? scoreItems(s.items, counts[si] ?? []) : 0), 0);
@@ -142,14 +150,7 @@ export function ScoreCard({
       {open && (
         <>
           {!c && <p className="small muted" style={{ margin: '4px 0' }}>Card text not loaded on this device.</p>}
-          {parsed && sections.length === 0 && <RulesText text={[...parsed.intro, ...parsed.notes].join('\n') || c!.text} />}
-          {sections.length > 0 && flavour.length > 0 && (
-            <div className="card-flavour">
-              {flavour.map((l, i) => (
-                <RulesText key={i} text={l} />
-              ))}
-            </div>
-          )}
+          {parsed && sections.length === 0 && <RulesText text={withoutFlavour([...parsed.intro, ...parsed.notes].join('\n') || c!.text)} />}
           {sections.length > 0 && introRules.length > 0 && (
             <div className="card-rules small">
               {introRules.map((l, i) => (
