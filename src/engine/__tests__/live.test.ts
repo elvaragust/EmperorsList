@@ -124,11 +124,8 @@ describe('live game reducer', () => {
     expect([s.cp.a1, s.cp.a2]).toEqual([3, 3]);
     // Not the other team's pool.
     expect(reduce(s, { t: 'cp', id: 'b1', value: 9 }, 'a1')).toBe(s);
-    // Separate pools when turned off.
-    let t = reduce(newLiveState('R', p('a1', 'Ann')), { t: 'setSharedCp', on: false }, 'a1');
-    t = reduce(t, { t: 'join', player: p('b1', 'Bob') }, 'b1');
-    t = reduce(t, { t: 'start' }, 'a1');
-    expect(reduce(t, { t: 'cp', id: 'b1', value: 3 }, 'a1')).toBe(t);
+    // The old on/off switch does nothing: teams always share.
+    expect(reduce(s, { t: 'setSharedCp', on: false }, 'a1')).toBe(s);
   });
 
   it('keeps each team secondaries in the shared state, read by everyone', () => {

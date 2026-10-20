@@ -109,6 +109,9 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 - **Units:** each unit with its models left and its points. Tap a unit for its **shots grid** — one column per weapon with the total shots/attacks in the header, one row per kind of model ("3×"). Tap a row to see each model: **− / +** tracks its wounds and losing the last one removes it; **+** also goes past full health (5/4) when a rule gives extra wounds. A weapon that only removed models carried is greyed out and comes back with the model. Characters, vehicles and small units have a wound tracker at the top.
 - **Weapon notes:** tap a weapon's name in a datasheet to write a short note under it (*+1 attacks*). Notes written in the list builder stay with the list; notes written during a game are for that game only.
 - **Score:** primary and secondary VP per round.
+- **Your list in a game:** a game keeps its own copy of your army from when it started. Edit the list mid-game and the game asks whether to **use the changed list** (in a live game the others see it too) or **keep the game's army**. Finished games always keep the army they were played with.
+
+**End of the game:** a big *Victory / Defeat / Draw*, both scores with the winner marked, by how much, and the score round by round. **Correct the score** fixes numbers — both sides' — but only on your phone: it changes how *you* see the result, never anyone else's (in a live game each player can correct their own view). **Back to the game's score** undoes it. **Round by round replay** plays the battle back over the five rounds: the running VP total and how much of each army is left (as a share of its own starting wounds, so any two armies compare fairly) draw themselves round after round, with that round's numbers underneath. Pause, replay, or tap a round to stop there. In a game on one phone only your own losses are known. Finished games are listed with a coloured Win / Loss / Draw badge, the score and who won.
 
 **Where the data comes from:** units, points and wargear come from the community BSData project (wh40k-11e), checked for updates once a day. If a new codex isn't reflected yet (missing or old options), the app shows it as soon as BSData is updated — Settings → Data shows the version you have.
 - **Log:** everything that happened.
@@ -122,7 +125,7 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 - **Host:** Play → **Host live game** → pick your army. A room code and QR code appear.
 - **Others:** scan the QR with the phone camera, or Play → **Join** and type the code, then pick their army.
 - The host chooses **1v1**, **2v2**, **2v1** (the pair can be either team) or **3 players** (everyone for themselves, taking turns in order), sorts players into teams, sets deployment and twist, and starts. Each team picks one **Force Disposition** — the choices are what either teammate's list allows — and its primary follows from the other side's disposition (or pick it by hand). Each team chooses Fixed or Tactical secondaries together, and either side can record the roll-off as *We attack* / *We defend*.
-- **Teammates share CP** (on by default for teams): one pool per team that either teammate spends from. Turn it off in the lobby to keep CP per player.
+- **Teammates share CP:** one pool per team that either teammate spends from, so you always both see the same number.
 
 What's shared: whose turn it is and the current phase, everyone's CP, every team's score, each team's primary and secondary cards (your teammate manages them with you; opponents can read them), the log, and how many models (and points) each player's units have left.
 
@@ -167,7 +170,8 @@ Pick a faction and enter how many models you own, have built and have painted. F
 **Where your data is kept.** Lists, games, pins, collection, layouts and the downloaded game data are stored in the browser's own database (IndexedDB) for this site, on this phone only — nothing is uploaded, there are no accounts. That means:
 - Each browser has its own copy: Chrome and Samsung Internet on the same phone don't share lists, and the hosted app and a local copy on your PC don't either. The installed app (Add to Home screen) shares Chrome's data.
 - Clearing the browser's site data, or uninstalling it, deletes everything. A browser can also clear it by itself when the phone is low on space — the app asks the browser to keep it (Settings → *Your data on this device* shows whether it agreed).
-- **Keep a backup** (Settings → Backup) now and then; it restores everything on any device.
+- It is **not** the browser cache: clearing *cached images and files* doesn't touch it; clearing *site data* / *cookies and site data* for the site does.
+- **Keep a backup** now and then: Lists reminds you every two weeks. **Save a backup** opens the phone's share sheet so the file can go straight to Google Drive, iCloud Files or email (elsewhere it downloads). Settings → Backup restores it on any device.
 
 ---
 

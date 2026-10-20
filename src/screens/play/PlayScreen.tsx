@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { totalScore } from '@/engine/game';
-import { teamNames } from '@/engine/live';
+import { teamNames, teamsOf, vpOf } from '@/engine/live';
 import type { SavedGame } from '@/data/db';
 
 function liveTitle(g: SavedGame): string {
@@ -16,6 +16,21 @@ import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
+
+/** Final score as this phone sees it (with any corrections made on the result screen) and who won. */
+function finalScore(g: SavedGame): { text: string; winner?: string } {
+  const st = g.live?.state;
+  const sides = st
+    ? teamsOf(st).map((t) => ({ name: teamNames(st, t), vp: totalScore(g.scoreEdits?.[t] ?? vpOf(st, t)), me: st.players.find((p) => p.id === g.live!.myId)?.team === t }))
+    : [
+        { name: 'You', vp: totalScore(g.scoreEdits?.me ?? g.vp.me), me: true },
+        { name: g.opponentName || 'Opponent', vp: totalScore(g.scoreEdits?.them ?? g.vp.them), me: false },
+      ];
+  sides.sort((a, b) => Number(b.me) - Number(a.me));
+  const top = Math.max(...sides.map((x) => x.vp));
+  const leaders = sides.filter((x) => x.vp === top);
+  return { text: sides.map((x) => x.vp).join(' – '), winner: leaders.length === 1 ? (leaders[0]!.me && !st ? 'You' : leaders[0]!.name) : undefined };
+}
 
 /** War Journal: games in progress and finished games. */
 export function PlayScreen() {
@@ -87,20 +102,27 @@ export function PlayScreen() {
             Finished · {record.win ?? 0}W {record.loss ?? 0}L {record.draw ?? 0}D
           </div>
           <div className="card">
-            {done.map((g) => (
-              <Link key={g.id} className="unit-row" to={`/play/${g.id}`}>
-                <span style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`}
-                  </div>
-                  <div className="muted small">
-                    {new Date(g.startedAt).toLocaleDateString()} · {totalScore(g.vp.me)}–{totalScore(g.vp.them)} · {g.mission || 'no mission set'}
-                  </div>
-                </span>
-                <span className={g.result === 'win' ? 'tag' : 'muted small'}>{(g.result ?? 'draw').toUpperCase()}</span>
-                {more(g)}
-              </Link>
-            ))}
+            {done.map((g) => {
+              const f = finalScore(g);
+              const outcome = g.result ?? 'draw';
+              return (
+                <Link key={g.id} className={`unit-row finished ${outcome}`} to={`/play/${g.id}`}>
+                  <span className={`outcome-badge ${outcome}`}>{outcome === 'win' ? 'Win' : outcome === 'loss' ? 'Loss' : 'Draw'}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>{title(g)}</div>
+                    <div className="small">
+                      <span className="num">{f.text}</span>
+                      <span className="muted"> · {f.winner ? `${f.winner} won` : 'level'}</span>
+                    </div>
+                    <div className="muted small">
+                      {new Date(g.startedAt).toLocaleDateString()}
+                      {g.mission ? ` · ${g.mission}` : ''}
+                    </div>
+                  </span>
+                  {more(g)}
+                </Link>
+              );
+            })}
           </div>
         </>
       )}

@@ -5,7 +5,7 @@ import { Collapse } from '@/ui/Collapse';
 import { PinButton, pinId } from '@/ui/PinButton';
 import { NavLink } from 'react-router-dom';
 import { db } from '@/data/db';
-import { abilityInPhase, type Phase } from '@/engine/game';
+import { abilityInPhase, PHASE_NAMES, PHASES, type Phase } from '@/engine/game';
 import type { UnitSummary } from '@/engine/live';
 import { datasheet, unitModels } from '@/engine/rules/models';
 import { catalogueChain } from '@/engine/bsdata/index';
@@ -135,6 +135,9 @@ export interface UnitLeft {
   dead: number;
   /** Points of the unit and the characters leading it. */
   points: number;
+  /** Wounds the unit has left and had at the start (removed models count 0; lost wounds come off). */
+  woundsLeft: number;
+  woundsTotal: number;
 }
 
 /** A unit's name: its nickname, the cached name, or (for a list shared as ids only) the data's name. */
@@ -145,7 +148,7 @@ export function unitName(engine: RosterEngine, u: { id: string; name: string; ni
 }
 
 /** Bodyguard units (with attached characters folded in), how many models are left and their points. */
-export function unitsLeft(engine: RosterEngine, casualties: Record<string, string[]>): UnitLeft[] {
+export function unitsLeft(engine: RosterEngine, casualties: Record<string, string[]>, wounds: Record<string, number> = {}): UnitLeft[] {
   return engine.roster.units
     .filter((u) => !u.leaderOf || !engine.roster.units.some((b) => b.id === u.leaderOf))
     .map((u) => {
@@ -153,17 +156,33 @@ export function unitsLeft(engine: RosterEngine, casualties: Record<string, strin
       let total = 0;
       let dead = 0;
       let points = 0;
+      let woundsLeft = 0;
+      let woundsTotal = 0;
       for (const m of group) {
-        const n = unitModels(engine, m.id).models.length;
-        total += n;
-        dead += Math.min(n, casualties[m.id]?.length ?? 0);
+        const um = unitModels(engine, m.id, `${m.id}/`);
+        const gone = new Set((casualties[m.id] ?? []).map((id) => `${m.id}/${id}`));
+        total += um.models.length;
+        dead += Math.min(um.models.length, casualties[m.id]?.length ?? 0);
         points += engine.unitPoints(m.id);
+        for (const model of um.models) {
+          const w = um.loadouts.find((l) => l.key === model.loadoutKey)?.wounds ?? 1;
+          woundsTotal += w;
+          // Wounds above full (a negative "lost") don't count past the model's own W.
+          if (!gone.has(model.id)) woundsLeft += Math.max(0, w - Math.max(0, wounds[model.id] ?? 0));
+        }
       }
-      return { id: u.id, name: group.map((x) => unitName(engine, x)).join(' + '), total, dead, points };
+      return { id: u.id, name: group.map((x) => unitName(engine, x)).join(' + '), total, dead, points, woundsLeft, woundsTotal };
     });
 }
 
-export const toSummaries = (list: UnitLeft[]): UnitSummary[] => list.map((u) => ({ name: u.name, alive: u.total - u.dead, total: u.total, points: u.points }));
+export const toSummaries = (list: UnitLeft[]): UnitSummary[] => list.map((u) => ({ name: u.name, alive: u.total - u.dead, total: u.total, points: u.points, w: u.woundsLeft, wt: u.woundsTotal }));
+
+/** Share of an army's starting wounds still on the table (1 = untouched). */
+export function healthOf(units: { woundsLeft?: number; woundsTotal?: number; w?: number; wt?: number }[]): number | undefined {
+  const total = units.reduce((n, u) => n + (u.woundsTotal ?? u.wt ?? 0), 0);
+  if (!total) return undefined;
+  return units.reduce((n, u) => n + (u.woundsLeft ?? u.w ?? 0), 0) / total;
+}
 
 export function UnitsPanel({ gameId, units }: { gameId: string; units: UnitLeft[] }) {
   return (
@@ -357,5 +376,22 @@ export function TurnBanner({ mine, label, phase, vp, onSwitch, switchTo }: { min
         onConfirm={() => onSwitch?.()}
       />
     </>
+  );
+}
+
+const SHORT_PHASE: Record<Phase, string> = { command: 'Cmd', movement: 'Move', shooting: 'Shoot', charge: 'Charge', fight: 'Fight' };
+
+/** The five phases as one row that always fits the screen (short names on very narrow phones). `current` gets a dot. */
+export function PhaseStrip({ value, current, onPick, label }: { value: Phase; current?: Phase; onPick: (p: Phase) => void; label?: string }) {
+  return (
+    <div className="phase-strip" role="group" aria-label={label ?? 'Phase'}>
+      {PHASES.map((p) => (
+        <button key={p} className={`filter ${value === p ? 'on' : ''}`} aria-pressed={value === p} aria-label={PHASE_NAMES[p]} onClick={() => onPick(p)}>
+          <span className="phase-full">{PHASE_NAMES[p]}</span>
+          <span className="phase-short">{SHORT_PHASE[p]}</span>
+          {current === p && current !== value ? <span className="phase-dot" aria-hidden="true" /> : null}
+        </button>
+      ))}
+    </div>
   );
 }
