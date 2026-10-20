@@ -423,29 +423,38 @@ export function BattleTabs({ tab, onTab, phase }: { tab: BattleTab; onTab: (t: B
   );
 }
 
-/** CP for each side in one short row: "CP  You − 3 +   Bob − 1 +". Sides without `onChange` are shown, not changed. */
+/**
+ * CP, one row per side: the name on the left (cut short with "…" when long),
+ * "CP" and the − n + counter on the right. Sides without `onChange` are shown, not changed.
+ */
 export function CpBar({ sides }: { sides: { key: string; label: string; value: number; onChange?: (v: number) => void }[] }) {
   return (
     <div className="card cp-bar" role="group" aria-label="Command points">
-      <span className="cp-bar-title">CP</span>
       {sides.map((s) => (
         <div key={s.key} className="cp-side">
-          <span className="cp-name">{s.label}</span>
-          {s.onChange ? (
-            <span className="cp-step">
-              <button aria-label={`${s.label}: one CP less`} disabled={s.value <= 0} onClick={() => s.onChange!(s.value - 1)}>
-                −
-              </button>
-              <span className="cp-val num" aria-live="polite">
+          <span className="cp-name" title={s.label}>
+            {s.label}
+          </span>
+          <span className="cp-right">
+            <span className="cp-label">CP</span>
+            {s.onChange ? (
+              <span className="cp-step">
+                <button aria-label={`${s.label}: one CP less`} disabled={s.value <= 0} onClick={() => s.onChange!(s.value - 1)}>
+                  −
+                </button>
+                <span className="cp-val num" aria-live="polite">
+                  {s.value}
+                </span>
+                <button aria-label={`${s.label}: one CP more`} onClick={() => s.onChange!(s.value + 1)}>
+                  +
+                </button>
+              </span>
+            ) : (
+              <span className="cp-val num cp-readonly" aria-label={`${s.label}: ${s.value} CP`}>
                 {s.value}
               </span>
-              <button aria-label={`${s.label}: one CP more`} onClick={() => s.onChange!(s.value + 1)}>
-                +
-              </button>
-            </span>
-          ) : (
-            <span className="cp-val num">{s.value}</span>
-          )}
+            )}
+          </span>
         </div>
       ))}
     </div>
