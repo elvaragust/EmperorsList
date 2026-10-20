@@ -50,3 +50,56 @@ export function downloadText(filename: string, text: string, type = 'application
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+const LAST_BACKUP_KEY = 'emperorslist.lastBackup';
+const SNOOZE_KEY = 'emperorslist.backupSnooze';
+const read = (k: string) => {
+  try {
+    return Number(localStorage.getItem(k) ?? 0);
+  } catch {
+    return 0;
+  }
+};
+const write = (k: string, v: number) => {
+  try {
+    localStorage.setItem(k, String(v));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** When a backup was last saved from this phone (0 = never). */
+export const lastBackupAt = () => read(LAST_BACKUP_KEY);
+
+/**
+ * Save a backup file somewhere outside the browser. On phones that can, the
+ * share sheet opens so it can go straight to Google Drive, iCloud Files,
+ * email…; elsewhere the file is downloaded. Returns how it was saved, or
+ * undefined when the player cancelled.
+ */
+export async function saveBackupFile(): Promise<'shared' | 'downloaded' | undefined> {
+  const text = await exportBackup();
+  const name = `emperorslist-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  const file = typeof File !== 'undefined' ? new File([text], name, { type: 'application/json' }) : undefined;
+  if (file && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'EmperorsList backup' });
+      write(LAST_BACKUP_KEY, Date.now());
+      return 'shared';
+    } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') return undefined;
+    }
+  }
+  downloadText(name, text);
+  write(LAST_BACKUP_KEY, Date.now());
+  return 'downloaded';
+}
+
+/** Remind about a backup when there's something to lose and none was saved for two weeks (unless put off). */
+export function backupDue(hasData: boolean): boolean {
+  if (!hasData) return false;
+  const now = Date.now();
+  if (read(SNOOZE_KEY) > now) return false;
+  return now - lastBackupAt() > 14 * 24 * 3600 * 1000;
+}
+export const snoozeBackup = (days = 7) => write(SNOOZE_KEY, Date.now() + days * 24 * 3600 * 1000);

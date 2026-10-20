@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
-import { nextPhase, PHASE_NAMES, PHASES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
+import { nextPhase, PHASE_NAMES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
 import { datasheet } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
@@ -14,12 +14,14 @@ import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { Stepper } from '@/ui/Stepper';
 import { showToast } from '@/ui/Toast';
-import { practiceId, saveGame, startPractice, updateGame, withLog } from './games';
+import { practiceId, saveGame, startPractice, updateGame, useHealthRecorder, withLog } from './games';
 import { ViewToggle } from '@/ui/ViewToggle';
 import { WizardSteps } from '@/ui/WizardSteps';
 import { useSessionState } from '@/ui/useSessionState';
-import { NotesPanel, PhasePanel, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
+import { healthOf, NotesPanel, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, UnitsPanel, unitsLeft } from './panels';
 import { LiveGame } from './LiveGame';
+import { gameDuration, ResultLog, ResultView } from './ResultView';
+import { ListChangedSheet, useGameRoster } from './gameRoster';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
 import { allowedDispositions } from '@/engine/rules/config';
@@ -36,15 +38,28 @@ export function GameScreen() {
   // null = looked and it isn't there; undefined = still reading.
   const found = useLiveQuery(() => db.games.get(gameId).then((g) => g ?? null), [gameId]);
   const game = found ?? undefined;
-  const roster = useLiveQuery(() => (game ? db.rosters.get(game.rosterId) : undefined), [game?.rosterId]);
+  const { roster, latest, changed } = useGameRoster(game);
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
   if (found === null) return <Screen title="Game" back="/play"><p className="muted">This game isn't on this device (it may have been deleted, or the browser cleared the app's data).</p></Screen>;
   if (!game) return <Screen title="Game" back="/play"><Loading what="the game" /></Screen>;
   if (game.idle) return <IdleEnded game={game} />;
-  if (game.live) return <LiveGame game={game} engine={engine} />;
+  const prompt = <ListChangedSheet game={game} latest={latest} open={changed} />;
+  if (game.live)
+    return (
+      <>
+        <LiveGame game={game} engine={engine} />
+        {prompt}
+      </>
+    );
   if (game.stage === 'setup') return <Setup game={game} engine={engine} />;
-  if (game.stage === 'battle') return <Battle game={game} engine={engine} index={index} />;
+  if (game.stage === 'battle')
+    return (
+      <>
+        <Battle game={game} engine={engine} index={index} />
+        {prompt}
+      </>
+    );
   return <Result game={game} />;
 }
 
@@ -255,7 +270,8 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
     void save({ ...game, vp: { ...game.vp, [side]: sc } });
   };
 
-  const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties) : []), [engine, game.casualties]);
+  const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties, game.wounds) : []), [engine, game.casualties, game.wounds]);
+  useHealthRecorder(game.id, game.round, { me: engine && !game.practice ? healthOf(myUnits) : undefined }, game.stage);
 
   return (
     <Screen
@@ -281,13 +297,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           void save(withLog({ ...game, turn, phase: 'command' }, `Switched to ${turn === 'me' ? 'your' : `${who('them')}'s`} turn`, 'phase'));
         }}
       />
-      <div className="phase-strip">
-        {PHASES.map((p) => (
-          <button key={p} className={`filter ${game.phase === p ? 'on' : ''}`} onClick={() => save({ ...game, phase: p })}>
-            {PHASE_NAMES[p]}
-          </button>
-        ))}
-      </div>
+      <PhaseStrip value={game.phase} onPick={(p) => save({ ...game, phase: p })} />
       <div className="card cp-card">
         <div className="counter">
           <span>Your CP</span>
@@ -486,50 +496,38 @@ export function ScoreRow({ label, values, onChange, readOnly }: { label: string;
 function Result({ game }: { game: SavedGame }) {
   const navigate = useNavigate();
   const [askDelete, setAskDelete] = useState(false);
+  const them = game.opponentName || 'Opponent';
   return (
     <Screen title="Result" back="/play">
-      <div className="big-num" style={{ textAlign: 'center', margin: '12px 0' }}>
-        {totalScore(game.vp.me)} – {totalScore(game.vp.them)}
-      </div>
-      <p style={{ textAlign: 'center' }} className="tag">
-        {(game.result ?? 'draw').toUpperCase()} vs {game.opponentName || 'opponent'}
-        {game.opponentFaction ? ` (${game.opponentFaction})` : ''}
-      </p>
-      <p className="small muted" style={{ textAlign: 'center' }}>
-        {game.rosterName} · {game.mission || 'mission not set'} · {new Date(game.startedAt).toLocaleDateString()}
-      </p>
-      <div className="section-label">Result</div>
-      <div className="card">
-        {(['win', 'loss', 'draw'] as const).map((r) => (
-          <button key={r} className="choice" role="radio" aria-checked={game.result === r} onClick={() => saveGame({ ...game, result: r })}>
-            <span className="mark" />
-            <span>{r[0]!.toUpperCase() + r.slice(1)}</span>
-          </button>
-        ))}
-      </div>
-      <label className="field">
-        <span>Notes</span>
-        <textarea className="input" defaultValue={game.notes ?? ''} onBlur={(e) => saveGame({ ...game, notes: e.target.value })} />
-      </label>
-      <div className="section-label">Log</div>
-      <div className="card">
-        {game.log.map((l, i) => (
-          <div key={i} className="row small">
-            <span className="muted" style={{ width: 30 }}>
-              R{l.round}
-            </span>
-            <span style={{ flex: 1 }}>{l.text}</span>
-          </div>
-        ))}
-      </div>
-      <div className="btn-row">
-        <button className="btn" onClick={() => saveGame({ ...game, stage: 'battle' })}>
-          Reopen game
-        </button>
-        <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
-          Delete game
-        </button>
-      </div>
+      <ResultView
+        game={game}
+        roundsPlayed={game.round}
+        sides={[
+          { key: 'me', name: 'You', score: game.vp.me, isMe: true },
+          { key: 'them', name: them, score: game.vp.them, isMe: false },
+        ]}
+        details={[
+          `${game.rosterName} vs ${them}${game.opponentFaction ? ` (${game.opponentFaction})` : ''}`,
+          game.mission ?? '',
+          game.deployment ?? '',
+          new Date(game.startedAt).toLocaleDateString(),
+          gameDuration(game) ?? '',
+        ]}
+        actions={
+          <>
+            <button className="btn" onClick={() => saveGame({ ...game, stage: 'battle' })}>
+              Reopen game
+            </button>
+            <button className="btn btn-ghost" onClick={() => navigate('/play')}>
+              Back to games
+            </button>
+            <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
+              Delete game
+            </button>
+          </>
+        }
+      />
+      <ResultLog entries={game.log} />
       <ConfirmSheet
         open={askDelete}
         onClose={() => setAskDelete(false)}

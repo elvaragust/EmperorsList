@@ -42,6 +42,9 @@ export interface UnitSummary {
   alive: number;
   total: number;
   points?: number;
+  /** Wounds left and at the start, so other phones can follow how the battle goes. */
+  w?: number;
+  wt?: number;
 }
 
 export interface LiveLog {
@@ -70,9 +73,9 @@ export interface LiveState {
   round: number;
   turn: Team;
   phase: Phase;
-  /** CP per player id. With `sharedCp`, teammates always hold the same number (one pool per team). */
+  /** CP per player id. Teammates share one pool: they always hold the same number. */
   cp: Record<string, number>;
-  /** Teammates spend from one CP pool. */
+  /** Older games: whether teammates shared CP. Teams now always share one pool. */
   sharedCp?: boolean;
   vp: Partial<Record<Team, Score>> & Record<'A' | 'B', Score>;
   /** Each team's secondaries and primary-scored rounds, readable by everyone. */
@@ -209,7 +212,7 @@ function setCp(s: LiveState, id: string, value: number): LiveState {
   const team = s.players.find((p) => p.id === id)?.team;
   const v = Math.max(0, value);
   const cp = { ...s.cp, [id]: v };
-  if (s.sharedCp && team) for (const p of s.players) if (p.team === team) cp[p.id] = v;
+  if (team) for (const p of s.players) if (p.team === team) cp[p.id] = v;
   return { ...s, cp };
 }
 
@@ -262,8 +265,8 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       return bump(withPrimaries(next));
     }
     case 'setSharedCp':
-      if (!isHost) return s;
-      return bump({ ...s, sharedCp: a.on });
+      // Teams always share one CP pool now; kept so older phones' messages are understood.
+      return s;
     case 'setMission':
       if (!isHost) return s;
       return bump({ ...s, mission: a.mission ?? s.mission, deployment: a.deployment ?? s.deployment, twist: a.twist ?? s.twist });
@@ -332,7 +335,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
     case 'cp': {
       // Each player changes only their own CP (with a shared pool: their team's).
       const target = s.players.find((p) => p.id === a.id);
-      if (!local && from !== a.id && !(s.sharedCp && target && target.team === myTeam)) return s;
+      if (!local && from !== a.id && !(target && target.team === myTeam)) return s;
       if (!(a.id in s.cp) && !target) return s;
       return bump(setCp(s, a.id, a.value));
     }
@@ -399,7 +402,7 @@ export function mergeOffline(host: LiveState, phone: LiveState, base: LiveState 
   // Only what the phone changed while it was cut off (compared with the last copy the host sent it):
   // a teammate's changes on the host in the meantime are kept.
   const changed = (pick: (s: LiveState) => unknown) => JSON.stringify(pick(phone)) !== JSON.stringify(base ? pick(base) : undefined);
-  const mates = host.players.filter((p) => p.team === team && (host.sharedCp || p.id === from)).map((p) => p.id);
+  const mates = host.players.filter((p) => p.team === team).map((p) => p.id);
   const cp = { ...host.cp };
   for (const id of mates) if (id in phone.cp && changed((s) => s.cp[id])) cp[id] = phone.cp[id]!;
   const phoneMe = phone.players.find((p) => p.id === from);

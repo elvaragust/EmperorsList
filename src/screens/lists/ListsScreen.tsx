@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
+import { backupDue, saveBackupFile, snoozeBackup } from '@/data/backup';
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
@@ -15,6 +16,7 @@ export function ListsScreen() {
   const [filter, setFilter] = useState('');
   const [menu, setMenu] = useState<Roster | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [showBackup, setShowBackup] = useState(() => backupDue(true));
 
   const folders = useMemo(() => {
     const m = new Map<string, Roster[]>();
@@ -34,6 +36,29 @@ export function ListsScreen() {
         </Link>
       }
     >
+      {rosters && rosters.length > 0 && showBackup && (
+        <div className="backup-nudge" role="status">
+          <div style={{ fontWeight: 600 }}>Keep your lists safe</div>
+          <div className="small muted">They live only in this browser. Save a backup to Drive, Files or email — you can restore it on any phone.</div>
+          <div className="btn-row" style={{ margin: '8px 0 0' }}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={async () => {
+                const how = await saveBackupFile();
+                if (how) {
+                  setShowBackup(false);
+                  showToast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
+                }
+              }}
+            >
+              Save a backup
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => (snoozeBackup(), setShowBackup(false))}>
+              Later
+            </button>
+          </div>
+        </div>
+      )}
       {rosters && rosters.length > 3 && (
         <input className="input" placeholder="Search lists" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Search lists" style={{ marginBottom: 8 }} />
       )}

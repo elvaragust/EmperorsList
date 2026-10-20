@@ -13,12 +13,13 @@ import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
 import { combinedModels } from '../roster/combined';
 import { saveGame, withLog } from './games';
+import { useGameRoster } from './gameRoster';
 
 /** Casualty tracking for one unit (with its attached characters) during a game. */
 export function GameUnitScreen() {
   const { gameId = '', unitId = '' } = useParams();
   const game = useLiveQuery(() => db.games.get(gameId), [gameId]);
-  const roster = useLiveQuery(() => (game ? db.rosters.get(game.rosterId) : undefined), [game?.rosterId]);
+  const { roster } = useGameRoster(game);
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(game?.factionName);
   const unit = roster?.units.find((u) => u.id === unitId);

@@ -78,6 +78,10 @@ export interface SavedGame {
   manualPrimary?: boolean;
   /** Attacker or Defender, from the deployment roll-off. */
   role?: 'attacker' | 'defender';
+  /** The army this game is played with: a copy of the list taken when the game started (see useGameRoster). */
+  roster?: Roster;
+  /** The list was changed mid-game and the player chose to keep the game's army (that list version's updatedAt). */
+  listKept?: number;
   /** The opponent's army read from the list they pasted (for read-only unit views). */
   opponentRoster?: Roster;
   /** Notes typed under weapons during this game (unit id -> weapon id -> text). Only for this game, never saved to the list. */
@@ -101,6 +105,14 @@ export interface SavedGame {
   used: { round: number; turn: 'me' | 'them'; phase: Phase; id: string; name: string }[];
   log: GameLogEntry[];
   result?: 'win' | 'loss' | 'draw';
+  /**
+   * Share of each side's starting wounds left at the end of each battle round
+   * (side: 'me'/'them' or a team letter; index = round − 1). Filled in as the
+   * game goes, for the round-by-round summary at the end.
+   */
+  health?: Record<string, (number | null)[]>;
+  /** Score corrections made on the result screen (per side: 'me'/'them' or a team letter). Only on this phone. */
+  scoreEdits?: Record<string, import('@/engine/game').Score>;
   notes?: string;
   /** The list builder's Play view: a throwaway game, never listed or kept. */
   practice?: boolean;

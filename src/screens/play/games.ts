@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { db, type GameLogEntry, type SavedGame } from '@/data/db';
 import { uid } from '@/data/rosters';
 import { emptyScore } from '@/engine/game';
@@ -8,6 +9,7 @@ export function newGame(roster: Roster): SavedGame {
     id: uid(),
     rosterId: roster.id,
     rosterName: roster.name,
+    roster,
     factionName: roster.factionName,
     opponentName: '',
     startedAt: Date.now(),
@@ -57,4 +59,33 @@ export async function updateGame(id: string, fn: (g: SavedGame) => SavedGame | u
 
 export function withLog(g: SavedGame, text: string, kind: GameLogEntry['kind']): SavedGame {
   return { ...g, log: [...g.log, { at: Date.now(), round: g.round, turn: g.turn, phase: g.phase, text, kind }] };
+}
+
+/**
+ * Note each side's army health (share of starting wounds left) for the current
+ * battle round, so the result screen can show how the battle swung round by
+ * round. Only writes when a number changed.
+ */
+export function useHealthRecorder(gameId: string, round: number, sides: Record<string, number | undefined>, stage: SavedGame['stage']) {
+  const key = JSON.stringify(sides);
+  useEffect(() => {
+    if (stage !== 'battle' || round < 1) return;
+    void updateGame(gameId, (g) => {
+      const health = { ...g.health };
+      let changed = false;
+      for (const [side, v] of Object.entries(sides)) {
+        if (v === undefined) continue;
+        const list = [...(health[side] ?? [])];
+        while (list.length < round) list.push(null);
+        const value = Math.round(v * 1000) / 1000;
+        if (list[round - 1] !== value) {
+          list[round - 1] = value;
+          health[side] = list;
+          changed = true;
+        }
+      }
+      return changed ? { ...g, health } : undefined;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, round, key, stage]);
 }
