@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { SavedGame } from '@/data/db';
+import { Sheet } from '@/ui/Sheet';
 import { applySecOp, fixedSecondaries, MISSION_DECK, secondariesFor, shuffled, type SecOp, type SecondaryState } from '@/engine/missions';
 import { showToast } from '@/ui/Toast';
 import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
@@ -54,7 +56,7 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>End of your turn:</strong> score any you achieved (then discard them), and you may discard any others.
       </li>
       <li>
-        <strong>Redraw:</strong> spend 1CP to discard one card and draw a new one (as often as you like here). A card that says <em>when drawn… draw a new card and shuffle this one back</em> (e.g. in the first battle round): use <strong>Shuffle back &amp; draw</strong>, which is free. <strong>Draw a card</strong> takes one more at any time.
+        <strong>Redraw:</strong> spend 1CP to discard one card and draw a new one (as often as you like here). A card that says <em>when drawn… draw a new card and shuffle this one back</em> (e.g. in the first battle round): use <strong>Shuffle back &amp; draw</strong>, which is free. <strong>All secondaries</strong> lists every card with yours highlighted: take one into your hand or put one away there.
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
@@ -189,6 +191,7 @@ export function MissionsPanel({
   const act = (op: SecOp, text?: string) => onSec?.(op, text);
   const canDraw = !readOnly && mode === 'tactical' && t && t.drawnFor !== turnKey;
   const primaryDone = (sec.primaryDone ?? []).includes(round);
+  const [showAll, setShowAll] = useState(false);
   return (
     <div>
       <div className="section-label">{who ? `${who} primary` : 'Primary'} · round {round}</div>
@@ -217,6 +220,10 @@ export function MissionsPanel({
         {who ? `${who} secondaries` : 'Secondaries'}
         {mode ? ` · ${mode === 'fixed' ? 'Fixed' : 'Tactical'}` : ''}
       </div>
+      <button className="btn btn-sm btn-block all-sec-btn" onClick={() => setShowAll(true)}>
+        All secondaries{mode === 'tactical' && t ? ` · ${t.active.length} in hand` : mode === 'fixed' ? ` · ${sec.fixed.length} chosen` : ''}
+      </button>
+      <AllSecondaries open={showAll} onClose={() => setShowAll(false)} sec={sec} cards={cards} readOnly={readOnly} who={who} onTake={(n) => act({ op: 'take', name: n }, `Took ${n} into the hand`)} onDrop={(n) => act({ op: 'discard', name: n }, `Discarded ${n}`)} />
       {!mode &&
         (readOnly ? (
           <p className="muted small">Not chosen yet.</p>
@@ -255,20 +262,6 @@ export function MissionsPanel({
             </button>
           )}
           {t.active.length === 0 && <p className="muted small">No active cards.{canDraw || readOnly ? '' : ' Draw at the start of your next Command phase.'}</p>}
-          {!readOnly && !canDraw && (
-            <button
-              className="btn btn-sm btn-block"
-              disabled={!t.deck.length && !t.discarded.length}
-              onClick={() => {
-                const next = applySecOp(sec, { op: 'drawFree' }).tactical;
-                const drawn = next?.active.filter((x) => !t.active.includes(x)) ?? [];
-                act({ op: 'drawFree' }, drawn.length ? `Drew ${drawn.join(', ')} (extra card)` : undefined);
-                showToast(drawn.length ? `Drew ${drawn.join(', ')}` : 'The deck is empty');
-              }}
-            >
-              Draw a card (free)
-            </button>
-          )}
           {t.active.map((n) => (
             <ScoreCard
               key={n}
@@ -290,9 +283,6 @@ export function MissionsPanel({
               footer={
                 readOnly ? undefined : (
                   <div className="btn-row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
-                    <button className="btn btn-sm" onClick={() => (act({ op: 'discard', name: n }, `Discarded ${n}`), showToast(`${n} discarded`))}>
-                      Discard
-                    </button>
                     <button
                       className="btn btn-sm"
                       title="Free: put this card back in the deck and draw a new one (for cards that say so when drawn, e.g. in the first battle round)"
@@ -354,5 +344,82 @@ export function MissionsPanel({
       )}
       {!readOnly && <ModeRules mode={mode ?? 'tactical'} />}
     </div>
+  );
+}
+
+/**
+ * Every secondary mission in the deck, with yours highlighted: in your hand,
+ * your Fixed cards, scored or discarded. Tap one to read it; a card that isn't
+ * in your hand can be taken into it, one that is can be put away.
+ */
+function AllSecondaries({
+  open,
+  onClose,
+  sec,
+  cards,
+  readOnly,
+  who,
+  onTake,
+  onDrop,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sec: SecondaryState;
+  cards: Map<string, CardInfo>;
+  readOnly?: boolean;
+  who?: string;
+  onTake: (name: string) => void;
+  onDrop: (name: string) => void;
+}) {
+  const [opened, setOpened] = useState<string>();
+  const t = sec.tactical;
+  const status = (n: string): { label: string; mine: boolean } => {
+    if (sec.mode === 'fixed') return sec.fixed.includes(n) ? { label: 'Fixed', mine: true } : { label: '', mine: false };
+    if (t?.active.includes(n)) return { label: 'In hand', mine: true };
+    const sc = t?.scored.find((x) => x.name === n);
+    if (sc) return { label: `Scored R${sc.round}`, mine: false };
+    if (t?.discarded.includes(n)) return { label: 'Discarded', mine: false };
+    return { label: '', mine: false };
+  };
+  const list = [...MISSION_DECK.secondaries].sort((a, b) => Number(status(b).mine) - Number(status(a).mine));
+  return (
+    <Sheet open={open} onClose={onClose} title={who ? `${who} secondaries` : 'All secondaries'}>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        {sec.mode === 'tactical' ? 'Highlighted: in the hand. Tap a card to read it' : sec.mode === 'fixed' ? 'Highlighted: the two Fixed cards. Tap a card to read it' : 'Tap a card to read it'}
+        {!readOnly && sec.mode === 'tactical' ? ', take it into your hand, or put it away.' : '.'}
+      </p>
+      <div className="all-sec">
+        {list.map((n) => {
+          const st = status(n);
+          const isOpen = opened === n;
+          return (
+            <div key={n} className={`all-sec-item ${st.mine ? 'mine' : ''} ${st.label === 'Discarded' || st.label.startsWith('Scored') ? 'done' : ''}`}>
+              <button className="all-sec-head" aria-expanded={isOpen} onClick={() => setOpened(isOpen ? undefined : n)}>
+                <span className="all-sec-name">{n}</span>
+                {st.label && <span className="all-sec-tag">{st.label}</span>}
+              </button>
+              {isOpen && (
+                <div className="all-sec-body">
+                  <CardText name={n} cards={cards} />
+                  {!readOnly && sec.mode === 'tactical' && t && (
+                    <div className="btn-row" style={{ margin: '6px 0 0' }}>
+                      {t.active.includes(n) ? (
+                        <button className="btn btn-sm" onClick={() => (onDrop(n), showToast(`${n} put away`))}>
+                          Put away (discard)
+                        </button>
+                      ) : (
+                        <button className="btn btn-sm btn-primary" onClick={() => (onTake(n), showToast(`${n} is in your hand`))}>
+                          Take into my hand
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Sheet>
   );
 }
