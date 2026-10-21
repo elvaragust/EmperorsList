@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/data/db';
 import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
-import { loadIndex, saveRoster } from '@/data/gameData';
+import { loadIndex, rootsFor, saveRoster } from '@/data/gameData';
 import { decodePayload, payloadToRoster } from '@/data/shareLink';
 import { matchFaction, parseListText, type ImportReport } from '@/engine/listText';
 import { importListText } from '@/data/importList';
 import type { SharePayload } from '@/engine/share';
+import { syncDetachments } from '@/engine/rules/config';
+import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { Screen } from '@/ui/Screen';
 
 /** Import a list from the official app's text export, or open a share link. */
@@ -46,7 +48,9 @@ export function ImportScreen() {
         await ensureFaction(payload.f, setBusy);
       }
       const index = await loadIndex(payload.c);
-      const roster = payloadToRoster(payload);
+      let roster = payloadToRoster(payload);
+      // Links made before detachment ids were sent: take them from the list's config.
+      roster = syncDetachments(new RosterEngine(index, roster, rootsFor(index, roster.catalogueId)), roster);
       const saved = await saveRoster(index, roster);
       navigate(`/roster/${saved.id}`, { replace: true });
     } catch (e) {
