@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { SavedGame } from '@/data/db';
 import { Sheet } from '@/ui/Sheet';
 import { applySecOp, fixedSecondaries, MISSION_DECK, secondariesFor, shuffled, type SecOp, type SecondaryState } from '@/engine/missions';
+import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
-import { CardText, cardTags, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
+import { cardTags, MissionRow, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
 
 type Mode = 'fixed' | 'tactical';
 const list = (v?: string) =>
@@ -75,26 +76,28 @@ function ModeSwitch({ value, onChange, disabled }: { value?: Mode; onChange: (m:
   );
 }
 
-/** Pick two cards from a pool. */
+/** Pick two cards from a pool: the deck as a list of cards, the chosen two lit. */
 function PickTwo({ pool, value, onChange, cards }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; cards: Map<string, CardInfo> }) {
   const full = value.length >= 2;
   return (
-    <>
-      <div className="small muted">{value.length}/2 chosen{full ? ' — tap one to take it back' : ''}</div>
-      <div className="kw-list" style={{ gap: '6px 14px', margin: '6px 0 10px' }}>
-        {pool.map((s) => {
-          const on = value.includes(s);
-          return (
-            <button key={s} className={`filter ${on ? 'on' : ''}`} aria-pressed={on} disabled={full && !on} style={full && !on ? { opacity: 0.4 } : undefined} onClick={() => onChange(on ? value.filter((x) => x !== s) : [...value, s])}>
-              {s}
-            </button>
-          );
-        })}
+    <div className="mission-pick-list">
+      <div className="mission-pick-bar">
+        <span className="mission-count">
+          <strong className="num">{value.length}/2</strong> chosen
+        </span>
+        <button className="btn btn-sm" onClick={() => onChange(shuffled(pool).slice(0, 2))}>
+          <Icon name="dice" size={16} />
+          Draw random
+        </button>
       </div>
-      {value.map((n) => (
-        <CardText key={n} name={n} cards={cards} compact />
-      ))}
-    </>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>
+        Tap a name to read the card, the emblem to choose it.{full ? ' Two chosen: tap a lit one to take it back.' : ''}
+      </p>
+      {pool.map((s) => {
+        const on = value.includes(s);
+        return <MissionRow key={s} name={s} cards={cards} selected={on} dim={full && !on} selectLabel={on ? `Take back ${s}` : `Choose ${s}`} onSelect={() => (on ? onChange(value.filter((x) => x !== s)) : full ? showToast('Two chosen already: take one back first') : onChange([...value, s]))} />;
+      })}
+    </div>
   );
 }
 
@@ -239,7 +242,7 @@ export function MissionsPanel({
           </p>
         ))}
       {mode === 'fixed' &&
-        (sec.fixed.length ? (
+        (sec.fixed.length >= 2 || (readOnly && sec.fixed.length) ? (
           sec.fixed.map((n) => <ScoreCard key={n} kind="Secondary" mode="fixed" name={n} cards={cards} round={round} onAdd={readOnly ? undefined : (vp) => onVp?.('secondary', vp, n)} addLabel={`Add to round ${round} secondary:`} readOnly={readOnly} />)
         ) : readOnly ? (
           <p className="muted small">No Fixed cards chosen yet.</p>
@@ -371,7 +374,6 @@ function AllSecondaries({
   onTake: (name: string) => void;
   onDrop: (name: string) => void;
 }) {
-  const [opened, setOpened] = useState<string>();
   const t = sec.tactical;
   const status = (n: string): { label: string; mine: boolean } => {
     if (sec.mode === 'fixed') return sec.fixed.includes(n) ? { label: 'Fixed', mine: true } : { label: '', mine: false };
@@ -388,35 +390,26 @@ function AllSecondaries({
         {sec.mode === 'tactical' ? 'Highlighted: in the hand. Tap a card to read it' : sec.mode === 'fixed' ? 'Highlighted: the two Fixed cards. Tap a card to read it' : 'Tap a card to read it'}
         {!readOnly && sec.mode === 'tactical' ? ', take it into your hand, or put it away.' : '.'}
       </p>
-      <div className="all-sec">
+      <div className="mission-pick-list">
         {list.map((n) => {
           const st = status(n);
-          const isOpen = opened === n;
+          const inHand = Boolean(t?.active.includes(n));
           return (
-            <div key={n} className={`all-sec-item ${st.mine ? 'mine' : ''} ${st.label === 'Discarded' || st.label.startsWith('Scored') ? 'done' : ''}`}>
-              <button className="all-sec-head" aria-expanded={isOpen} onClick={() => setOpened(isOpen ? undefined : n)}>
-                <span className="all-sec-name">{n}</span>
-                {st.label && <span className="all-sec-tag">{st.label}</span>}
-              </button>
-              {isOpen && (
-                <div className="all-sec-body">
-                  <CardText name={n} cards={cards} />
-                  {!readOnly && sec.mode === 'tactical' && t && (
-                    <div className="btn-row" style={{ margin: '6px 0 0' }}>
-                      {t.active.includes(n) ? (
-                        <button className="btn btn-sm" onClick={() => (onDrop(n), showToast(`${n} put away`))}>
-                          Put away (discard)
-                        </button>
-                      ) : (
-                        <button className="btn btn-sm btn-primary" onClick={() => (onTake(n), showToast(`${n} is in your hand`))}>
-                          Take into my hand
-                        </button>
-                      )}
-                    </div>
+            <MissionRow key={n} name={n} cards={cards} selected={st.mine} tag={st.label || undefined} dim={st.label === 'Discarded' || st.label.startsWith('Scored')}>
+              {!readOnly && sec.mode === 'tactical' && t && (
+                <div className="btn-row" style={{ margin: '8px 0 0' }}>
+                  {inHand ? (
+                    <button className="btn btn-sm" onClick={() => (onDrop(n), showToast(`${n} put away`))}>
+                      Put away (discard)
+                    </button>
+                  ) : (
+                    <button className="btn btn-sm btn-primary" onClick={() => (onTake(n), showToast(`${n} is in your hand`))}>
+                      Take into my hand
+                    </button>
                   )}
                 </div>
               )}
-            </div>
+            </MissionRow>
           );
         })}
       </div>
