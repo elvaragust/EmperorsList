@@ -7,7 +7,7 @@ import { newUnit } from '@/engine/rules/edit';
 import { allWeapons, datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import { allyName, choiceRole, ROLES } from '@/engine/rules/roles';
-import { setShowOptions, showOptions } from '@/engine/rules/config';
+import { extraSwitches, setShowOptions, showOptions } from '@/engine/rules/config';
 import { legendsFit } from '@/engine/rules/legends';
 import { Collapse } from '@/ui/Collapse';
 import { Sheet } from '@/ui/Sheet';
@@ -73,8 +73,7 @@ export function AddUnitScreen() {
     const out: Extra[] = [];
     const seen = new Set<string>();
     const opts = showOptions(e0).filter((x) => !x.hidden && !x.on);
-    const legends = opts.find((x) => /^show legends$/i.test(x.name));
-    const allySwitches = opts.filter((x) => /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name));
+    const { legends, allies: allySwitches } = extraSwitches(opts);
     const collect = (needs: string[]) => {
       const e = needs.length ? new RosterEngine(engine.index, setShowOptions(e0, base, Object.fromEntries(needs.map((k) => [k, true]))), roots) : e0;
       for (const c of e.unitChoices()) {

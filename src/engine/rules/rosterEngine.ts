@@ -1,5 +1,5 @@
 import { rootLinks, type DataIndex } from '../bsdata/index';
-import type { RawConstraint } from '../bsdata/raw';
+import type { RawCondition, RawConditionGroup, RawConstraint } from '../bsdata/raw';
 import type { Issue, Roster, RosterUnit } from '../types';
 import { Evaluator, PTS } from './evaluate';
 import { buildRosterTree, virtualChild, type Inst, type RosterTree } from './instance';
@@ -60,7 +60,9 @@ export interface OptionView {
   children: OptionView[];
 }
 
-const isSelLimit = (c: RawConstraint) => c.field === 'selections' && c.scope === 'parent' && !c.percentValue;
+const SIZE_WORDS: Partial<Record<Roster['battleSize'], RegExp>> = { incursion: /incursion/i, strikeForce: /strike force/i, onslaught: /onslaught/i };
+
+const isSelLimit =(c: RawConstraint) => c.field === 'selections' && c.scope === 'parent' && !c.percentValue;
 
 /**
  * Everything the screens need about one roster, computed from the data.
@@ -134,11 +136,22 @@ export class RosterEngine {
     return t;
   }
 
-  /** Points limit from the battle size (via the data), unless the list uses a custom limit. */
+  /**
+   * Points limit from the battle size (via the data), unless the list sets its
+   * own: custom points, or a size the data doesn't offer (Onslaught), which is
+   * stored with another size's limits picked in the data.
+   */
   pointsLimit(): number {
-    if (this.roster.battleSize === 'custom') return this.roster.pointsLimit;
+    if (this.roster.battleSize === 'custom' || this.borrowsBattleSize()) return this.roster.pointsLimit;
     const v = this.forceLimit(PTS);
     return v && v > 0 ? v : this.roster.pointsLimit;
+  }
+
+  private borrowsBattleSize(): boolean {
+    const word = SIZE_WORDS[this.roster.battleSize];
+    const sizeSel = this.tree.force.children.find((c) => c.node && /^battle size$/i.test(c.node.name));
+    const picked = sizeSel?.children.filter((c) => c.count > 0 && c.node && Object.values(SIZE_WORDS).some((re) => re.test(c.node!.name)));
+    return Boolean(word && picked?.length && !picked.some((c) => word.test(c.node!.name)));
   }
 
   forceLimit(field: string): number | undefined {
@@ -287,7 +300,61 @@ export class RosterEngine {
       if (c.type === 'min') min = Math.max(min, v);
       else if (v >= 0) max = max < 0 ? v : Math.min(max, v);
     }
+    if (node.kind === 'group') {
+      const cap = this.messageCap(node, owner);
+      if (cap !== undefined && cap >= 0) max = max < 0 ? cap : Math.min(max, cap);
+    }
     return { min, max };
+  }
+
+  /**
+   * A limit the data writes as an error on a group rather than as its maximum:
+   * "Max 2 per 10 models" is an error when the group holds more than 2 and the
+   * unit has fewer than 20 models. While the other conditions hold, that is the
+   * group's real maximum.
+   */
+  private messageCap(group: OptNode, owner: Inst): number | undefined {
+    const ev = this.ev;
+    const self = new Set([group.key, group.targetId]);
+    let cap: number | undefined;
+    for (const fm of group.modifiers) {
+      if (fm.mod.field !== 'error') continue;
+      const conds: RawCondition[] = [...(fm.mod.conditions ?? [])];
+      const nested: RawConditionGroup[] = [];
+      for (const g of fm.mod.conditionGroups ?? []) {
+        const parts = (g.conditions?.length ?? 0) + (g.conditionGroups?.length ?? 0) + (g.localConditionGroups?.length ?? 0);
+        if (g.type === 'and' || parts <= 1) {
+          conds.push(...(g.conditions ?? []));
+          nested.push(...(g.conditionGroups ?? []));
+          g.localConditionGroups?.forEach((l) => nested.push({ type: 'and', localConditionGroups: [l] }));
+        } else nested.push(g);
+      }
+      const mine = conds.find((c) => c.field === 'selections' && c.childId && self.has(c.childId) && (c.type === 'greaterThan' || c.type === 'atLeast'));
+      if (!mine) continue;
+      if (!fm.outer.every((o) => ev.allPass(o, owner))) continue;
+      if (!conds.every((c) => c === mine || ev.condition(c, owner))) continue;
+      if (!nested.every((g) => ev.group(g, owner))) continue;
+      const v = mine.type === 'greaterThan' ? mine.value : mine.value - 1;
+      cap = cap === undefined ? v : Math.min(cap, v);
+    }
+    return cap;
+  }
+
+  /** Errors and warnings the data attaches to an option or group, as issues. */
+  private messages(node: OptNode, inst: Inst, name: string, push: (k: string, i: Issue) => void, unitId: string | undefined) {
+    for (const fm of node.modifiers) {
+      if (fm.mod.field !== 'error' && fm.mod.field !== 'warning') continue;
+      if (!this.ev.timesApplies(fm, inst)) continue;
+      const unit = this.roster.units.find((u) => u.id === unitId);
+      const text = String(fm.mod.value).replace(/\{this\}/g, name);
+      push(`msg:${unitId}:${text}`, {
+        severity: fm.mod.field === 'error' ? 'error' : 'advice',
+        title: `${unit ? `${unit.name}: ` : ''}${text}`,
+        why: 'A rule in the data for this unit.',
+        fix: 'Open the unit',
+        unitId,
+      });
+    }
   }
 
   // ---------- validation ----------
@@ -383,7 +450,8 @@ export class RosterEngine {
             for (const i of insts) this.checkOne(c, i, i, node, push, unitIdOf(i));
             continue;
           }
-          if (c.scope === 'self') {
+          // A unit's own limits ("An Attached Unit can only take 1 Enhancement") apply to each copy of it.
+          if (c.scope === 'self' || (isRoot && c.scope === 'root-entry')) {
             for (const i of insts) this.checkOne(c, i, i, node, push, unitIdOf(i));
             continue;
           }
@@ -403,6 +471,8 @@ export class RosterEngine {
             if (!isSelLimit(c)) continue;
             this.checkOne(c, v, parent, group, push, unitIdOf(parent));
           }
+          // Errors the data puts on the group itself (e.g. "Max 2 per 10 models").
+          this.messages(group, v, group.name, push, unitIdOf(parent));
         }
       }
       parent.children.forEach((c) => c.kind === 'selection' && check(c));
@@ -412,21 +482,7 @@ export class RosterEngine {
     // Errors and warnings the data attaches to selections (e.g. "You cannot mix weapons in this squad").
     const walkMsgs = (i: Inst) => {
       for (const c of i.children) {
-        if (c.count > 0 && c.node) {
-          for (const fm of c.node.modifiers) {
-            if (fm.mod.field !== 'error' && fm.mod.field !== 'warning') continue;
-            if (!ev.timesApplies(fm, c)) continue;
-            const uid = unitIdOf(c);
-            const unit = this.roster.units.find((u) => u.id === uid);
-            push(`msg:${uid}:${fm.mod.value}`, {
-              severity: fm.mod.field === 'error' ? 'error' : 'advice',
-              title: `${unit ? `${unit.name}: ` : ''}${String(fm.mod.value)}`,
-              why: 'A rule in the data for this unit.',
-              fix: 'Open the unit',
-              unitId: uid,
-            });
-          }
-        }
+        if (c.count > 0 && c.node) this.messages(c.node, c, ev.name(c), push, unitIdOf(c));
         walkMsgs(c);
       }
     };
