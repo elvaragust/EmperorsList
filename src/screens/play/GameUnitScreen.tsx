@@ -12,7 +12,7 @@ import { useUnitDetachmentRules } from './detachmentRules';
 import { Screen } from '@/ui/Screen';
 import { WeaponGridView, WoundStepper } from '@/ui/WeaponGridView';
 import { combinedModels } from '../roster/combined';
-import { saveGame, withLog } from './games';
+import { updateGame, withLog } from './games';
 import { useGameRoster } from './gameRoster';
 
 /** Casualty tracking for one unit (with its attached characters) during a game. */
@@ -29,28 +29,36 @@ export function GameUnitScreen() {
   const detRules = useUnitDetachmentRules(engine, sheetsForRules);
   if (!game || !unit || !models || !engine) return <Screen title="Unit" back={`/play/${gameId}`}>{null}</Screen>;
   const dead = Object.entries(game.casualties).flatMap(([uid, ids]) => ids.map((m) => `${uid}/${m}`));
+  // Every change is made to the latest saved copy, so quick taps all count.
   const toggle = (prefixed: string, alive: boolean) => {
     const [uid, ...rest] = prefixed.split('/');
     const mid = rest.join('/');
-    const set = new Set(game.casualties[uid!] ?? []);
-    if (alive) set.delete(mid);
-    else set.add(mid);
     const name = group.find((g) => g.id === uid)?.name ?? '';
-    void saveGame(withLog({ ...game, wounds: { ...game.wounds, [prefixed]: 0 }, casualties: { ...game.casualties, [uid!]: [...set] } }, `${name}: ${alive ? 'model brought back' : 'model removed'}`, 'casualty'));
+    void updateGame(game.id, (g) => {
+      const set = new Set(g.casualties[uid!] ?? []);
+      if (alive) set.delete(mid);
+      else set.add(mid);
+      return withLog({ ...g, wounds: { ...g.wounds, [prefixed]: 0 }, casualties: { ...g.casualties, [uid!]: [...set] } }, `${name}: ${alive ? 'model brought back' : 'model removed'}`, 'casualty');
+    });
   };
   const wounds = game.wounds ?? {};
   // Losing the last wound removes the model; healing a removed model brings it back.
+  // `lost` is what the tap asked for from what this screen showed; that change is made
+  // to the saved count, so a second tap before the screen catches up counts too.
   const setWound = (prefixed: string, lost: number, max: number) => {
     const [uid, ...rest] = prefixed.split('/');
     const mid = rest.join('/');
-    const set = new Set(game.casualties[uid!] ?? []);
-    const dies = lost >= max;
-    if (dies) set.add(mid);
-    else set.delete(mid);
-    const next = { ...wounds, [prefixed]: dies ? 0 : lost };
+    const delta = lost - (wounds[prefixed] ?? 0);
     const name = models.loadouts.find((l) => models.models.find((m) => m.id === prefixed)?.loadoutKey === l.key)?.name ?? 'Model';
-    const text = dies ? `${name}: destroyed` : lost < 0 ? `${name}: ${max - lost}/${max} wounds (above full)` : `${name}: ${max - lost}/${max} wounds left`;
-    void saveGame(withLog({ ...game, wounds: next, casualties: { ...game.casualties, [uid!]: [...set] } }, text, 'casualty'));
+    void updateGame(game.id, (g) => {
+      const now = Math.min(max, (g.wounds?.[prefixed] ?? 0) + delta);
+      const set = new Set(g.casualties[uid!] ?? []);
+      const dies = now >= max;
+      if (dies) set.add(mid);
+      else set.delete(mid);
+      const text = dies ? `${name}: destroyed` : now < 0 ? `${name}: ${max - now}/${max} wounds (above full)` : `${name}: ${max - now}/${max} wounds left`;
+      return withLog({ ...g, wounds: { ...g.wounds, [prefixed]: dies ? 0 : now }, casualties: { ...g.casualties, [uid!]: [...set] } }, text, 'casualty');
+    });
   };
   // Characters, vehicles and small units: a wound tracker per model right at the top.
   const tracked = models.models.filter((m) => !dead.includes(m.id) && (models.loadouts.find((l) => l.key === m.loadoutKey)?.wounds ?? 0) > 1);
@@ -95,7 +103,7 @@ export function GameUnitScreen() {
           weaponCounts={weaponCounts(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
           goneWeapons={goneWeapons(models.loadouts, models.models.map((m) => ({ ...m, alive: !dead.includes(m.id) })))}
           weaponNotes={{ ...Object.assign({}, ...group.map((g) => g.weaponNotes ?? {})), ...game.weaponNotes?.[unit.id] }}
-          onWeaponNote={(weaponId, text) => void db.games.get(game.id).then((g) => g && saveGame({ ...g, weaponNotes: { ...g.weaponNotes, [unit.id]: { ...g.weaponNotes?.[unit.id], [weaponId]: text } } }))}
+          onWeaponNote={(weaponId, text) => void updateGame(game.id, (g) => ({ ...g, weaponNotes: { ...g.weaponNotes, [unit.id]: { ...g.weaponNotes?.[unit.id], [weaponId]: text } } }))}
           attached={group.slice(1).flatMap((l) => {
             const li = engine.unitInst(l.id);
             return li ? [{ name: l.nickname || l.name, sheet: datasheet(engine, li) }] : [];

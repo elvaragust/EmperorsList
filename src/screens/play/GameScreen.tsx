@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
-import { nextPhase, PHASE_NAMES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase } from '@/engine/game';
+import { arrive, commandKey, cpGrantedSoFar, nextPhase, nextTurn, PHASE_NAMES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase, type TurnState } from '@/engine/game';
 import { datasheet } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
@@ -13,7 +13,7 @@ import { Icon } from '@/ui/Icon';
 import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { showToast } from '@/ui/Toast';
-import { practiceId, saveGame, startPractice, updateGame, useHealthRecorder, withLog } from './games';
+import { patchGame, practiceId, startPractice, updateGame, useHealthRecorder, useTypedSave, withLog } from './games';
 import { ViewToggle } from '@/ui/ViewToggle';
 import { WizardSteps } from '@/ui/WizardSteps';
 import { useSessionState } from '@/ui/useSessionState';
@@ -27,6 +27,7 @@ import { allowedDispositions } from '@/engine/rules/config';
 import { applyLocalSec, localSecondaries, MissionsPanel, SecondarySetup } from './secondaries';
 import { primaryFor } from '@/engine/missions';
 import { OpponentUnits } from './OpponentUnits';
+import { endOfBattleOpen, useMissionCards } from './missionCards';
 import { importListText } from '@/data/importList';
 import { matchFaction, parseListText } from '@/engine/listText';
 
@@ -93,10 +94,16 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
     listFactions().then(setFactions, () => setFactions([]));
   }, []);
   const step = game.setupStep;
-  const set = (patch: Partial<SavedGame>) => saveGame({ ...game, ...patch });
+  // Changes go to the latest saved copy: a name saved as you leave its field and the
+  // Next that took you away, or a list read in the background, never undo each other.
+  const set = (patch: Partial<SavedGame> | ((g: SavedGame) => Partial<SavedGame>)) => patchGame(game.id, patch);
+  const name = useTypedSave((t) => set({ opponentName: t }));
+  const listText = useTypedSave((t) => set({ opponentList: t }));
   const [oppStatus, setOppStatus] = useState('');
+  const reading = useRef(0);
   // Read the pasted list into a roster (their faction from the picker or the list header).
   const readOpponent = async (text: string) => {
+    const n = ++reading.current;
     if (!text.trim()) return set({ opponentList: '', opponentRoster: undefined });
     const parsed = parseListText(text);
     const f = factions.find((x) => x.name === game.opponentFaction) ?? matchFaction(parsed, factions);
@@ -107,9 +114,12 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
     try {
       setOppStatus('Reading their list…');
       const { roster } = await importListText(parsed, f);
-      await set({ opponentList: text, opponentFaction: f.name, opponentRoster: roster, opponentName: game.opponentName || '' });
+      // A newer paste is being read: let that one win.
+      if (n !== reading.current) return;
+      await set({ opponentList: text, opponentFaction: f.name, opponentRoster: roster });
       setOppStatus(`Their list: ${roster.units.length} units read — tap them in the battle's Units tab.`);
     } catch (e) {
+      if (n !== reading.current) return;
       setOppStatus(`Couldn't read their list: ${e instanceof Error ? e.message : String(e)}`);
       void set({ opponentList: text });
     }
@@ -146,7 +156,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         <>
           <label className="field">
             <span>Opponent's name</span>
-            <input className="input" defaultValue={game.opponentName} onBlur={(e) => set({ opponentName: e.target.value })} />
+            <input className="input" defaultValue={game.opponentName} onChange={(e) => name.change(e.target.value)} onBlur={name.flush} />
           </label>
           <label className="field">
             <span>Their faction</span>
@@ -161,7 +171,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
           </label>
           <label className="field">
             <span>Their list (optional — paste their text export to look at their units during the game)</span>
-            <textarea className="input" defaultValue={game.opponentList ?? ''} onBlur={(e) => void readOpponent(e.target.value)} />
+            <textarea className="input" defaultValue={game.opponentList ?? ''} onChange={(e) => listText.change(e.target.value)} onBlur={(e) => (listText.flush(), void readOpponent(e.target.value))} />
           </label>
           {oppStatus && <p className="small muted">{oppStatus}</p>}
           {!oppStatus && game.opponentRoster && <p className="small muted">Their list: {game.opponentRoster.units.length} units read.</p>}
@@ -197,12 +207,12 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         </>
       )}
 
-      {step === 3 && <SecondarySetup sec={localSecondaries(game)} onSec={(op) => void set(applyLocalSec(game, op))} role={game.role} game={game} setGame={(p) => void set(p)} />}
+      {step === 3 && <SecondarySetup sec={localSecondaries(game)} onSec={(op) => void set((g) => applyLocalSec(g, op))} role={game.role} game={game} setGame={(p) => void set(p)} />}
 
       {step === 4 && (
         <div className="card">
           {checklist.map((c) => (
-            <button key={c.id} className="choice" role="checkbox" aria-checked={Boolean(game.checklist?.[c.id])} onClick={() => set({ checklist: { ...game.checklist, [c.id]: !game.checklist?.[c.id] } })}>
+            <button key={c.id} className="choice" role="checkbox" aria-checked={Boolean(game.checklist?.[c.id])} onClick={() => set((g) => ({ checklist: { ...g.checklist, [c.id]: !g.checklist?.[c.id] } }))}>
               <span className="mark square" />
               <span style={{ flex: 1 }}>{c.text}</span>
             </button>
@@ -229,11 +239,13 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
           <button
             className="btn btn-primary"
             style={{ flex: 1 }}
-            onClick={() => {
-              const first = game.firstTurn ?? 'me';
-              const g = withLog({ ...game, stage: 'battle', round: 1, turn: first, phase: 'command', firstTurn: first, cp: { me: 1, them: 1 } }, 'Battle started · both players gain 1 CP', 'phase');
-              void saveGame(g);
-            }}
+            onClick={() =>
+              void updateGame(game.id, (g) => {
+                if (g.stage !== 'setup') return undefined;
+                const first = g.firstTurn ?? 'me';
+                return withLog({ ...g, stage: 'battle', round: 1, turn: first, phase: 'command', firstTurn: first, cp: { me: 1, them: 1 }, cpGranted: [commandKey({ round: 1, turn: first })] }, 'Battle started · both players gain 1 CP', 'phase');
+              })
+            }
           >
             Start battle
           </button>
@@ -248,26 +260,47 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
   const [tab, setTab] = useSessionState<'phase' | 'missions' | 'rules' | 'units' | 'score' | 'log'>(`battle-tab:${game.id}`, 'phase');
   const [ending, setEnding] = useState(false);
   const [note, setNote] = useState('');
+  const [jumpTo, setJumpTo] = useState<number>();
+  const cards = useMissionCards();
   const first = game.firstTurn ?? 'me';
-  const save = (g: SavedGame) => saveGame(g);
   const who = (s: 'me' | 'them') => (s === 'me' ? 'You' : game.opponentName || 'Opponent');
+  // Every change is made to the latest saved copy of the game (see updateGame).
+  const change = (fn: (g: SavedGame) => SavedGame | undefined) => updateGame(game.id, fn);
+  // Moving through the turn only from where this screen is: a double tap on Next moves once.
+  const fromHere = (fn: (g: SavedGame) => SavedGame | undefined) => change((g) => (g.stage === 'battle' && g.round === game.round && g.turn === game.turn && g.phase === game.phase ? fn(g) : undefined));
+  // To a new place in the battle; a Command phase reached for the first time gives both players 1 CP.
+  const moveTo = (g: SavedGame, to: TurnState, text?: string): SavedGame => {
+    const a = arrive(g, to, first);
+    let next: SavedGame = { ...g, round: a.round, turn: a.turn, phase: a.phase, cpGranted: a.cpGranted };
+    if (text) next = withLog(next, text, 'phase');
+    if (a.cpGain) next = withLog({ ...next, cp: { me: next.cp.me + 1, them: next.cp.them + 1 } }, `Round ${a.round}, ${who(a.turn)}: Command phase · both gain 1 CP`, 'cp');
+    return next;
+  };
 
   const advance = () => {
-    const n = nextPhase(game, first);
-    if (n.gameOver) return setEnding(true);
-    let g: SavedGame = { ...game, round: n.round, turn: n.turn, phase: n.phase };
-    if (n.cpGain) g = withLog({ ...g, cp: { me: g.cp.me + 1, them: g.cp.them + 1 } }, `Round ${n.round}, ${who(n.turn)}: Command phase · both gain 1 CP`, 'cp');
-    void save(g);
+    if (nextPhase(game, first).gameOver) return setEnding(true);
+    void fromHere((g) => moveTo(g, nextPhase(g, first)));
   };
-  const back = () => {
-    const p = previousPhase(game, first);
-    void save({ ...game, ...p });
+  const back = () => void fromHere((g) => ({ ...g, ...previousPhase(g, first), cpGranted: cpGrantedSoFar(g, first) }));
+  // Handing the turn over is Next to the start of the other player's turn.
+  const handOver = () => {
+    const n = nextTurn(game, first);
+    if (n.gameOver) return setEnding(true);
+    void fromHere((g) => moveTo(g, n, `Handed the turn to ${n.turn === 'me' ? 'you' : who('them')}`));
   };
 
-  const setVp = (side: 'me' | 'them', kind: 'primary' | 'secondary', round: number, v: number) => {
-    const sc = { ...game.vp[side], [kind]: game.vp[side][kind].map((x, i) => (i === round ? v : x)) };
-    void save({ ...game, vp: { ...game.vp, [side]: sc } });
+  const setVp = (side: 'me' | 'them', kind: 'primary' | 'secondary', round: number, v: number) =>
+    void change((g) => ({ ...g, vp: { ...g.vp, [side]: { ...g.vp[side], [kind]: g.vp[side][kind].map((x, i) => (i === round ? v : x)) } } }));
+  // CP steppers: the step from what this screen showed, so two quick taps make two steps.
+  const setCp = (side: 'me' | 'them', v: number) => {
+    const d = v - game.cp[side];
+    void change((g) => {
+      const cp = { ...g.cp, [side]: Math.max(0, g.cp[side] + d) };
+      return side === 'me' ? withLog({ ...g, cp }, `Your CP → ${cp.me}`, 'cp') : { ...g, cp };
+    });
   };
+  const primary = game.manualPrimary ? game.mission : primaryFor(game.disposition ?? engine?.roster.forceDisposition, game.opponentDisposition) ?? game.mission;
+  const battleLinesLeft = game.round === 5 && endOfBattleOpen(cards, primary, game.primaryParts);
 
   const myUnits = useMemo(() => (engine ? unitsLeft(engine, game.casualties, game.wounds) : []), [engine, game.casualties, game.wounds]);
   useHealthRecorder(game.id, game.round, { me: engine && !game.practice ? healthOf(myUnits) : undefined }, game.stage);
@@ -288,19 +321,16 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
     >
       <div className="game-layout">
       <div className="game-controls">
-      <RoundBar round={game.round} onPick={(r) => void save(withLog({ ...game, round: r, turn: first, phase: 'command' }, `Moved to round ${r}`, 'phase'))} />
+      <RoundBar round={game.round} onPick={setJumpTo} />
       <TurnBanner mine={game.turn === 'me'} label={game.turn === 'me' ? 'Your turn' : `${who('them')}'s turn`} phase={PHASE_NAMES[game.phase]} vp={`${totalScore(game.vp.me)}–${totalScore(game.vp.them)}`}
         switchTo={game.turn === 'me' ? who('them') : 'you'}
-        onSwitch={() => {
-          const turn = game.turn === 'me' ? 'them' : 'me';
-          void save(withLog({ ...game, turn, phase: 'command' }, `Switched to ${turn === 'me' ? 'your' : `${who('them')}'s`} turn`, 'phase'));
-        }}
+        onSwitch={handOver}
       />
-      <PhaseStrip value={game.phase} onPick={(p) => save({ ...game, phase: p })} />
+      <PhaseStrip value={game.phase} onPick={(p) => void change((g) => ({ ...g, phase: p }))} />
       <CpBar
         sides={[
-          { key: 'me', label: 'You', value: game.cp.me, onChange: (v) => save(withLog({ ...game, cp: { ...game.cp, me: v } }, `Your CP → ${v}`, 'cp')) },
-          { key: 'them', label: who('them'), value: game.cp.them, onChange: (v) => save({ ...game, cp: { ...game.cp, them: v } }) },
+          { key: 'me', label: 'You', value: game.cp.me, onChange: (v) => setCp('me', v) },
+          { key: 'them', label: who('them'), value: game.cp.them, onChange: (v) => setCp('them', v) },
         ]}
       />
       
@@ -316,12 +346,13 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           phase={game.phase}
           myTurn={game.turn === 'me'}
           cp={game.cp.me}
-          onSpend={(st, cost) => {
-            const again = game.used.some((u) => u.id === st.id && u.round === game.round && u.phase === game.phase && u.turn === game.turn);
-            let g: SavedGame = { ...game, cp: { ...game.cp, me: Math.max(0, game.cp.me - cost) }, used: [...game.used, { round: game.round, turn: game.turn, phase: game.phase, id: st.id, name: st.name }] };
-            g = withLog(g, `Used ${st.name} (${cost} CP)${again ? ' — already used this phase!' : ''}`, 'stratagem');
-            void save(g);
-          }}
+          onSpend={(st, cost) =>
+            void change((g) => {
+              const again = g.used.some((u) => u.id === st.id && u.round === g.round && u.phase === g.phase && u.turn === g.turn);
+              const next: SavedGame = { ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me - cost) }, used: [...g.used, { round: g.round, turn: g.turn, phase: g.phase, id: st.id, name: st.name }] };
+              return withLog(next, `Used ${st.name} (${cost} CP)${again ? ' — already used this phase!' : ''}`, 'stratagem');
+            })
+          }
         />
       )}
 
@@ -335,17 +366,18 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           round={game.round}
           turnKey={`${game.round}-${game.turn}`}
           myCommandPhase={game.turn === 'me' && game.phase === 'command'}
-          primary={game.manualPrimary ? game.mission : primaryFor(game.disposition ?? engine?.roster.forceDisposition, game.opponentDisposition) ?? game.mission}
+          primary={primary}
           twist={game.twist}
           role={game.role}
           onCp={(d, why) => void updateGame(game.id, (g) => withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp'))}
           onVp={(kind, vp, why) => {
+            // A negative `vp` takes VP off again (a primary part undone).
             void updateGame(game.id, (g) => {
               const i = Math.min(g.round, g.vp.me[kind].length) - 1;
-              const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? x + vp : x)) };
-              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: +${vp} VP (${kind}, round ${g.round})`, 'vp');
+              const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? Math.max(0, x + vp) : x)) };
+              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: ${vp < 0 ? '−' : '+'}${Math.abs(vp)} VP (${kind}, round ${g.round})`, 'vp');
             });
-            showToast(`+${vp} VP added to round ${game.round}`);
+            showToast(vp < 0 ? `${-vp} VP taken off round ${game.round}` : `+${vp} VP added to round ${game.round}`);
           }}
         />
         <div className="opp-missions">
@@ -399,7 +431,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
         <>
           <div className="btn-row">
             <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note" style={{ flex: 1 }} />
-            <button className="btn btn-sm" disabled={!note.trim()} onClick={() => (save(withLog(game, note.trim(), 'note')), setNote(''))}>
+            <button className="btn btn-sm" disabled={!note.trim()} onClick={() => (void change((g) => withLog(g, note.trim(), 'note')), setNote(''))}>
               Add
             </button>
           </div>
@@ -438,14 +470,25 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
         <p>
           Final score {totalScore(game.vp.me)}–{totalScore(game.vp.them)}.
         </p>
+        {battleLinesLeft && (
+          <div className="score-done" style={{ color: 'inherit' }}>
+            <span style={{ flex: 1 }}>Your primary's END OF THE BATTLE lines aren't scored yet.</span>
+            <button className="btn btn-sm" onClick={() => (setTab('missions'), setEnding(false))}>
+              Score them
+            </button>
+          </div>
+        )}
         <button
           className="btn btn-primary btn-block"
-          onClick={() => {
-            const me = totalScore(game.vp.me);
-            const them = totalScore(game.vp.them);
-            const result = me > them ? 'win' : me < them ? 'loss' : 'draw';
-            void save(withLog({ ...game, stage: 'done', finishedAt: Date.now(), result }, `Game over: ${me}–${them}`, 'note')).then(() => setEnding(false));
-          }}
+          onClick={() =>
+            void change((g) => {
+              if (g.stage !== 'battle') return undefined;
+              const me = totalScore(g.vp.me);
+              const them = totalScore(g.vp.them);
+              const result = me > them ? 'win' : me < them ? 'loss' : 'draw';
+              return withLog({ ...g, stage: 'done', finishedAt: Date.now(), result }, `Game over: ${me}–${them}`, 'note');
+            }).then(() => setEnding(false))
+          }
         >
           Finish and save
         </button>
@@ -453,6 +496,22 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           Keep playing later
         </button>
       </Sheet>
+      <ConfirmSheet
+        open={jumpTo !== undefined}
+        onClose={() => setJumpTo(undefined)}
+        title={`Go to round ${jumpTo}?`}
+        message={
+          jumpTo !== undefined && jumpTo > game.round
+            ? `Moves to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase, where both players gain 1 CP. CP for Command phases skipped on the way isn't added — change it by hand if needed.`
+            : `Goes back to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase. No CP is given again, and VP and army health noted for later rounds stay as they are.`
+        }
+        confirm={`Go to round ${jumpTo}`}
+        onConfirm={() => {
+          const r = jumpTo!;
+          setJumpTo(undefined);
+          void fromHere((g) => moveTo(g, { round: r, turn: first, phase: 'command' }, `Moved to round ${r}`));
+        }}
+      />
     </Screen>
   );
 }
@@ -504,7 +563,7 @@ function Result({ game }: { game: SavedGame }) {
         ]}
         actions={
           <>
-            <button className="btn" onClick={() => saveGame({ ...game, stage: 'battle' })}>
+            <button className="btn" onClick={() => void patchGame(game.id, { stage: 'battle' })}>
               Reopen game
             </button>
             <button className="btn btn-ghost" onClick={() => navigate('/play')}>

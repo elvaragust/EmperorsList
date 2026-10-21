@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCard, roundsOf, scoreItems, sectionsFor } from '../missionCard';
+import { parseCard, roundsOf, scoreItems, scoreTiming, sectionsFor } from '../missionCard';
 
 const BD = `This battlefield holds great significance for the wider war effort.
 FIRST AND SECOND BATTLE ROUND
@@ -90,5 +90,40 @@ For each enemy unit with a **starting strength** of 13+ **destroyed** this turn.
     const p = parseCard('x\nANY BATTLE ROUND\n**WHEN:** End of your turn.\nMore units. — 2VP\nANY BATTLE ROUND\n**WHEN:** End of your opponent’s turn.\nMore units. — 5VP');
     expect(p.sections).toHaveLength(2);
     expect(p.sections.map((s) => s.when)).toEqual(['End of your turn.', 'End of your opponent’s turn.']);
+  });
+});
+
+// Destroyer's Wrath as the mission deck has it: two WHENs under one heading.
+const DW = `Victory here shall not be measured in ground taken or plunder seized, but in the mangled corpses of your foes and the grisly trophies hewn from their bodies.
+ANY BATTLE ROUND
+**WHEN:** End of your turn.
+One or more enemy units were **destroyed** this turn. — 3VP
+SECOND BATTLE ROUND ONWARDS
+**WHEN:** End of your Command phase (or the end of your turn in the fifth battle round).
+You control one or more **objectives** (excluding your **home objective**). — 4VP
+You control more **objectives** than your opponent. — 6VP
+**WHEN:** End of your turn.
+More enemy units were **destroyed** this turn than friendly units were **destroyed** in the previous turn. — 4VP`;
+
+describe('a section with more than one WHEN', () => {
+  it('starts a new part (same rounds) at each WHEN, so lines keep their timing', () => {
+    const p = parseCard(DW);
+    expect(p.sections.map((s) => [s.title, s.from, s.to, Boolean(s.cont), s.items.map((i) => i.vp)])).toEqual([
+      ['ANY BATTLE ROUND', 1, 5, false, [3]],
+      ['SECOND BATTLE ROUND ONWARDS', 2, 5, false, [4, 6]],
+      ['SECOND BATTLE ROUND ONWARDS', 2, 5, true, [4]],
+    ]);
+    expect(p.sections[1]!.when).toMatch(/^End of your Command phase/);
+    expect(p.sections[2]!.when).toBe('End of your turn.');
+  });
+  it('tells when each part is scored', () => {
+    const p = parseCard(DW);
+    expect(p.sections.map((s) => scoreTiming(s, 2))).toEqual(['turn', 'command', 'turn']);
+    // "(or the end of your turn in the fifth battle round)"
+    expect(p.sections.map((s) => scoreTiming(s, 5))).toEqual(['turn', 'turn', 'turn']);
+    const end = parseCard('x\nEND OF THE BATTLE\nYou control one or more **central objectives**. — 5VP');
+    expect(scoreTiming(end.sections[0]!, 5)).toBe('battle');
+    const any = parseCard('x\nANY BATTLE ROUND\n**WHEN:** End of a turn.\nFor each enemy unit destroyed. — 2VP');
+    expect(scoreTiming(any.sections[0]!, 3)).toBe('anyTurn');
   });
 });

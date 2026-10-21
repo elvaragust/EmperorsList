@@ -23,6 +23,8 @@ export interface CardSection {
   from: number;
   to: number;
   when?: string;
+  /** A second WHEN under the same heading: same rounds, its own timing (the heading isn't repeated). */
+  cont?: boolean;
   lines: string[];
   items: ScoreItem[];
 }
@@ -71,6 +73,12 @@ export function parseCard(text: string): ParsedCard {
     }
     const when = plain(line).match(/^WHEN:\s*(.*)$/i);
     if (when) {
+      // "SECOND BATTLE ROUND ONWARDS — WHEN: End of your Command phase … WHEN: End of your turn":
+      // each WHEN starts its own part of the section, so its lines keep their timing.
+      if (cur.when !== undefined || cur.items.length) {
+        cur = { title: cur.title, from: cur.from, to: cur.to, cont: true, lines: [], items: [] };
+        out.sections.push(cur);
+      }
       cur.when = when[1];
       continue;
     }
@@ -105,6 +113,24 @@ export function parseCard(text: string): ParsedCard {
     cur.lines.push(line);
   }
   return out;
+}
+
+/**
+ * When a section's lines are scored: at the end of your Command phase, the end
+ * of your turn, the end of any turn (yours or your opponent's) or the end of
+ * the battle. "End of your Command phase (or the end of your turn in the fifth
+ * battle round)" is end of turn in round 5.
+ */
+export type ScoreTiming = 'command' | 'turn' | 'anyTurn' | 'battle';
+
+export const TIMING_NAMES: Record<ScoreTiming, string> = { command: 'Command phase', turn: 'end of turn', anyTurn: 'end of this turn', battle: 'end of the battle' };
+
+export function scoreTiming(s: CardSection, round: number): ScoreTiming {
+  if (/^end of (the )?battle$/i.test(s.title)) return 'battle';
+  const w = s.when ?? '';
+  if (/command phase/i.test(w)) return round === 5 && /fifth battle round/i.test(w) ? 'turn' : 'command';
+  if (/end of (a|each|any|either player.s|your opponent.s) turn/i.test(w)) return 'anyTurn';
+  return 'turn';
 }
 
 /** Sections that apply in a battle round. */
