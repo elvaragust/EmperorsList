@@ -109,8 +109,11 @@ interface RawLine {
 export interface ParsedList {
   title?: string;
   faction?: string;
-  battleSize?: 'incursion' | 'strikeForce' | 'onslaught';
+  battleSize?: 'incursion' | 'strikeForce' | 'onslaught' | 'custom';
+  /** Points total of the list (from the title line). */
   points?: number;
+  /** Points limit from the battle size line ("Custom (1500 points)"). */
+  pointsLimit?: number;
   detachments: string[];
   disposition?: string;
   units: ParsedUnit[];
@@ -122,6 +125,8 @@ export interface ParsedList {
 const SECTIONS = /^(CHARACTERS?|EPIC HER(O|OES)|BATTLELINE|DEDICATED TRANSPORTS?|OTHER DATASHEETS|ALLIED UNITS|INFANTRY|VEHICLES?|MONSTERS?|FORTIFICATIONS?)$/i;
 const UNIT_RE = /^(.+?)\s*[([]\s*(\d[\d,.\s]*)\s*(?:points|pts|pt)\s*[)\]]\s*$/i;
 const num = (s: string) => Number(s.replace(/[,.\s]/g, ''));
+/** "Strike Force (2,000 Points)", "Custom (1500 points)", "Battle size: Onslaught": the header's battle size line. */
+const isSizeLine = (s: string) => /incursion|strike force|onslaught/i.test(s) || /^(?:battle size\s*:?\s*)?custom\b/i.test(s);
 
 /** Parse the official app's text export (and close variants). */
 export function parseListText(text: string): ParsedList {
@@ -188,13 +193,17 @@ export function parseListText(text: string): ParsedList {
       out.points = num(u[2]!);
       continue;
     }
-    const sizeLine = /incursion|strike force|onslaught/i.test(trimmed);
+    const sizeLine = isSizeLine(trimmed);
     if (inHeader && (!u || sizeLine)) {
       out.headerLines.push(trimmed);
-      if (/incursion/i.test(trimmed)) out.battleSize = 'incursion';
-      else if (/strike force/i.test(trimmed)) out.battleSize = 'strikeForce';
-      else if (/onslaught/i.test(trimmed)) out.battleSize = 'onslaught';
-      else if (/^(force )?disposition:/i.test(trimmed)) out.disposition = trimmed.replace(/^(force )?disposition:\s*/i, '');
+      if (sizeLine) {
+        if (/incursion/i.test(trimmed)) out.battleSize = 'incursion';
+        else if (/strike force/i.test(trimmed)) out.battleSize = 'strikeForce';
+        else if (/onslaught/i.test(trimmed)) out.battleSize = 'onslaught';
+        else out.battleSize = 'custom';
+        const limit = trimmed.match(/(\d[\d,.\s]*)\s*(?:points|pts|pt)\b/i);
+        if (limit) out.pointsLimit = num(limit[1]!);
+      } else if (/^(force )?disposition:/i.test(trimmed)) out.disposition = trimmed.replace(/^(force )?disposition:\s*/i, '');
       else if (!out.faction) out.faction = trimmed;
       else out.detachments.push(...headerParts(trimmed));
       continue;
@@ -286,16 +295,14 @@ function findOption(engine: RosterEngine, parent: Inst, name: string) {
  */
 export function importUnit(engineFor: (units: RosterUnit[]) => RosterEngine, others: RosterUnit[], parsed: ParsedUnit, report: ImportReport): RosterUnit | undefined {
   let engine = engineFor(others);
-  const want = normName(parsed.name);
-  const choices = engine.unitChoices();
-  const choice =
-    choices.find((c) => normName(c.name) === want) ??
-    choices.find((c) => normName(c.root.node.name) === want) ??
-    choices.find((c) => normName(c.name).startsWith(want) || want.startsWith(normName(c.name)));
-  if (!choice) {
+  const match = matchUnitChoice(engine.unitChoices(), parsed.name);
+  if (!match) {
     report.unmatched.push(`Unit: ${parsed.name}`);
     return undefined;
   }
+  const choice = match.choice;
+  // "Land Raider Crusador" is not a plain Land Raider: import it, but ask for a look.
+  if (!match.exact) report.unmatched.push(`Unit: matched ${parsed.name} to ${choice.name} — check`);
   let unit = newUnit(engine, choice.root.key);
   const refresh = () => (engine = engineFor([...others, unit]));
   const one = (u: RosterUnit) => engineFor([...others, u]);
@@ -466,6 +473,37 @@ export function importUnit(engineFor: (units: RosterUnit[]) => RosterEngine, oth
   return unit;
 }
 
+/** Words that may trail a datasheet name without changing which one it is ("Intercessor Squad" ↔ "Intercessors"). */
+const NAME_NOISE = new Set(['squad', 'unit', 'legend', 'team', 'the', 'with', 'and', 'w/', 'x']);
+
+/**
+ * The datasheet a unit line names. Exact names (or plurals) are `exact`. A
+ * name that only starts the same as a datasheet ("Land Raider Crusador" →
+ * "Land Raider") is a guess unless the words left over are noise, so it comes
+ * back with `exact: false`.
+ */
+export function matchUnitChoice<T extends { name: string; root: { node: { name: string } } }>(choices: T[], name: string): { choice: T; exact: boolean } | undefined {
+  const want = normName(name);
+  const exact = choices.find((c) => normName(c.name) === want) ?? choices.find((c) => normName(c.root.node.name) === want);
+  if (exact) return { choice: exact, exact: true };
+  const sing = (s: string) => s.replace(/s\b/g, '');
+  const w = sing(want);
+  const plural = choices.find((c) => sing(normName(c.name)) === w);
+  if (plural) return { choice: plural, exact: true };
+  let best: { choice: T; exact: boolean; len: number } | undefined;
+  for (const c of choices) {
+    const k = sing(normName(c.name));
+    const [short, long] = k.length <= w.length ? [k, w] : [w, k];
+    if (!short || !long.startsWith(short)) continue;
+    const rest = long.slice(short.length);
+    if (rest && !rest.startsWith(' ')) continue;
+    const quiet = rest.split(' ').filter(Boolean).every((x) => NAME_NOISE.has(x));
+    // Noise-only leftovers win, then the closest (longest) name.
+    if (!best || (quiet && !best.exact) || (quiet === best.exact && k.length > best.len)) best = { choice: c, exact: quiet, len: k.length };
+  }
+  return best && { choice: best.choice, exact: best.exact };
+}
+
 /** Best match for a wargear name among the data's names ("Chainsword" ↔ "Astartes Chainsword"). */
 export function matchName(want: string, names: string[]): string | undefined {
   const w = normName(want);
@@ -503,7 +541,7 @@ export { PTS };
 function headerPieces(parsed: ParsedList): string[][] {
   const out: string[][] = [];
   for (const l of parsed.headerLines) {
-    if (/incursion|strike force|onslaught/i.test(l)) continue;
+    if (isSizeLine(l)) continue;
     if (parsed.title && l.startsWith(parsed.title)) continue;
     out.push(headerParts(l.replace(/^(force )?disposition:\s*/i, '')));
   }
