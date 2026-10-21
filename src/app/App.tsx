@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { TabBar } from '@/ui/TabBar';
 import { ListsScreen } from '@/screens/lists/ListsScreen';
 import { NewListScreen } from '@/screens/lists/NewListScreen';
@@ -31,8 +31,16 @@ import { useEffect } from 'react';
 import { startupSync } from '@/data/bootstrap';
 import { watchIdleGames } from '@/data/idle';
 import { keepStorage, watchStorageErrors } from '@/data/storage';
+import { ErrorBoundary } from '@/ui/ErrorBoundary';
+import { UpdatePrompt } from '@/ui/UpdatePrompt';
+import { IosInstallBanner } from '@/ui/IosInstallBanner';
+
+/** Screens opened from a shared link or QR code. */
+const LINK_SCREENS = ['/import', '/play/join'];
 
 export function App() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   useEffect(() => startupSync(), []);
   useEffect(() => watchIdleGames(), []);
   useEffect(() => {
@@ -45,6 +53,9 @@ export function App() {
         <TabBar />
         <div className="shell-main">
         <DataBanner />
+        <UpdatePrompt />
+        {LINK_SCREENS.includes(pathname) && <IosInstallBanner compact />}
+        <ErrorBoundary resetKey={pathname} onHome={() => navigate('/lists')}>
         <Routes>
           <Route path="/" element={<Navigate to="/lists" replace />} />
           <Route path="/lists" element={<ListsScreen />} />
@@ -75,6 +86,7 @@ export function App() {
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/lists" replace />} />
         </Routes>
+        </ErrorBoundary>
         </div>
         <ToastHost />
       </div>
