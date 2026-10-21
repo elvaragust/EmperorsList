@@ -117,11 +117,25 @@ function replaceConfig(roster: Roster, rootKey: string, sel: Selection | undefin
   return { ...roster, config, updatedAt: Date.now() };
 }
 
+/**
+ * Custom points, and battle sizes the data hides (Onslaught: the 11th edition
+ * data doesn't offer it yet), play by another size's limits (Detachment
+ * Points, Enhancements, copies of a datasheet). Returns that size's name, or
+ * undefined when the data has the size itself.
+ */
+export function borrowedLimits(choices: ConfigChoices, size: BattleSize): string | undefined {
+  if (size !== 'custom' && choices.battleSizes.some((b) => b.size === size && !b.hidden)) return undefined;
+  return choices.battleSizes.some((b) => b.size === 'strikeForce') ? 'Strike Force' : undefined;
+}
+
 export function setBattleSize(engine: RosterEngine, roster: Roster, size: BattleSize, customPoints?: number): Roster {
   const c = configChoices(engine);
   const root = c.battleSizeRoot;
-  const pick = size === 'custom' ? c.battleSizes.find((b) => b.size === 'strikeForce') : c.battleSizes.find((b) => b.size === size);
-  const points = size === 'custom' ? (customPoints ?? roster.pointsLimit) : (pick?.points ?? roster.pointsLimit);
+  const own = size === 'custom' ? undefined : c.battleSizes.find((b) => b.size === size && !b.hidden);
+  // A size the data hides would be flagged "not allowed": use Strike Force's limits with the size's own points.
+  const pick = own ?? c.battleSizes.find((b) => b.size === 'strikeForce');
+  const nominal = SIZE_BY_NAME.find(([, s]) => s === size)?.[2];
+  const points = size === 'custom' ? (customPoints ?? roster.pointsLimit) : (own?.points ?? nominal ?? roster.pointsLimit);
   let next: Roster = { ...roster, battleSize: size, pointsLimit: points };
   if (root && pick) next = replaceConfig(next, root.key, { entryId: root.key, count: 1, children: [{ entryId: pick.key, count: 1, children: [] }] });
   return next;
