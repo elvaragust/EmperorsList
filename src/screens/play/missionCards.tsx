@@ -4,7 +4,8 @@ import { db } from '@/data/db';
 import { useRulePopup } from '@/ui/RulePopup';
 import { Icon } from '@/ui/Icon';
 import { RulesText } from '@/ui/RulesText';
-import { parseCard, scoreItems, type ScoreItem } from '@/engine/missionCard';
+import { parseCard, scoreItems, scoreTiming, TIMING_NAMES, type ScoreItem, type ScoreTiming } from '@/engine/missionCard';
+import type { PrimaryPart } from '@/engine/missions';
 
 export interface CardInfo {
   name: string;
@@ -103,6 +104,16 @@ export function useCardPopup(cards: Map<string, CardInfo>) {
   };
 }
 
+/** The part of a round a section is scored in: its timing, per turn for "end of a turn" (see PrimaryPart). */
+export const partKey = (timing: ScoreTiming, turnKey: string) => (timing === 'anyTurn' ? `anyTurn@${turnKey}` : timing);
+
+/** At Finish: the primary has END OF THE BATTLE lines that haven't been scored in round 5. */
+export function endOfBattleOpen(cards: Map<string, CardInfo>, name: string | undefined, parts: PrimaryPart[] = []): boolean {
+  const c = name ? cards.get(name.toLowerCase()) : undefined;
+  if (!c) return false;
+  return parseCard(c.text).sections.some((s) => s.items.length > 0 && scoreTiming(s, 5) === 'battle') && !parts.some((p) => p.round === 5 && p.part === 'battle');
+}
+
 const vpLabel = (it: ScoreItem) => `${it.bonus ? '+' : ''}${it.vp}VP${it.each ? ' each' : ''}${it.cap ? ` · max ${it.cap}` : ''}`;
 
 /**
@@ -111,6 +122,9 @@ const vpLabel = (it: ScoreItem) => `${it.bonus ? '+' : ''}${it.vp}VP${it.each ? 
  * others dimmed — with a tick or a counter per scoring line, caps applied.
  * "OR" lines are alternatives: ticking one clears the other. Once scored, a
  * card can be shown as done for the round (`done`) and enabled again.
+ * With `parts` (the primary) each moment of the round — end of the Command
+ * phase, end of turn, end of the battle — has its own Add and locks on its
+ * own: its lines stay ticked while the others can still be scored.
  */
 export function ScoreCard({
   name,
@@ -124,6 +138,7 @@ export function ScoreCard({
   done,
   onEnable,
   readOnly,
+  parts,
 }: {
   mode?: 'fixed' | 'tactical';
   name: string;
@@ -139,6 +154,13 @@ export function ScoreCard({
   onEnable?: () => void;
   /** Someone else's card: shown, not ticked. */
   readOnly?: boolean;
+  /** Score part by part: what has been scored (any round), this turn's key, and Add / Undo for one part. */
+  parts?: {
+    scored: PrimaryPart[];
+    turnKey: string;
+    onAdd?: (part: string, vp: number, counts: Record<number, number[]>, label: string) => void;
+    onUndo?: (p: PrimaryPart, label: string) => void;
+  };
 }) {
   const c = cards.get(name.toLowerCase());
   const parsed = useMemo(() => {
@@ -157,6 +179,60 @@ export function ScoreCard({
   const live = (si: number) => round >= sections[si]!.from && round <= sections[si]!.to;
   const total = sections.reduce((sum, s, si) => sum + (live(si) ? scoreItems(s.items, counts[si] ?? []) : 0), 0);
   const anyLive = sections.some((s, si) => live(si) && s.items.length > 0);
+  // Part by part: each live section's part, and that part if already scored this round.
+  const timing = (si: number) => scoreTiming(sections[si]!, round);
+  const partOf = (si: number) => (parts ? partKey(timing(si), parts.turnKey) : '');
+  const scoredPart = (si: number) => (parts && live(si) ? parts.scored.find((p) => p.round === round && p.part === partOf(si)) : undefined);
+  // The live parts with something to score, in card order, each with its sections.
+  const liveParts: { key: string; label: string; sections: number[] }[] = [];
+  if (parts)
+    sections.forEach((s, si) => {
+      if (!live(si) || !s.items.length) return;
+      const found = liveParts.find((p) => p.key === partOf(si));
+      if (found) found.sections.push(si);
+      else liveParts.push({ key: partOf(si), label: TIMING_NAMES[timing(si)], sections: [si] });
+    });
+  const allScored = liveParts.length > 0 && liveParts.every((p) => scoredPart(p.sections[0]!));
+  // Under the last section of a part: its Add, or once scored, what it gave and Undo.
+  const partFooter = (si: number) => {
+    const p = liveParts.find((x) => x.sections[x.sections.length - 1] === si);
+    if (!p || !parts) return null;
+    const got = scoredPart(si);
+    if (got)
+      return (
+        <div className="score-done">
+          <span style={{ flex: 1 }}>
+            ✓ Scored at {p.label} · +{got.vp} VP
+          </span>
+          {parts.onUndo && !readOnly && (
+            <button
+              className="btn btn-sm"
+              title="Take these VP off again and tick the lines anew"
+              onClick={() => {
+                setCounts((all) => ({ ...all, ...got.counts }));
+                parts.onUndo!(got, p.label);
+              }}
+            >
+              Undo
+            </button>
+          )}
+        </div>
+      );
+    if (!parts.onAdd || readOnly || done) return null;
+    const vp = p.sections.reduce((sum, x) => sum + scoreItems(sections[x]!.items, counts[x] ?? []), 0);
+    return (
+      <button
+        className="btn btn-primary btn-block score-add"
+        disabled={vp <= 0}
+        onClick={() => {
+          parts.onAdd!(p.key, vp, Object.fromEntries(p.sections.map((x) => [x, counts[x] ?? []])), p.label);
+          setCounts((all) => Object.fromEntries(Object.entries(all).filter(([k]) => !p.sections.includes(Number(k)))));
+        }}
+      >
+        {addLabel} {vp} VP · {p.label}
+      </button>
+    );
+  };
   const setCount = (si: number, i: number, n: number) =>
     setCounts((all) => {
       const items = sections[si]!.items;
@@ -173,7 +249,7 @@ export function ScoreCard({
       return { ...all, [si]: list };
     });
   return (
-    <div className={`score-card ${done ? 'is-done' : ''}`}>
+    <div className={`score-card ${done || allScored ? 'is-done' : ''}`}>
       <button className="score-card-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         {kind && <span className="card-kind">{kind}</span>}
         <strong className="score-card-name">{name}</strong>
@@ -202,20 +278,23 @@ export function ScoreCard({
             </div>
           )}
           {sections.map((s, si) => {
-            const now = live(si) && !done && !readOnly;
+            const got = scoredPart(si);
+            const now = live(si) && !done && !readOnly && !got;
             return (
-              <div key={si} className={`score-section ${now ? 'now' : 'later'}`}>
-                <div className="score-section-head">
-                  <span className={`round-pill ${live(si) ? '' : 'dim'}`}>{s.title}</span>
-                  {live(si) ? <span className="small now-tag">This round</span> : <span className="small muted">Not in round {round}</span>}
-                </div>
+              <div key={si} className={`score-section ${now || got ? 'now' : 'later'}`}>
+                {!s.cont && (
+                  <div className="score-section-head">
+                    <span className={`round-pill ${live(si) ? '' : 'dim'}`}>{s.title}</span>
+                    {live(si) ? <span className="small now-tag">This round</span> : <span className="small muted">Not in round {round}</span>}
+                  </div>
+                )}
                 {s.when && (
                   <div className="small score-when">
                     <strong>When:</strong> {s.when}
                   </div>
                 )}
                 {s.items.map((it, i) => {
-                  const n = counts[si]?.[i] ?? 0;
+                  const n = (got ? got.counts?.[si]?.[i] : counts[si]?.[i]) ?? 0;
                   const text = (
                     <span className="score-text">
                       <RulesText inline text={it.text} />
@@ -224,12 +303,14 @@ export function ScoreCard({
                   const vp = <span className="vp-chip">{vpLabel(it)}</span>;
                   const or = it.or ? <div className="or-tag">or</div> : null;
                   if (!now) {
+                    // A scored part keeps its ticks and counts shown.
                     return (
                       <Fragment key={i}>
                         {or}
                         <div className="score-line static">
                           {text}
                           {vp}
+                          {got && (it.each ? <span className="num">×{n}</span> : <span className={`check ${n > 0 ? 'on' : ''}`}>{n > 0 ? '✓' : ''}</span>)}
                         </div>
                       </Fragment>
                     );
@@ -268,6 +349,7 @@ export function ScoreCard({
                     ))}
                   </div>
                 )}
+                {partFooter(si)}
               </div>
             );
           })}
@@ -279,7 +361,7 @@ export function ScoreCard({
             </div>
           )}
           {sections.length > 0 && !anyLive && <p className="small muted">Nothing to score on this card in round {round}.</p>}
-          {onAdd && anyLive && !done && (
+          {onAdd && !parts && anyLive && !done && (
             <button
               className="btn btn-primary btn-block score-add"
               disabled={total <= 0}
