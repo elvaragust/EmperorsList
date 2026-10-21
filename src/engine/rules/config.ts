@@ -162,6 +162,27 @@ export function setDetachments(engine: RosterEngine, roster: Roster, keys: strin
 }
 
 /**
+ * The detachments a list has chosen: its cached ids, or, when those are
+ * missing (a list received by a share link made before ids were sent), the
+ * ones its config holds.
+ */
+export function chosenDetachmentKeys(engine: RosterEngine): string[] {
+  if (engine.roster.detachmentIds.length) return engine.roster.detachmentIds;
+  const root = rootByName(engine, /^detachments?$/i);
+  const inst = root && engine.tree.force.children.find((c) => c.node?.key === root.key);
+  return inst ? inst.children.filter((c) => c.count > 0 && c.node).map((c) => c.node!.key) : [];
+}
+
+/** Fill in the cached detachment ids and names from the config when they are missing. */
+export function syncDetachments(engine: RosterEngine, roster: Roster): Roster {
+  if (roster.detachmentIds.length) return roster;
+  const keys = chosenDetachmentKeys(engine);
+  const picked = configChoices(engine).detachments.filter((d) => keys.includes(d.key));
+  if (!picked.length) return roster;
+  return { ...roster, detachmentIds: picked.map((d) => d.key), detachmentNames: picked.map((d) => d.name) };
+}
+
+/**
  * Enhancements belong to a detachment: after a detachment change, take off any
  * the new detachments don't offer (the data hides them) so they don't linger.
  */
@@ -191,7 +212,8 @@ export function allowedDispositions(engine: RosterEngine): ConfigOption[] {
   // By id, or by name when the data's ids changed since the list was made.
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const names = new Set((engine.roster.detachmentNames ?? []).map(norm));
-  const chosen = c.detachments.filter((d) => engine.roster.detachmentIds.includes(d.key) || names.has(norm(d.name)));
+  const keys = chosenDetachmentKeys(engine);
+  const chosen = c.detachments.filter((d) => keys.includes(d.key) || names.has(norm(d.name)));
   const allowed = new Set(chosen.flatMap((d) => d.dispositions));
   const visible = c.dispositions.filter((d) => !d.hidden || allowed.has(d.name));
   return allowed.size ? visible.filter((d) => allowed.has(d.name)) : visible;
