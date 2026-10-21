@@ -66,8 +66,12 @@ describe('live game reducer', () => {
     s = reduce(s, { t: 'phase', phase: 'shooting' }, 'h');
     s = reduce(s, { t: 'turn' }, 'h');
     expect(s).toMatchObject({ turn: 'B', phase: 'command' });
-    // The team whose turn it is can hand it back.
-    expect(reduce(s, { t: 'turn' }, 'g').turn).toBe('A');
+    // Like Next: the new turn's Command phase gives everyone 1 CP.
+    expect(s.cp).toEqual({ h: 2, g: 2 });
+    // The team whose turn it is hands it on: after the last team, the next round starts.
+    s = reduce(s, { t: 'turn' }, 'g');
+    expect(s).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
+    expect(s.cp).toEqual({ h: 3, g: 3 });
   });
 
   it('plays a 2v1 with the pair on either team', () => {
@@ -178,7 +182,7 @@ describe('live game reducer', () => {
     expect(s.players.find((x) => x.id === 'b1')!.primary).toBe('Delaying Action');
   });
 
-  it('folds in a cut-off phone: its own team only, never the other team', async () => {
+  it('folds in an older phone’s cut-off copy: its own team only, never the other team', async () => {
     const { mergeOffline, LOCAL } = await import('../live');
     let s = newLiveState('R', p('h', 'Host'));
     s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
@@ -201,8 +205,8 @@ describe('live game reducer', () => {
     // The other team keeps what the host has.
     expect(merged.vp.A.primary[0]).toBe(6);
     expect(merged.cp.h).toBe(0);
-    // The game moved on offline; the log gets the offline note.
-    expect(merged).toMatchObject({ round: 1, turn: 'B', phase: 'command' });
+    // The turn stays where the host has it (taking it from the phone skipped the host's Command-phase CP); the log gets the offline note.
+    expect(merged).toMatchObject({ round: 1, turn: 'A', phase: 'command' });
     expect(merged.log.some((l) => l.text === 'Charged the objective')).toBe(true);
     expect(merged.v).toBe(host.v + 1);
   });
