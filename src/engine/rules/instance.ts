@@ -180,6 +180,14 @@ export function unitRootOf(inst: Inst): Inst | undefined {
   return cur?.kind === 'selection' ? cur : undefined;
 }
 
+/** An Attached Unit: the bodyguard unit root and the characters leading it (just the unit when nothing is attached). */
+export function associationGroup(unitRoot: Inst): Inst[] {
+  const leaderOf = unitRoot.unit?.leaderOf;
+  const body = leaderOf ? forceOf(unitRoot)?.children.find((c) => c.unit?.id === leaderOf) : undefined;
+  const head = body ?? unitRoot;
+  return [head, ...(head.attached ?? []).filter((a) => a !== head)];
+}
+
 export function forceOf(inst: Inst): Inst | undefined {
   let cur: Inst | undefined = inst;
   while (cur && cur.kind !== 'force') cur = cur.parent;

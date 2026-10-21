@@ -15,7 +15,7 @@ const list = (v?: string) =>
 
 /** A local game's own missions, kept on the saved game (older fields), as one state. */
 export function localSecondaries(g: SavedGame): SecondaryState {
-  return { mode: g.secondaryMode?.me, fixed: list(g.secondaries?.me), tactical: g.tactical, primaryDone: g.primaryDone };
+  return { mode: g.secondaryMode?.me, fixed: list(g.secondaries?.me), tactical: g.tactical, primaryDone: g.primaryDone, primaryParts: g.primaryParts };
 }
 
 /** Write a missions state back onto a local game. */
@@ -25,6 +25,7 @@ export function localSecondariesPatch(g: SavedGame, s: SecondaryState): Partial<
     secondaries: { me: s.fixed.join(', '), them: g.secondaries?.them ?? '' },
     tactical: s.tactical,
     primaryDone: s.primaryDone,
+    primaryParts: s.primaryParts,
   };
 }
 
@@ -117,9 +118,9 @@ export function SecondarySetup({
   sec: SecondaryState;
   onSec: (op: SecOp) => void;
   role?: SavedGame['role'];
-  /** Local game: also note the opponent's choice. */
+  /** Local game: also note the opponent's choice (a change made to the latest saved copy). */
   game?: SavedGame;
-  setGame?: (p: Partial<SavedGame>) => void;
+  setGame?: (p: (g: SavedGame) => Partial<SavedGame>) => void;
   title?: string;
 }) {
   const cards = useMissionCards();
@@ -141,8 +142,8 @@ export function SecondarySetup({
       {game && setGame && (
         <>
           <div className="section-label">{game.opponentName || 'Opponent'}'s secondaries</div>
-          <ModeSwitch value={mode.them} onChange={(m) => setGame({ secondaryMode: { ...mode, them: m }, secondaries: { me: game.secondaries?.me ?? '', them: m === 'fixed' ? theirs.join(', ') : '' } })} />
-          {mode.them === 'fixed' && <PickTwo pool={fixedPool} value={theirs} cards={cards} onChange={(v) => setGame({ secondaries: { me: game.secondaries?.me ?? '', them: v.join(', ') } })} />}
+          <ModeSwitch value={mode.them} onChange={(m) => setGame((g) => ({ secondaryMode: { ...g.secondaryMode, them: m }, secondaries: { me: g.secondaries?.me ?? '', them: m === 'fixed' ? (g.secondaries?.them ?? '') : '' } }))} />
+          {mode.them === 'fixed' && <PickTwo pool={fixedPool} value={theirs} cards={cards} onChange={(v) => setGame((g) => ({ secondaries: { me: g.secondaries?.me ?? '', them: v.join(', ') } }))} />}
           {mode.them === 'tactical' && <p className="small muted">They draw from their own deck; score their VP in the Score tab.</p>}
         </>
       )}
@@ -151,8 +152,9 @@ export function SecondarySetup({
 }
 
 /**
- * Battle: the primary (scored line by line for this round, then locked for the
- * round until enabled again), the twist, and the secondaries — the two Fixed
+ * Battle: the primary (scored line by line; each moment of the round — end of
+ * the Command phase, end of turn, end of the battle — is added and locked on
+ * its own until undone), the twist, and the secondaries — the two Fixed
  * cards, or the Tactical hand with draw / add VP / discard / redraw for 1CP.
  * Scored and discarded cards stay listed; tap one to put it back.
  * With `readOnly` it shows someone else's missions (an opponent in a live game).
@@ -193,6 +195,7 @@ export function MissionsPanel({
   const t = sec.tactical;
   const act = (op: SecOp, text?: string) => onSec?.(op, text);
   const canDraw = !readOnly && mode === 'tactical' && t && t.drawnFor !== turnKey;
+  // Older saves locked the whole card for the round after one Add.
   const primaryDone = (sec.primaryDone ?? []).includes(round);
   const [showAll, setShowAll] = useState(false);
   return (
@@ -204,7 +207,12 @@ export function MissionsPanel({
           name={primary}
           cards={cards}
           round={round}
-          onAdd={readOnly ? undefined : (vp) => (onVp?.('primary', vp, primary), act({ op: 'primaryDone', round, done: true }))}
+          parts={{
+            scored: sec.primaryParts ?? [],
+            turnKey,
+            onAdd: readOnly ? undefined : (part, vp, counts, label) => (onVp?.('primary', vp, `${primary} (${label})`), act({ op: 'primaryDone', round, done: true, part, vp, counts })),
+            onUndo: readOnly ? undefined : (p, label) => (onVp?.('primary', -p.vp, `Undid ${primary} (${label})`), act({ op: 'primaryDone', round: p.round, done: false, part: p.part })),
+          }}
           addLabel={`Add to round ${round} primary:`}
           done={primaryDone ? `Primary scored for round ${round}` : undefined}
           onEnable={readOnly ? undefined : () => act({ op: 'primaryDone', round, done: false })}

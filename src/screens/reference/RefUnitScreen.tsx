@@ -24,6 +24,8 @@ export function RefUnitScreen() {
     const roots = rootsFor(index, catalogueId);
     const base = blankRoster(catalogueId);
     const e0 = new RosterEngine(index, base, roots);
+    // A pinned unit can be renamed or removed by a data update.
+    if (!e0.roots.get(key)) return null;
     const unit = newUnit(e0, key);
     const engine = new RosterEngine(index, { ...base, units: [unit] }, roots);
     const inst = engine.unitInst(unit.id)!;
@@ -31,7 +33,13 @@ export function RefUnitScreen() {
     return { engine, unit, sheet: datasheet(engine, inst), models: unitModels(engine, unit.id), points: engine.unitPoints(unit.id), options };
   }, [index, catalogueId, key]);
   if (error) return <Screen title="Datasheet" back="/reference"><p className="muted">{error}</p></Screen>;
-  if (!data) return <Screen title="Datasheet" back="/reference"><p className="muted">Loading…</p></Screen>;
+  if (data === undefined) return <Screen title="Datasheet" back="/reference"><p className="muted">Loading…</p></Screen>;
+  if (data === null)
+    return (
+      <Screen title="Datasheet" back="/reference">
+        <p className="muted">This unit isn't in the current data. A data update may have renamed or removed it — look it up again under Reference{cat ? ` → ${cat.name}` : ''}.</p>
+      </Screen>
+    );
   return (
     <Screen title={data.sheet.name} back="/reference">
       <div style={{ display: 'flex', alignItems: 'center' }}>

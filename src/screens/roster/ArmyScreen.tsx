@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
-import { allowedDispositions, configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
+import { allowedDispositions, borrowedLimits, chosenDetachmentKeys, configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import type { BattleSize, Roster } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
@@ -23,12 +23,15 @@ export function ArmyScreen() {
   const { engine, index } = useRosterEngine(roster);
   useFactionTheme(roster?.factionName);
   const choices = useMemo(() => (engine ? configChoices(engine) : undefined), [engine]);
-  const shown = useMemo(() => choices?.detachments.filter((d) => !d.hidden || roster?.detachmentIds.includes(d.key)) ?? [], [choices, roster]);
+  // From the config too: a list received by an older share link has no detachment ids cached.
+  const chosen = useMemo(() => (engine ? chosenDetachmentKeys(engine) : []), [engine]);
+  const shown = useMemo(() => choices?.detachments.filter((d) => !d.hidden || chosen.includes(d.key)) ?? [], [choices, chosen]);
   const enhByDet = useMemo(() => (engine ? enhancementsByDetachment(engine.index, shown) : new Map()), [engine, shown]);
   if (!roster) return <Screen title="Army" back={`/roster/${id}`}>{null}</Screen>;
   if (!engine || !choices) return <Screen title="Army" back={`/roster/${id}`}><p className="muted">Loading…</p></Screen>;
   const save = (r: Roster) => saveRoster(index, r);
   const dp = engine.detachmentPoints();
+  const borrowed = borrowedLimits(choices, roster.battleSize);
 
   return (
     <Screen title="Army" back={`/roster/${id}`}>
@@ -41,6 +44,11 @@ export function ArmyScreen() {
           </button>
         ))}
       </div>
+      {borrowed && (
+        <p className="muted small">
+          {roster.battleSize === 'custom' ? 'A custom points limit' : 'The game data has no Onslaught rules yet, so this list'} uses {borrowed} limits for Detachment Points, Enhancements and copies of a datasheet.
+        </p>
+      )}
       {roster.battleSize === 'custom' && (
         <label className="field">
           <span>Points limit</span>
@@ -53,7 +61,7 @@ export function ArmyScreen() {
       </div>
       <div className="card" style={{ overflow: 'hidden' }}>
         {shown.map((d) => {
-          const on = roster.detachmentIds.includes(d.key);
+          const on = chosen.includes(d.key);
           return (
             <DetachmentCard
               key={d.key}
@@ -62,7 +70,7 @@ export function ArmyScreen() {
               index={index}
               selected={on}
               note={d.hidden ? 'not available to this army' : undefined}
-              onToggle={() => save(setDetachments(engine, roster, on ? roster.detachmentIds.filter((k) => k !== d.key) : [...roster.detachmentIds, d.key]))}
+              onToggle={() => save(setDetachments(engine, roster, on ? chosen.filter((k) => k !== d.key) : [...chosen, d.key]))}
             />
           );
         })}

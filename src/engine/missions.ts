@@ -126,17 +126,32 @@ export function restoreTactical(t: TacticalState, name: string): TacticalState {
 }
 
 /**
+ * A part of the primary scored in a battle round: the lines scored at one
+ * moment ("command", "turn", "battle", or "anyTurn@2-me" for a card that
+ * scores at the end of either player's turn). `counts` are the ticks per card
+ * section (by position), so they stay shown; `vp` is what was added.
+ */
+export interface PrimaryPart {
+  round: number;
+  part: string;
+  vp: number;
+  counts?: Record<number, number[]>;
+}
+
+/**
  * Everything about one side's missions during a battle: how they play
- * secondaries (two Fixed cards, or a Tactical deck and hand) and in which
- * rounds the primary has been scored. In a live game each team has one, kept
+ * secondaries (two Fixed cards, or a Tactical deck and hand) and which parts
+ * of the primary have been scored in which rounds. In a live game each team has one, kept
  * in the shared state, so teammates manage it together and opponents can read it.
  */
 export interface SecondaryState {
   mode?: 'fixed' | 'tactical';
   fixed: string[];
   tactical?: TacticalState;
-  /** Battle rounds whose primary has been scored (its card is locked until enabled again). */
+  /** Older saves: battle rounds whose whole primary card was locked after one Add (until enabled again). */
   primaryDone?: number[];
+  /** Parts of the primary scored, per round (each locked until undone). */
+  primaryParts?: PrimaryPart[];
 }
 
 export type SecOp =
@@ -160,7 +175,11 @@ export type SecOp =
    * `at` is where it goes in the deck (picked by the phone, so every copy agrees); never on top.
    */
   | { op: 'shuffleBack'; name: string; at: number }
-  | { op: 'primaryDone'; round: number; done: boolean };
+  /**
+   * The primary was scored (`done`) or opened again. With `part`, only that
+   * part of the round (see PrimaryPart); without, the whole round (older saves).
+   */
+  | { op: 'primaryDone'; round: number; done: boolean; part?: string; vp?: number; counts?: Record<number, number[]> };
 
 export const emptySecondaries = (): SecondaryState => ({ fixed: [] });
 
@@ -213,6 +232,16 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
       return { ...s, tactical: { ...drawn, deck: [...drawn.deck.slice(0, at), o.name, ...drawn.deck.slice(at)] } };
     }
     case 'primaryDone': {
+      if (o.part !== undefined) {
+        const parts = s.primaryParts ?? [];
+        const has = parts.some((p) => p.round === o.round && p.part === o.part);
+        // Scoring a part twice (a double tap, two phones) keeps the first.
+        if (o.done === has) return s;
+        return {
+          ...s,
+          primaryParts: o.done ? [...parts, { round: o.round, part: o.part, vp: o.vp ?? 0, counts: o.counts }] : parts.filter((p) => !(p.round === o.round && p.part === o.part)),
+        };
+      }
       const set = new Set(s.primaryDone ?? []);
       if (o.done) set.add(o.round);
       else set.delete(o.round);

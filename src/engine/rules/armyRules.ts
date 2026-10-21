@@ -3,7 +3,7 @@ import { catalogueChain } from '../bsdata/index';
 import type { RawRule } from '../bsdata/raw';
 import { ruleText } from './nodes';
 import type { RosterEngine } from './rosterEngine';
-import { configChoices } from './config';
+import { chosenDetachmentKeys, configChoices } from './config';
 
 /**
  * An army's own rules (Oath of Moment, Templar Vows…): rules the catalogue
@@ -44,7 +44,7 @@ export function armyRules(engine: RosterEngine): RawRule[] {
 
 /** Rules of the detachments chosen for this list. */
 export function detachmentRules(engine: RosterEngine): { detachment: string; name: string; text: string }[] {
-  const chosen = new Set(engine.roster.detachmentIds);
+  const chosen = new Set(chosenDetachmentKeys(engine));
   return configChoices(engine)
     .detachments.filter((d) => chosen.has(d.key))
     .flatMap((d) => d.rules.filter((r) => r.text).map((r) => ({ detachment: d.name, name: r.name, text: r.text })));
