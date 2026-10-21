@@ -67,8 +67,10 @@ export interface SavedGame {
   secondaries?: { me: string; them: string };
   /** Fixed: two Fixed-marked cards all game. Tactical: draw two each Command phase. */
   secondaryMode?: { me?: 'fixed' | 'tactical'; them?: 'fixed' | 'tactical' };
-  /** Battle rounds whose primary I have scored (the card is locked for that round until enabled again). */
+  /** Older saves: battle rounds whose whole primary card I locked after scoring it (until enabled again). */
   primaryDone?: number[];
+  /** Parts of my primary scored per round (Command phase, end of turn, end of battle), each locked until undone. */
+  primaryParts?: import('@/engine/missions').PrimaryPart[];
   /** My Tactical secondaries deck and hand. */
   tactical?: import('@/engine/missions').TacticalState;
   /** Force Dispositions for this game (mine defaults to the list's). */
@@ -98,6 +100,8 @@ export interface SavedGame {
   turn: 'me' | 'them';
   phase: Phase;
   cp: { me: number; them: number };
+  /** Command phases ("2-me") whose CP both players have been given, so Back and Next don't give it twice. Unset in older saves. */
+  cpGranted?: string[];
   vp: { me: { primary: number[]; secondary: number[] }; them: { primary: number[]; secondary: number[] } };
   /** unit id -> dead model ids */
   casualties: Record<string, string[]>;
