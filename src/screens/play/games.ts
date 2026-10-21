@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { db, type GameLogEntry, type SavedGame } from '@/data/db';
 import { uid } from '@/data/rosters';
 import { emptyScore } from '@/engine/game';
@@ -32,7 +32,7 @@ export const practiceId = (rosterId: string) => `practice-${rosterId}`;
 
 /** A fresh practice game for a list: straight into round 1, nothing set up, against "Opponent". */
 export async function startPractice(roster: Roster) {
-  const g: SavedGame = { ...newGame(roster), id: practiceId(roster.id), practice: true, opponentName: 'Opponent', stage: 'battle', firstTurn: 'me', cp: { me: 1, them: 1 } };
+  const g: SavedGame = { ...newGame(roster), id: practiceId(roster.id), practice: true, opponentName: 'Opponent', stage: 'battle', firstTurn: 'me', cp: { me: 1, them: 1 }, cpGranted: ['1-me'] };
   await db.games.put(g);
 }
 
@@ -47,7 +47,9 @@ export async function saveGame(g: SavedGame) {
 
 /**
  * Change the latest saved copy of a game in one transaction, so two changes
- * made at once (a redraw and its CP) can't overwrite each other.
+ * made at once (a redraw and its CP, a name saved on blur and the Next it was
+ * blurred by) can't overwrite each other. Every change to a game on this
+ * screen goes through here — never a put of the copy from the last render.
  */
 export async function updateGame(id: string, fn: (g: SavedGame) => SavedGame | undefined) {
   await db.transaction('rw', db.games, async () => {
@@ -61,10 +63,43 @@ export function withLog(g: SavedGame, text: string, kind: GameLogEntry['kind']):
   return { ...g, log: [...g.log, { at: Date.now(), round: g.round, turn: g.turn, phase: g.phase, text, kind }] };
 }
 
+/** Change some fields of the latest saved copy (see updateGame). */
+export function patchGame(id: string, patch: Partial<SavedGame> | ((g: SavedGame) => Partial<SavedGame>)) {
+  return updateGame(id, (g) => ({ ...g, ...(typeof patch === 'function' ? patch(g) : patch) }));
+}
+
+/**
+ * Save a text field as it is typed: a moment (~300ms) after the last key, and
+ * straight away on blur (`flush`) or when the field goes away.
+ */
+export function useTypedSave(save: (text: string) => unknown, delay = 300) {
+  const pending = useRef<string>();
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    const text = pending.current;
+    pending.current = undefined;
+    if (text !== undefined) void saveRef.current(text);
+  }, []);
+  useEffect(() => flush, [flush]);
+  const change = useCallback(
+    (text: string) => {
+      pending.current = text;
+      clearTimeout(timer.current);
+      timer.current = setTimeout(flush, delay);
+    },
+    [flush, delay],
+  );
+  return { change, flush };
+}
+
 /**
  * Note each side's army health (share of starting wounds left) for the current
  * battle round, so the result screen can show how the battle swung round by
- * round. Only writes when a number changed.
+ * round. Only writes when a number changed, and never over an earlier round
+ * once a later one has been noted (after going back to an earlier round).
  */
 export function useHealthRecorder(gameId: string, round: number, sides: Record<string, number | undefined>, stage: SavedGame['stage']) {
   const key = JSON.stringify(sides);
@@ -77,6 +112,7 @@ export function useHealthRecorder(gameId: string, round: number, sides: Record<s
         if (v === undefined) continue;
         const list = [...(health[side] ?? [])];
         while (list.length < round) list.push(null);
+        if (list.slice(round).some((x) => x != null)) continue;
         const value = Math.round(v * 1000) / 1000;
         if (list[round - 1] !== value) {
           list[round - 1] = value;

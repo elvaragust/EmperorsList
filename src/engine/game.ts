@@ -35,6 +35,41 @@ export function previousPhase(s: TurnState, firstTurn: Side): TurnState {
   return s;
 }
 
+/** The start of the next player's turn (handing the turn over): like Next from their Fight phase. */
+export function nextTurn(s: TurnState, firstTurn: Side): TurnState & { cpGain: boolean; gameOver: boolean } {
+  return nextPhase({ ...s, phase: 'fight' }, firstTurn);
+}
+
+/** One player's Command phase in one battle round ("2-me"): its CP is given once. */
+export const commandKey = (s: { round: number; turn: Side }) => `${s.round}-${s.turn}`;
+
+/**
+ * The Command phases whose CP has been given. Games saved before this was
+ * kept count every Command phase up to the current turn as given.
+ */
+export function cpGrantedSoFar(s: TurnState & { cpGranted?: string[] }, firstTurn: Side): string[] {
+  if (s.cpGranted) return s.cpGranted;
+  const second: Side = firstTurn === 'me' ? 'them' : 'me';
+  const keys: string[] = [];
+  for (let r = 1; r <= s.round; r++) {
+    keys.push(commandKey({ round: r, turn: firstTurn }));
+    if (r < s.round || s.turn === second) keys.push(commandKey({ round: r, turn: second }));
+  }
+  return keys;
+}
+
+/**
+ * Move to `to` (by Next, handing the turn over or jumping to a round). Arriving
+ * at a Command phase whose CP hasn't been given gives it (`cpGain`: both
+ * players gain 1 CP) and notes it, so going Back and Next again doesn't give it twice.
+ */
+export function arrive(s: TurnState & { cpGranted?: string[] }, to: TurnState, firstTurn: Side): TurnState & { cpGranted: string[]; cpGain: boolean } {
+  const granted = cpGrantedSoFar(s, firstTurn);
+  const key = commandKey(to);
+  const cpGain = to.phase === 'command' && !granted.includes(key);
+  return { round: to.round, turn: to.turn, phase: to.phase, cpGranted: cpGain ? [...granted, key] : granted, cpGain };
+}
+
 export interface Score {
   primary: number[];
   secondary: number[];

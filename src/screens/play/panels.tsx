@@ -19,6 +19,7 @@ import { Icon } from '@/ui/Icon';
 import { ConfirmSheet } from '@/ui/Sheet';
 import { showToast } from '@/ui/Toast';
 import { useRulePopup } from '@/ui/RulePopup';
+import { useTypedSave } from './games';
 
 /** Stratagems (from the import) and your abilities that apply in this phase and turn. */
 export function PhasePanel({ engine, phase, myTurn, onSpend, cp }: { engine?: RosterEngine; phase: Phase; myTurn: boolean; onSpend: (s: ImportedRule, cost: number) => void; /** CP you have, to say what's left. */ cp?: number }) {
@@ -222,7 +223,12 @@ export function SummaryList({ units }: { units: UnitSummary[] }) {
 /** Your own notes for the whole game: tap to open or close; saved as you type. */
 export function NotesPanel({ gameId, notes }: { gameId: string; notes?: string }) {
   const [text, setText] = useState(notes ?? '');
-  useEffect(() => setText(notes ?? ''), [notes]);
+  // Notes saved elsewhere show here, but never over what you're typing.
+  const typing = useRef(false);
+  useEffect(() => {
+    if (!typing.current) setText(notes ?? '');
+  }, [notes]);
+  const saver = useTypedSave((t) => db.games.update(gameId, { notes: t }));
   return (
     <Collapse title={`Notes${notes ? ' ·' : ''}`} defaultOpen={false} right={notes ? <span className="small muted" style={{ textTransform: 'none', letterSpacing: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notes.split('\n')[0]}</span> : undefined}>
       <textarea
@@ -230,8 +236,9 @@ export function NotesPanel({ gameId, notes }: { gameId: string; notes?: string }
         style={{ minHeight: 120 }}
         value={text}
         placeholder="Plans, reminders, what your opponent has in reserve…"
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => db.games.update(gameId, { notes: text })}
+        onChange={(e) => (setText(e.target.value), saver.change(e.target.value))}
+        onFocus={() => (typing.current = true)}
+        onBlur={() => ((typing.current = false), saver.flush())}
         aria-label="Game notes"
       />
     </Collapse>
