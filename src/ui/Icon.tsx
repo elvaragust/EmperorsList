@@ -14,7 +14,8 @@ const PATHS = {
   map: 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14',
   pencil: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
   check: 'M5 12l5 5 9-10',
-  warn: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+  swords: 'M4 4l10 10M4 4v3l9 9M4 4h3l9 9M13 16l-2 2M16 13l2-2M15 15l4 4M20 4L10 14M20 4v3l-3 3M20 4h-3l-3 3M11 13l-2-2M8 10l-2 2M9 15l-4 4',
+  warn:'M12 3l10 18H2zM12 10v5M12 18h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;

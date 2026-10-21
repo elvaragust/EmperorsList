@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Fragment, useMemo, useState } from 'react';
 import { db } from '@/data/db';
 import { useRulePopup } from '@/ui/RulePopup';
+import { Icon } from '@/ui/Icon';
 import { RulesText } from '@/ui/RulesText';
 import { parseCard, scoreItems, type ScoreItem } from '@/engine/missionCard';
 
@@ -47,6 +48,48 @@ export function CardText({ name, cards, compact }: { name?: string; cards: Map<s
         <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
       {open && <RulesText text={withoutFlavour(c.text)} />}
+    </div>
+  );
+}
+
+/**
+ * One mission in a pick list, laid out like a card from the deck: a chevron and
+ * the name on the left, the card's emblem on the right. Tapping the name opens
+ * the card's rules underneath; tapping the emblem (when `onSelect` is given)
+ * picks it. Chosen cards are lit; `tag` says where a card is ("In hand").
+ */
+export function MissionRow({ name, cards, selected, tag, dim, onSelect, selectLabel, children }: { name: string; cards: Map<string, CardInfo>; selected?: boolean; tag?: string; dim?: boolean; onSelect?: () => void; selectLabel?: string; children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const c = cards.get(name.toLowerCase());
+  const emblem = (
+    <span className="mission-emblem" aria-hidden="true">
+      {selected ? <Icon name="check" size={28} /> : <Icon name="swords" size={30} />}
+    </span>
+  );
+  return (
+    <div className={`mission-row ${selected ? 'on' : ''} ${dim ? 'dim' : ''} ${open ? 'open' : ''}`}>
+      <div className="mission-row-head">
+        <button className="mission-row-name" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span className="mission-chev" aria-hidden="true">
+            {open ? '▴' : '▾'}
+          </span>
+          <span className="mission-title">{name}</span>
+          {tag && <span className="mission-tag">{tag}</span>}
+        </button>
+        {onSelect ? (
+          <button className="mission-pick" role="checkbox" aria-checked={Boolean(selected)} aria-label={selectLabel ?? `Choose ${name}`} onClick={onSelect}>
+            {emblem}
+          </button>
+        ) : (
+          <span className="mission-pick static">{emblem}</span>
+        )}
+      </div>
+      {open && (
+        <div className="mission-row-body">
+          {c ? <RulesText text={withoutFlavour(c.text)} /> : <p className="small muted">Card text appears here once the app has loaded the mission deck.</p>}
+          {children}
+        </div>
+      )}
     </div>
   );
 }
