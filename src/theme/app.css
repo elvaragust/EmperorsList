@@ -393,6 +393,17 @@ textarea.input {
   color: var(--filter-color, var(--accent));
   font-weight: 700;
 }
+/* Option chips (a unit's pick-one choices): long names wrap inside the chip instead of running off the screen. */
+.filter.option-chip {
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
 .filter:disabled {
   opacity: 0.45;
   cursor: default;
@@ -511,7 +522,8 @@ textarea.input {
 .sheet {
   width: 100%;
   max-width: 480px;
-  max-height: 82vh;
+  /* Of the backdrop (the screen), so it still fits when the text size scales the sheet up. */
+  max-height: 82%;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   background: var(--surface);
@@ -619,6 +631,19 @@ textarea.input {
 }
 .stats .k + .v {
   border-top: 1px solid var(--line-soft);
+}
+
+/* Tables that may be wider than the phone (big text): they scroll sideways in their own box,
+   never clipped by the page. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+@media print {
+  .table-scroll {
+    overflow: visible;
+  }
 }
 
 /* Weapon stat table */
@@ -906,11 +931,21 @@ textarea.input {
 }
 
 /* ---------- Appearance settings ---------- */
-[data-text='large'] .shell {
-  zoom: 1.12;
+/* Text size: the app column and everything shown on top of it (sheets, dialogs, the turn
+   callout, which live outside it) are scaled by the same amount. */
+:root {
+  --text-zoom: 1;
 }
-[data-text='xlarge'] .shell {
-  zoom: 1.25;
+:root[data-text='large'] {
+  --text-zoom: 1.12;
+}
+:root[data-text='xlarge'] {
+  --text-zoom: 1.25;
+}
+.shell,
+.sheet-backdrop,
+.turn-callout {
+  zoom: var(--text-zoom);
 }
 [data-title-font='serif'] {
   --font-title: 'Cinzel', serif;
@@ -1005,7 +1040,7 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(calc(100vw - 32px), 440px);
+  width: min(calc(100vw / var(--text-zoom) - 32px), 440px);
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -1089,12 +1124,26 @@ textarea.input {
 /* ---------- Unit page (official-app style) ---------- */
 .unit-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--line);
+}
+/* The name takes the row; when it would be squeezed (big text, small phone) the points and buttons move under it. */
+.unit-head-main {
+  flex: 1 1 7em;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.unit-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
 }
 .pts-chip {
   font-family: var(--font-ui);
@@ -1304,7 +1353,7 @@ textarea.input {
   position: sticky;
   left: 8px;
   width: max-content;
-  max-width: calc(100vw - 48px);
+  max-width: calc(100vw / var(--text-zoom) - 48px);
 }
 .model-line .model-name {
   min-width: 64px;
@@ -1460,7 +1509,7 @@ textarea.input {
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
   margin: 4px 0;
 }
 .round-pill.dim {
@@ -1602,7 +1651,7 @@ textarea.input {
 .round-bar button.on {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent-strong, #fff);
+  color: var(--on-accent);
 }
 
 .gear-nested {
@@ -1849,7 +1898,11 @@ textarea.input {
   margin: 4px 0;
 }
 
-/* Build / Play switch in a list's header */
+/* Build / Practice switch: at the top of a list's page (the header keeps the room for its name) */
+.view-toggle-row {
+  display: flex;
+  margin: 6px 0 10px;
+}
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -2045,12 +2098,27 @@ tr.pulse > td {
   background: var(--raised);
   font-family: var(--font-ui);
 }
+/* Kind and value line up in columns; when the row is narrow (big text, small phone)
+   the note moves under them instead of running out of the box. */
 .save-row {
-  display: grid;
-  grid-template-columns: 9.6em 2.6em 1fr;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 2px 8px;
   padding: 7px 12px;
+}
+.save-row > .save-kind {
+  flex: 0 1 min(12.8em, 60%);
+  min-width: 0;
+}
+.save-row > .save-value {
+  flex: none;
+  min-width: 2.3em;
+}
+.save-row > .save-note {
+  flex: 1 1 8em;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .save-row + .save-row {
   border-top: 1px solid var(--line-soft);
@@ -2356,7 +2424,7 @@ tr.pulse > td {
   top: 38%;
   z-index: 45;
   transform: translate(-50%, -50%);
-  min-width: min(80vw, 340px);
+  min-width: min(80vw / var(--text-zoom), 340px);
   padding: 18px 24px;
   border-radius: 18px;
   text-align: center;
@@ -2665,10 +2733,17 @@ tr.pulse > td {
 .status-pill {
   flex: none;
 }
+/* Long names (a list, a unit with its leaders) stop at two lines with "…" instead of
+   growing the sticky header; the full name is on the page itself. */
 .screen-title {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 .quick-actions .btn,
 .confirm-actions .btn {
@@ -3091,7 +3166,7 @@ tr.pulse > td {
   cursor: default;
 }
 .mission-row.on .mission-pick {
-  color: var(--bg-deep);
+  color: var(--on-accent);
   background: linear-gradient(90deg, transparent, var(--accent) 28%);
 }
 .mission-pick:focus-visible {
