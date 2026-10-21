@@ -1,41 +1,45 @@
 import { db } from './db';
+import { isIOSBrowser } from './platform';
+import { BACKUP_KINDS, BACKUP_VERSION, itemsToWrite, parseBackup, planRestore, summarize, type BackupKind, type DeviceItems, type RestoreMode, type RestorePlan, type RestoreSummary } from './backupMerge';
 
-/** Everything the user made (lists, games, collection, layouts, imported extra rules). No downloaded game data. */
+/** Everything the user made (lists, games, collection, layouts, pins). No downloaded game data, and no Wahapedia rules (they load again by themselves). */
 export async function exportBackup(): Promise<string> {
-  const [rosters, games, collection, imported, layouts, pins] = await Promise.all([db.rosters.toArray(), db.games.filter((g) => !g.practice).toArray(), db.collection.toArray(), db.imported.toArray(), db.layouts.toArray(), db.pins.toArray()]);
-  return JSON.stringify({ app: 'emperorslist', kind: 'backup', version: 3, exportedAt: new Date().toISOString(), rosters, games, collection, imported, layouts, pins });
+  const [rosters, games, collection, layouts, pins] = await Promise.all([db.rosters.toArray(), db.games.filter((g) => !g.practice).toArray(), db.collection.toArray(), db.layouts.toArray(), db.pins.toArray()]);
+  return JSON.stringify({ app: 'emperorslist', kind: 'backup', version: BACKUP_VERSION, exportedAt: new Date().toISOString(), rosters, games, collection, layouts, pins });
 }
 
-export interface RestoreResult {
-  rosters: number;
-  games: number;
-  collection: number;
-  imported: number;
+/** Read a backup file and compare it with this device, without changing anything. Throws a BackupError with a message for the player. */
+export async function previewRestore(text: string): Promise<RestorePlan> {
+  const data = parseBackup(text);
+  const tables = { rosters: db.rosters, games: db.games, collection: db.collection, layouts: db.layouts, pins: db.pins } as const;
+  const here = {} as DeviceItems;
+  for (const kind of BACKUP_KINDS) {
+    const table = tables[kind] as unknown as { bulkGet(keys: string[]): Promise<unknown[]> };
+    const ids = (data[kind] as unknown as Record<string, string>[]).map((item) => item[kind === 'collection' ? 'entryId' : 'id']!);
+    const found = await table.bulkGet(ids);
+    here[kind] = new Map(ids.flatMap((id, i) => (found[i] === undefined ? [] : [[id, found[i]] as [string, unknown]])));
+  }
+  return planRestore(data, here);
 }
 
-/** Merge a backup into this device. Items with the same id are replaced by the backup's copy. */
-export async function restoreBackup(text: string): Promise<RestoreResult> {
-  const data = JSON.parse(text) as { app?: string; rosters?: unknown[]; games?: unknown[]; collection?: unknown[]; imported?: unknown[]; layouts?: unknown[]; pins?: unknown[] };
-  if (data.app !== 'emperorslist') throw new Error('This file is not an EmperorsList backup.');
-  const rosters = (data.rosters ?? []) as Parameters<typeof db.rosters.bulkPut>[0];
-  const games = (data.games ?? []) as Parameters<typeof db.games.bulkPut>[0];
-  const collection = (data.collection ?? []) as Parameters<typeof db.collection.bulkPut>[0];
-  const imported = (data.imported ?? []) as Parameters<typeof db.imported.bulkPut>[0];
-  const layouts = (data.layouts ?? []) as Parameters<typeof db.layouts.bulkPut>[0];
-  const pins = (data.pins ?? []) as Parameters<typeof db.pins.bulkPut>[0];
-  rosters.forEach((r) => {
-    r.config ??= [];
-    r.detachmentIds ??= [];
+/**
+ * Write a checked backup into this device. 'newer' adds what is missing and
+ * takes the backup's copy only where it is newer; 'replace' takes the
+ * backup's copy of everything in it. Nothing on this device is deleted.
+ */
+export async function applyRestore(plan: RestorePlan, mode: RestoreMode): Promise<RestoreSummary> {
+  const pick = <K extends BackupKind>(kind: K) => itemsToWrite(plan, kind, mode);
+  const games = pick('games');
+  await db.transaction('rw', [db.rosters, db.games, db.collection, db.layouts, db.pins], async () => {
+    await db.layouts.bulkPut(pick('layouts'));
+    await db.pins.bulkPut(pick('pins'));
+    await db.rosters.bulkPut(pick('rosters'));
+    // Delete and add (not put) so the games keep their own "last played" time instead of getting today's.
+    await db.games.bulkDelete(games.map((g) => g.id));
+    await db.games.bulkAdd(games);
+    await db.collection.bulkPut(pick('collection'));
   });
-  await db.transaction('rw', [db.rosters, db.games, db.collection, db.imported, db.layouts, db.pins], async () => {
-    await db.layouts.bulkPut(layouts);
-    await db.pins.bulkPut(pins);
-    await db.rosters.bulkPut(rosters);
-    await db.games.bulkPut(games);
-    await db.collection.bulkPut(collection);
-    await db.imported.bulkPut(imported);
-  });
-  return { rosters: rosters.length, games: games.length, collection: collection.length, imported: imported.length };
+  return summarize(plan, mode);
 }
 
 /** Trigger a file download of some text. */
@@ -95,11 +99,17 @@ export async function saveBackupFile(): Promise<'shared' | 'downloaded' | undefi
   return 'downloaded';
 }
 
-/** Remind about a backup when there's something to lose and none was saved for two weeks (unless put off). */
+const DAY = 24 * 3600 * 1000;
+
+/**
+ * Remind about a backup when there's something to lose and none was saved for
+ * two weeks (unless put off). In Safari on iPhone/iPad, where the site's data
+ * is deleted after 7 days without a visit, every 5 days.
+ */
 export function backupDue(hasData: boolean): boolean {
   if (!hasData) return false;
   const now = Date.now();
   if (read(SNOOZE_KEY) > now) return false;
-  return now - lastBackupAt() > 14 * 24 * 3600 * 1000;
+  return now - lastBackupAt() > (isIOSBrowser() ? 5 : 14) * DAY;
 }
-export const snoozeBackup = (days = 7) => write(SNOOZE_KEY, Date.now() + days * 24 * 3600 * 1000);
+export const snoozeBackup = (days = isIOSBrowser() ? 2 : 7) => write(SNOOZE_KEY, Date.now() + days * DAY);
