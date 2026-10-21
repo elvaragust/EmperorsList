@@ -9,6 +9,7 @@ import { Loading } from '@/ui/Loading';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
 import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
+import { IosInstallBanner } from '@/ui/IosInstallBanner';
 import type { Roster } from '@/engine/types';
 
 export function ListsScreen() {
@@ -36,6 +37,7 @@ export function ListsScreen() {
         </Link>
       }
     >
+      <IosInstallBanner />
       {rosters && rosters.length > 0 && showBackup && (
         <div className="backup-nudge" role="status">
           <div style={{ fontWeight: 600 }}>Keep your lists safe</div>
