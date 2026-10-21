@@ -3,7 +3,9 @@ import { useRef, useState } from 'react';
 import { db } from '@/data/db';
 import { currentSource, DEFAULT_SOURCE, setSource, sourceName } from '@/data/dataPacks';
 import { clearIndexCache } from '@/data/gameData';
-import { lastBackupAt, restoreBackup, saveBackupFile } from '@/data/backup';
+import { applyRestore, lastBackupAt, previewRestore, saveBackupFile } from '@/data/backup';
+import { BACKUP_KINDS, BackupError, summaryText, type BackupKind, type Compare, type RestoreMode, type RestorePlan } from '@/data/backupMerge';
+import { storagePlatform } from '@/data/platform';
 import { coreSectionsToRules, detectFile, importWahapedia, type WahapediaFiles } from '@/engine/wahapedia';
 import { parseCoreRules } from '@/engine/coreRules';
 import { loadCoreRules, syncAllFactions, syncWahapedia, useSyncStatus } from '@/data/bootstrap';
@@ -15,7 +17,79 @@ import { setAppearance, useAppearance, type Appearance } from '@/theme/appearanc
 import { THEME_CHOICES } from '@/theme/themes';
 import { RuleLabel } from '@/ui/RuleLabel';
 import { Collapse } from '@/ui/Collapse';
-import { ConfirmSheet } from '@/ui/Sheet';
+import { Sheet } from '@/ui/Sheet';
+
+const KIND_LABEL: Record<BackupKind, string> = { rosters: 'Lists', games: 'Games', collection: 'Collection', layouts: 'Layouts', pins: 'Pins' };
+const COMPARE_LABEL: [Compare, string][] = [
+  ['new', 'new'],
+  ['newer', 'newer than this device'],
+  ['older', 'older than this device'],
+  ['differs', 'different on this device'],
+  ['same', 'already here'],
+];
+
+/** What restoring a backup would do, before anything changes. */
+function RestoreSheet({ pending, onClose, onDone }: { pending: { name: string; plan: RestorePlan } | null; onClose: () => void; onDone: (text: string) => void }) {
+  const [mode, setMode] = useState<RestoreMode>('newer');
+  const [busy, setBusy] = useState(false);
+  const plan = pending?.plan;
+  const saved = plan?.data.exportedAt ? new Date(plan.data.exportedAt) : undefined;
+  const run = async () => {
+    if (!plan) return;
+    setBusy(true);
+    try {
+      onDone(`Restored. ${summaryText(await applyRestore(plan, mode))}`);
+    } catch (e) {
+      onDone(`Restore failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+      setMode('newer');
+    }
+  };
+  return (
+    <Sheet open={Boolean(pending)} onClose={onClose} title="Restore this backup?">
+      {pending && plan && (
+        <div className="confirm-message">
+          <div>
+            <strong>{pending.name}</strong>
+            {saved && !Number.isNaN(saved.getTime()) ? `, saved ${saved.toLocaleDateString()}` : ''}
+          </div>
+          {BACKUP_KINDS.filter((k) => plan.data[k].length > 0).map((k) => (
+            <div key={k} className="small" style={{ marginTop: 6 }}>
+              <strong>{KIND_LABEL[k]}:</strong>{' '}
+              {COMPARE_LABEL.filter(([c]) => plan.counts[k][c] > 0)
+                .map(([c, label]) => `${plan.counts[k][c]} ${label}`)
+                .join(' · ')}
+            </div>
+          ))}
+          <div className="filters" style={{ flexWrap: 'wrap', marginTop: 12 }}>
+            <button className={`filter ${mode === 'newer' ? 'on' : ''}`} onClick={() => setMode('newer')}>
+              Keep the newer copy
+            </button>
+            <button className={`filter ${mode === 'replace' ? 'on' : ''}`} onClick={() => setMode('replace')}>
+              Use the backup for everything
+            </button>
+          </div>
+          <div className="small muted" style={{ marginTop: 6 }}>
+            {mode === 'newer'
+              ? "Adds what's missing. Where both have a copy, the newer one stays (for pins, layouts and collection, this device's copy stays)."
+              : "Adds what's missing and puts the backup's copy over this device's, even where this device's is newer."}{' '}
+            Nothing else on this device is deleted.
+            {plan.data.skipped ? ` ${plan.data.skipped} damaged ${plan.data.skipped === 1 ? 'entry' : 'entries'} in the file will be left out.` : ''}
+          </div>
+        </div>
+      )}
+      <div className="confirm-actions">
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" disabled={busy} onClick={run}>
+          {busy ? 'Restoring…' : 'Restore'}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
 
 function Choice<K extends keyof Appearance>({ k, options, value }: { k: K; options: [Appearance[K], string][]; value: Appearance[K] }) {
   return (
@@ -96,23 +170,21 @@ export function SettingsScreen() {
     const how = await saveBackupFile();
     if (how) setBackupStatus(how === 'shared' ? 'Backup saved.' : 'Backup downloaded.');
   };
-  const [pendingRestore, setPendingRestore] = useState<{ name: string; text: string } | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{ name: string; plan: RestorePlan } | null>(null);
   const restore = async (list: FileList | null) => {
     const file = list?.[0];
-    if (!file) return;
-    setPendingRestore({ name: file.name, text: await file.text() });
     if (restoreInput.current) restoreInput.current.value = '';
-  };
-  const doRestore = async (text: string) => {
+    if (!file) return;
+    setBackupStatus('');
     try {
-      const r = await restoreBackup(text);
-      setBackupStatus(`Restored ${r.rosters} lists, ${r.games} games, ${r.collection} collection entries.`);
+      setPendingRestore({ name: file.name, plan: await previewRestore(await file.text()) });
     } catch (e) {
-      setBackupStatus(e instanceof Error ? e.message : 'Restore failed');
+      setBackupStatus(e instanceof BackupError ? e.message : `Couldn't read this backup: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
   const store = useStorageInfo();
+  const platform = storagePlatform();
 
   return (
     <Screen title="Settings">
@@ -160,11 +232,21 @@ export function SettingsScreen() {
             {store ? `${store.lists} lists · ${store.games} games · ${store.pins} pins` : 'Counting…'}
             {store?.usage ? ` · ${(store.usage / 1e6).toFixed(0)} MB used` : ''}
           </div>
-          <div className="small muted">
-            Everything is stored only in this browser on this phone (nothing is uploaded). It is not the browser's cache: clearing <em>cached images and files</em> leaves it alone, but clearing <em>site data / cookies and site data</em> for this site, or uninstalling the app, deletes it.{' '}
-            {store?.persisted ? 'The browser has agreed to keep it even when the phone runs low on space.' : 'Right now the browser may also clear it when the phone runs low on space — installing the app (Add to Home screen) usually fixes that.'} A backup file is the only copy that survives everything.
-          </div>
-          {store && !store.persisted && (
+          {platform === 'ios-browser' ? (
+            <div className="small muted">
+              Everything is stored only in Safari on this device (nothing is uploaded). <strong>Safari deletes it if you don't open the app here for 7 days.</strong> Install the app instead: Share → Add to Home Screen. The installed app keeps its own data, separate from Safari's, so lists made here don't move to it — save a backup here and restore it in the installed app. A backup file is the only copy that survives everything.
+            </div>
+          ) : platform === 'ios-app' ? (
+            <div className="small muted">
+              Everything is stored only in this installed app on this device (nothing is uploaded), so Safari's 7-day clean-up doesn't apply. Its data is separate from Safari's: to move lists between them, use a backup file. Deleting the app from the Home Screen deletes its data. A backup file is the only copy that survives everything.
+            </div>
+          ) : (
+            <div className="small muted">
+              Everything is stored only in this browser on this phone (nothing is uploaded). It is not the browser's cache: clearing <em>cached images and files</em> leaves it alone, but clearing <em>site data / cookies and site data</em> for this site, or uninstalling the app, deletes it.{' '}
+              {store?.persisted ? 'The browser has agreed to keep it even when the phone runs low on space.' : 'Right now the browser may also clear it when the phone runs low on space — installing the app (Add to Home screen) usually fixes that.'} A backup file is the only copy that survives everything.
+            </div>
+          )}
+          {store && !store.persisted && platform !== 'ios-browser' && (
             <button className="btn btn-sm" onClick={async () => showToast((await keepStorage()) ? 'Storage will be kept' : 'The browser declined — install the app and keep a backup')}>
               Ask the browser to keep my data
             </button>
@@ -194,7 +276,7 @@ export function SettingsScreen() {
       <div className="section-label">Backup</div>
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
-          <div className="small">Save all your lists, games and collection to a file — on a phone you can send it straight to Google Drive, iCloud Files or email — and load it on any device. Game data is not included (it downloads again by itself).</div>
+          <div className="small">Save all your lists, games, collection, pins and table layouts to a file — on a phone you can send it straight to Google Drive, iCloud Files or email — and load it on any device. Game data is not included (it downloads again by itself).</div>
           <div className="small muted">{lastBackupAt() ? `Last backup from this phone: ${new Date(lastBackupAt()).toLocaleDateString()}` : 'No backup saved from this phone yet.'}</div>
           <input ref={restoreInput} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files)} />
           <div className="btn-row" style={{ margin: 0 }}>
@@ -272,13 +354,13 @@ export function SettingsScreen() {
 
       </Collapse>
 
-      <ConfirmSheet
-        open={Boolean(pendingRestore)}
+      <RestoreSheet
+        pending={pendingRestore}
         onClose={() => setPendingRestore(null)}
-        title="Restore this backup?"
-        message={<>Lists, games and collection from <strong>{pendingRestore?.name}</strong> are added to this device. Anything with the same name from an earlier copy of the backup is replaced; everything else stays.</>}
-        confirm="Restore"
-        onConfirm={() => pendingRestore && void doRestore(pendingRestore.text)}
+        onDone={(text) => {
+          setPendingRestore(null);
+          setBackupStatus(text);
+        }}
       />
 
       <div className="section-label">About</div>
