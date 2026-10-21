@@ -14,6 +14,8 @@
   --accent: #c9a55a; /* selection, totals, active tab */
   --accent-strong: #7a1e22; /* primary buttons */
   --on-accent-strong: #f1e6d0;
+  /* Text on an --accent fill (the current round): the darkest background. */
+  --on-accent: var(--bg-deep);
   --danger: #ff8e86;
   --ok: #72e3a0;
 
@@ -58,6 +60,7 @@
   --accent: #c8202c;
   --accent-strong: #c8202c;
   --on-accent-strong: #fff;
+  --on-accent: #fff;
 }
 
 /* Adeptus Custodes: warm black, gold, crimson, inscription titles. */
@@ -88,10 +91,10 @@
 [data-theme='raven-guard'] { --bg: #0b0b0c; --bg-deep: #050506; --surface: #141416; --raised: #1c1c1f; --line: #2c2c31; --line-soft: #222226; --text: #eceef0; --text-muted: #9a9ca3; --accent: #c9ccd2; --accent-strong: #3a3d46; --on-accent-strong: #fff; }
 [data-theme='iron-hands'] { --bg: #0c0c0c; --bg-deep: #060606; --surface: #151515; --raised: #1e1e1e; --line: #2f2f2f; --line-soft: #242424; --text: #ececec; --text-muted: #9c9c9c; --accent: #b9c2c9; --accent-strong: #4b5560; --on-accent-strong: #fff; }
 [data-theme='imperial-fists'] { --bg: #110f08; --bg-deep: #090805; --surface: #1b180c; --raised: #262111; --line: #3b331b; --line-soft: #2c2615; --text: #f2ecd8; --text-muted: #a89f80; --accent: #f2c21b; --accent-strong: #b8860b; --on-accent-strong: #111; }
-[data-theme='white-scars'] { --bg: #0f0c0c; --bg-deep: #080606; --surface: #181414; --raised: #221c1c; --line: #362b2b; --line-soft: #292121; --text: #f4f0ea; --text-muted: #a69c94; --accent: #d6343c; --accent-strong: #e8e2d6; --on-accent-strong: #1a1212; }
+[data-theme='white-scars'] { --bg: #0f0c0c; --bg-deep: #080606; --surface: #181414; --raised: #221c1c; --line: #362b2b; --line-soft: #292121; --text: #f4f0ea; --text-muted: #a69c94; --accent: #d6343c; --accent-strong: #e8e2d6; --on-accent-strong: #1a1212; --on-accent: #fff; }
 [data-theme='deathwatch'] { --bg: #0a0a0b; --bg-deep: #050505; --surface: #131315; --raised: #1b1b1e; --line: #2b2b30; --line-soft: #212125; --text: #ececee; --text-muted: #9a9aa2; --accent: #c0c4cc; --accent-strong: #3c3f47; --on-accent-strong: #fff; }
 [data-theme='grey-knights'] { --bg: #0c0e11; --bg-deep: #06070a; --surface: #14171c; --raised: #1c2028; --line: #2c323d; --line-soft: #22272f; --text: #edf0f4; --text-muted: #9ba3af; --accent: #9fb8d8; --accent-strong: #3d5a80; --on-accent-strong: #fff; }
-[data-theme='sororitas'] { --bg: #0d0a0b; --bg-deep: #070506; --surface: #171213; --raised: #21191b; --line: #36282b; --line-soft: #291f21; --text: #f3ece6; --text-muted: #a8999a; --accent: #c41e2b; --accent-strong: #c41e2b; --on-accent-strong: #fff; --font-title: 'Cinzel', serif; }
+[data-theme='sororitas'] { --bg: #0d0a0b; --bg-deep: #070506; --surface: #171213; --raised: #21191b; --line: #36282b; --line-soft: #291f21; --text: #f3ece6; --text-muted: #a8999a; --accent: #c41e2b; --accent-strong: #c41e2b; --on-accent-strong: #fff; --on-accent: #fff; --font-title: 'Cinzel', serif; }
 [data-theme='mechanicus'] { --bg: #120a08; --bg-deep: #0a0504; --surface: #1c100d; --raised: #271612; --line: #3e231d; --line-soft: #2e1a16; --text: #f0e4dc; --text-muted: #ab948a; --accent: #d9a441; --accent-strong: #9e2a1b; --on-accent-strong: #fff; }
 [data-theme='astra-militarum'] { --bg: #0e0f0b; --bg-deep: #070805; --surface: #171812; --raised: #20221a; --line: #333628; --line-soft: #26281e; --text: #ebeadf; --text-muted: #a0a08c; --accent: #c9b16a; --accent-strong: #4d5a2e; --on-accent-strong: #fff; }
 [data-theme='imperial-knights'] { --bg: #100b0b; --bg-deep: #080505; --surface: #1a1212; --raised: #241818; --line: #3a2624; --line-soft: #2e1d1c; --text: #f0e8da; --text-muted: #a89a85; --accent: #dcb65c; --accent-strong: #1f3f7a; --on-accent-strong: #fff; --font-title: 'Cinzel', serif; }
@@ -144,7 +147,12 @@
   --cat-move: #4f6e4a;
   --cat-utility: #6f6248;
   --cat-detachment: #85661d;
+  /* The darkened accents below take white text (Raven Guard's grey one, black). */
+  --on-accent: #fff;
   color-scheme: light;
+}
+:root[data-mode='light'][data-theme='raven-guard'] {
+  --on-accent: #000;
 }
 :root[data-mode='dark'] {
   color-scheme: dark;
