@@ -439,7 +439,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
     case 'batch': {
       let st = s;
       for (const x of a.actions) {
-        if (x.t === 'batch') return s;
+        if (x.t === 'batch' || x.t === 'join') return s;
         const n = reduce(st, x, from, opts);
         // A card that is gone (scored or swapped on another phone): the whole tap is dropped, so its CP or VP isn't counted either.
         if (n === st && x.t === 'sec') return s;

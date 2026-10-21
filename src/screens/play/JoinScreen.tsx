@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/data/db';
+import { movableGames, moveToRoom } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
 import { saveGame } from './games';
 import { newJoinedGame, rememberName, savedName } from './liveSetup';
@@ -14,6 +15,12 @@ export function JoinScreen() {
   const [code, setCode] = useState('');
   const [name, setName] = useState(savedName());
   const [rosterId, setRosterId] = useState('');
+  const games = useLiveQuery(() => db.games.filter((g) => Boolean(g.live)).toArray(), []);
+  const movable = /^[A-Z0-9]{6}$/.test(code) ? movableGames(games ?? [], code) : [];
+  // Another player carried on as host: bring a game already on this phone into their room.
+  const follow = async (gameId: string) => {
+    if (await moveToRoom(gameId, code)) navigate(`/play/${gameId}`, { replace: true });
+  };
   useEffect(() => {
     const c = location.hash.replace('#', '').trim();
     if (c) setCode(c.toUpperCase());
@@ -36,6 +43,27 @@ export function JoinScreen() {
         <span>Room code</span>
         <input className="input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="ABC123" autoCapitalize="characters" style={{ letterSpacing: '0.2em', fontSize: 22 }} />
       </label>
+      {movable.length > 0 && (
+        <>
+          <div className="section-label">Already playing? Follow your game here</div>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            If another player carried on as host, bring your game into their room instead of joining as someone new. What you did meanwhile is sent there.
+          </p>
+          <div className="card">
+            {movable.map((g) => (
+              <button key={g.id} className="choice" onClick={() => void follow(g.id)}>
+                <span style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600 }}>{g.rosterName}</div>
+                  <div className="muted small">
+                    Room {g.live!.room} · round {g.live!.state?.round ?? g.round}
+                  </div>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="section-label">Or join as a new player</div>
+        </>
+      )}
       <label className="field">
         <span>Your name</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} />

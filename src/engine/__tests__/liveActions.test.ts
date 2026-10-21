@@ -128,6 +128,8 @@ describe('live actions: what a guest sends, the host replays', () => {
     expect(once.missions?.B?.tactical?.active).not.toContain('Cleanse');
     // The same tap again (from a phone that hadn't seen it yet): Cleanse is no longer in hand.
     expect(reduce(once, redraw, 'g')).toBe(once);
+    // Joining never rides along in a batch (the host checks who joins on its own).
+    expect(reduce(once, { t: 'batch', actions: [{ t: 'note', text: 'x' }, { t: 'join', player: p('z', 'Zed') }] }, 'g')).toBe(once);
   });
 
   it('the host handles each numbered action once, and counts the ones it turns down', () => {
