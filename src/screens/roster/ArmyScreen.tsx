@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '@/data/db';
 import { saveRoster, useRosterEngine } from '@/data/gameData';
-import { allowedDispositions, configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
+import { allowedDispositions, borrowedLimits, configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition, setToggle } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import type { BattleSize, Roster } from '@/engine/types';
 import { useFactionTheme } from '@/theme/themes';
@@ -29,6 +29,7 @@ export function ArmyScreen() {
   if (!engine || !choices) return <Screen title="Army" back={`/roster/${id}`}><p className="muted">Loading…</p></Screen>;
   const save = (r: Roster) => saveRoster(index, r);
   const dp = engine.detachmentPoints();
+  const borrowed = borrowedLimits(choices, roster.battleSize);
 
   return (
     <Screen title="Army" back={`/roster/${id}`}>
@@ -41,6 +42,11 @@ export function ArmyScreen() {
           </button>
         ))}
       </div>
+      {borrowed && (
+        <p className="muted small">
+          {roster.battleSize === 'custom' ? 'A custom points limit' : 'The game data has no Onslaught rules yet, so this list'} uses {borrowed} limits for Detachment Points, Enhancements and copies of a datasheet.
+        </p>
+      )}
       {roster.battleSize === 'custom' && (
         <label className="field">
           <span>Points limit</span>

@@ -60,7 +60,9 @@ export interface OptionView {
   children: OptionView[];
 }
 
-const isSelLimit = (c: RawConstraint) => c.field === 'selections' && c.scope === 'parent' && !c.percentValue;
+const SIZE_WORDS: Partial<Record<Roster['battleSize'], RegExp>> = { incursion: /incursion/i, strikeForce: /strike force/i, onslaught: /onslaught/i };
+
+const isSelLimit =(c: RawConstraint) => c.field === 'selections' && c.scope === 'parent' && !c.percentValue;
 
 /**
  * Everything the screens need about one roster, computed from the data.
@@ -134,11 +136,22 @@ export class RosterEngine {
     return t;
   }
 
-  /** Points limit from the battle size (via the data), unless the list uses a custom limit. */
+  /**
+   * Points limit from the battle size (via the data), unless the list sets its
+   * own: custom points, or a size the data doesn't offer (Onslaught), which is
+   * stored with another size's limits picked in the data.
+   */
   pointsLimit(): number {
-    if (this.roster.battleSize === 'custom') return this.roster.pointsLimit;
+    if (this.roster.battleSize === 'custom' || this.borrowsBattleSize()) return this.roster.pointsLimit;
     const v = this.forceLimit(PTS);
     return v && v > 0 ? v : this.roster.pointsLimit;
+  }
+
+  private borrowsBattleSize(): boolean {
+    const word = SIZE_WORDS[this.roster.battleSize];
+    const sizeSel = this.tree.force.children.find((c) => c.node && /^battle size$/i.test(c.node.name));
+    const picked = sizeSel?.children.filter((c) => c.count > 0 && c.node && Object.values(SIZE_WORDS).some((re) => re.test(c.node!.name)));
+    return Boolean(word && picked?.length && !picked.some((c) => word.test(c.node!.name)));
   }
 
   forceLimit(field: string): number | undefined {

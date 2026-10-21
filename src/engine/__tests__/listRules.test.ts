@@ -9,7 +9,7 @@ import { buildIndex, type DataIndex } from '../bsdata/index';
 import type { RawFile } from '../bsdata/raw';
 import { RosterEngine, rootOptions, type OptionView } from '../rules/rosterEngine';
 import { newUnit, setOptionCount } from '../rules/edit';
-import { configChoices, setBattleSize, setDetachments } from '../rules/config';
+import { borrowedLimits, configChoices, setBattleSize, setDetachments } from '../rules/config';
 import type { Roster, RosterUnit } from '../types';
 
 const dir = resolve(process.env.EL_DATA ?? join(__dirname, '../../../../data-cache'));
@@ -86,6 +86,31 @@ describe.skipIf(!have)('list rules (real data)', () => {
     const { e, unit } = crusaders(2, 0);
     expect(perTen(e, unit).max).toBe(2);
     expect(e.issues().filter((i) => /per 10 models/.test(i.title))).toEqual([]);
+  });
+
+  it('makes Onslaught a valid list even though the data hides it', () => {
+    let r = base();
+    const e0 = new RosterEngine(index, r, roots);
+    const ch = configChoices(e0);
+    // The data hides Onslaught; when it doesn't any more, this test has nothing to prove.
+    if (!ch.battleSizes.some((b) => b.size === 'onslaught' && b.hidden)) return;
+    expect(borrowedLimits(ch, 'onslaught')).toBe('Strike Force');
+    r = setBattleSize(e0, r, 'onslaught');
+    const e = new RosterEngine(index, r, roots);
+    expect(r.battleSize).toBe('onslaught');
+    expect(e.pointsLimit()).toBe(3000);
+    expect(e.detachmentPoints().max).toBe(3);
+    expect(e.issues().map((i) => i.title)).toEqual([]);
+    expect(borrowedLimits(ch, 'strikeForce')).toBeUndefined();
+  });
+
+  it('keeps a custom points limit and says which limits it uses', () => {
+    let r = base();
+    r = setBattleSize(new RosterEngine(index, r, roots), r, 'custom', 1500);
+    const e = new RosterEngine(index, r, roots);
+    expect(e.pointsLimit()).toBe(1500);
+    expect(borrowedLimits(configChoices(e), 'custom')).toBe('Strike Force');
+    expect(e.issues().map((i) => i.title)).toEqual([]);
   });
 
   it('flags an Attached Unit with two Enhancements', () => {

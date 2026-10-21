@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
 import { rootsFor, saveRoster, useIndex } from '@/data/gameData';
-import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition , allowedDispositions } from '@/engine/rules/config';
+import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition , allowedDispositions, borrowedLimits } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import type { BattleSize, Roster } from '@/engine/types';
@@ -18,6 +18,13 @@ const SIZES: { size: BattleSize; label: string; points: number; note: string }[]
   { size: 'onslaught', label: 'Onslaught', points: 3000, note: 'Larger games' },
   { size: 'custom', label: 'Custom points', points: 0, note: 'Set your own limit' },
 ];
+
+/** Custom points and sizes the data lacks (Onslaught) play by another size's limits: say which. */
+function sizeNote(size: BattleSize, note: string, borrowed?: string): string {
+  if (!borrowed) return note;
+  if (size === 'custom') return `${note} · ${borrowed} limits for Detachment Points, Enhancements and datasheets`;
+  return `${borrowed} limits for Detachment Points, Enhancements and datasheets (the game data has no ${size === 'onslaught' ? 'Onslaught' : 'such'} rules yet)`;
+}
 
 function blankRoster(catalogueId: string, factionName: string, gameSystemId: string): Roster {
   const now = Date.now();
@@ -151,7 +158,7 @@ export function NewListScreen() {
                     {s.label}
                     {s.points ? ` · ${s.points.toLocaleString('en')} pts` : ''}
                   </div>
-                  <div className="muted small">{s.note}</div>
+                  <div className="muted small">{sizeNote(s.size, s.note, choices ? borrowedLimits(choices, s.size) : undefined)}</div>
                 </span>
               </button>
             ))}
