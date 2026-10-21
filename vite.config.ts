@@ -14,7 +14,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Updates wait for the player (see src/app/updates.ts): never reload mid-game.
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'EmperorsList',
