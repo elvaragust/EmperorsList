@@ -287,6 +287,17 @@ export function showOptions(engine: RosterEngine): ShowOption[] {
   }));
 }
 
+/**
+ * The Show switches that reveal more datasheets: "Show Legends", and the ones
+ * for allied armies ("Show Imperial Agents", "Show Imperial Knights"…).
+ */
+export function extraSwitches(opts: ShowOption[]): { legends?: ShowOption; allies: ShowOption[] } {
+  return {
+    legends: opts.find((x) => /^show legends$/i.test(x.name)),
+    allies: opts.filter((x) => /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name)),
+  };
+}
+
 /** Turn some Show/Hide switches on or off (others are kept). */
 export function setShowOptions(engine: RosterEngine, roster: Roster, changes: Record<string, boolean>): Roster {
   const opts = showOptions(engine);

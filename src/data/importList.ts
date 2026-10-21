@@ -1,8 +1,8 @@
 import { ensureFaction, type FactionFile } from './dataPacks';
 import { loadIndex, rootsFor } from './gameData';
 import { uid } from './rosters';
-import { importUnit, matchConfig, normName, parseListText, type ImportReport, type ParsedList } from '@/engine/listText';
-import { configChoices, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions } from '@/engine/rules/config';
+import { importUnit, matchConfig, matchUnitChoice, normName, parseListText, type ImportReport, type ParsedList } from '@/engine/listText';
+import { configChoices, extraSwitches, setBattleSize, setDetachments, setDisposition, setShowOptions, showOptions, type ShowOption } from '@/engine/rules/config';
 import { autoFill } from '@/engine/rules/edit';
 import { fillMinimumModels } from '@/engine/rules/modelTypes';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
@@ -28,7 +28,7 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     factionName: faction.name,
     dataCommit: rec.commit,
     battleSize: parsed.battleSize ?? 'strikeForce',
-    pointsLimit: 2000,
+    pointsLimit: parsed.pointsLimit ?? 2000,
     config: [],
     detachmentIds: [],
     units: [],
@@ -36,7 +36,7 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     updatedAt: now,
   };
   const eng = () => new RosterEngine(index, roster, roots);
-  roster = setBattleSize(eng(), roster, roster.battleSize);
+  roster = setBattleSize(eng(), roster, roster.battleSize, roster.battleSize === 'custom' ? parsed.pointsLimit : undefined);
   const choices = configChoices(eng());
   const cfg = matchConfig(parsed, { detachments: choices.detachments.filter((d) => !d.hidden), dispositions: choices.dispositions });
   // Units only show up once a detachment is chosen: with none named, use the first so they can be matched.
@@ -60,34 +60,40 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     .filter((u) => !factionWords.has(normName(u)) && !/space marines|adeptus astartes|^attached units?/i.test(u) && !/\d/.test(u))
     .forEach((u) => rep.unmatched.push(`Detachment not in the game data yet: ${u}`));
 
-  // Legends datasheets are behind the data's "Show Legends" switch: turn it on when the list has any.
-  const legendsSwitch = () => showOptions(eng()).find((o) => /^show legends$/i.test(o.name));
-  const legendsOn = () => {
-    const o = legendsSwitch();
-    if (o && !o.on) roster = setShowOptions(eng(), roster, { [o.key]: true });
+  // Legends and allied datasheets (Inquisitor Coteaz, Armiger Warglaive) are behind the data's
+  // "Show Legends" / "Show Imperial Agents" / "Show Imperial Knights"… switches.
+  const switches = () => extraSwitches(showOptions(eng()).filter((o) => !o.hidden));
+  const turnOn = (opts: ShowOption[]) => {
+    const off = opts.filter((o) => !o.on);
+    if (off.length) roster = setShowOptions(eng(), roster, Object.fromEntries(off.map((o) => [o.key, true])));
+    return off;
   };
-  if (parsed.legends || parsed.units.some((u) => u.legends)) legendsOn();
+  if (parsed.legends || parsed.units.some((u) => u.legends)) turnOn([switches().legends].filter((o): o is ShowOption => Boolean(o)));
 
   const units: RosterUnit[] = [];
   const attach: { unit: RosterUnit; to: string }[] = [];
   const groups = new Map<number, { leaders: RosterUnit[]; body?: RosterUnit }>();
-  const pairs: { pu: (typeof parsed.units)[number]; u: RosterUnit }[] = [];
+  const pairs: { pu: (typeof parsed.units)[number]; u: RosterUnit; clean: boolean }[] = [];
   for (const pu of parsed.units) {
     onProgress?.(`Matching ${pu.name}…`);
     const engineFor = (us: RosterUnit[]) => new RosterEngine(index, { ...roster, units: us }, roots);
-    let u = importUnit(engineFor, units, pu, rep);
-    // Not found: it may be a Legends datasheet the list didn't mark. Try again with Legends shown.
-    if (!u && legendsSwitch() && !legendsSwitch()!.on) {
-      const before = roster;
-      legendsOn();
-      const probe: ImportReport = { matched: [], unmatched: [] };
-      u = importUnit((us) => new RosterEngine(index, { ...roster, units: us }, roots), units, pu, probe);
-      if (u) {
-        rep.unmatched = rep.unmatched.filter((x) => x !== `Unit: ${pu.name}`);
-        rep.matched.push(...probe.matched);
-        rep.unmatched.push(...probe.unmatched);
-      } else roster = before;
+    // Not found as named: it may be an ally or a Legends datasheet the list didn't mark.
+    // Look with each switch on and keep the one that finds it.
+    const here = matchUnitChoice(engineFor(units).unitChoices(), pu.name);
+    if (!here?.exact) {
+      const { legends, allies } = switches();
+      const tries = [...allies.map((a) => [a]), ...(legends ? [[legends], ...allies.map((a) => [a, legends])] : [])].filter((t) => t.some((o) => !o.on));
+      for (const t of tries) {
+        const probe = new RosterEngine(index, { ...setShowOptions(eng(), roster, Object.fromEntries(t.map((o) => [o.key, true]))), units }, roots);
+        const m = matchUnitChoice(probe.unitChoices(), pu.name);
+        if (m && (m.exact || !here)) {
+          turnOn(t).forEach((o) => rep.matched.push(`${o.name}: on, for ${pu.name}`));
+          break;
+        }
+      }
     }
+    const before = rep.unmatched.length;
+    let u = importUnit(engineFor, units, pu, rep);
     if (!u) continue;
     // Fill in anything the datasheet requires that the text left out (e.g. the Sergeant).
     const one = (x: RosterUnit) => engineFor([...units, x]);
@@ -95,7 +101,7 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     filled.added.forEach((a) => rep.unmatched.push(`${pu.name}: added missing ${a} — check its wargear`));
     u = autoFill(one, filled.unit);
     units.push(u);
-    pairs.push({ pu, u });
+    pairs.push({ pu, u, clean: rep.unmatched.length === before });
     const a = pu.lines.find((l) => l.kind === 'attached');
     if (a) attach.push({ unit: u, to: a.name });
     if (pu.attachedGroup !== undefined) {
@@ -123,13 +129,18 @@ export async function importListText(parsedOrText: ParsedList | string, faction:
     const e = new RosterEngine(index, roster, roots);
     for (const u of units) if (u.leaderOf && !e.attachTargets(u.id).includes(u.leaderOf)) u.leaderForced = true;
   }
-  // Points that differ from the list come from the game data version, not the import.
+  // Where every line of a unit matched, points that differ come from the game data version;
+  // otherwise the import itself may be off, so don't blame the data.
   const final = new RosterEngine(index, roster, roots);
-  pairs.forEach(({ pu, u }) => {
+  let allClean = true;
+  pairs.forEach(({ pu, u, clean }) => {
     if (pu.points === undefined) return;
     const here = final.unitPoints(u.id);
-    if (here !== pu.points) rep.notes!.push(`${pu.name}: ${here} pts here, ${pu.points} in your list`);
+    if (here === pu.points) return;
+    allClean &&= clean;
+    rep.notes!.push(`${pu.name}: ${here} pts here, ${pu.points} in your list${clean ? '' : ' — not every line matched, check this unit'}`);
   });
-  if (rep.notes.length) rep.notes.unshift('Points differ because the community game data (BSData) is on an older points list than the official app:');
+  if (rep.notes.length)
+    rep.notes.unshift(allClean ? 'Points differ because the community game data (BSData) is on an older points list than the official app:' : 'Points differ from your list:');
   return { roster, report: rep };
 }
