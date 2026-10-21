@@ -1,11 +1,11 @@
 import type { DataIndex } from '../bsdata/index';
 import type { RawCondition, RawConditionGroup, RawConstraint, RawLocalConditionGroup, RawRepeat } from '../bsdata/raw';
-import { descendants, forceOf, rosterOf, unitRootOf, type Inst } from './instance';
+import { associationGroup, descendants, forceOf, rosterOf, unitRootOf, type Inst } from './instance';
 import type { FlatModifier, OptNode } from './nodes';
 
 export const PTS = '51b2-306e-1021-d207';
 
-type Measured = { field: string; scope: string; childId?: string; includeChildSelections?: boolean; includeChildForces?: boolean };
+type Measured = { field: string; scope: string; childId?: string; includeChildSelections?: boolean; includeChildForces?: boolean; traverseAssociationGroup?: boolean };
 
 /**
  * Evaluates BattleScribe conditions, repeats and modifiers against a roster
@@ -124,6 +124,11 @@ export class Evaluator {
       const attached = (unit.attached ?? []).filter((a) => this.matches(a, m.childId)).length;
       // Without a childId the count is from the character's side: is it attached to a unit?
       return m.childId ? attached : attached + (unit.unit?.leaderOf ? 1 : 0);
+    }
+    // Across an Attached Unit: the bodyguard and every character leading it count together.
+    if (m.traverseAssociationGroup && scopeInst.unit) {
+      const plain = { ...m, traverseAssociationGroup: false };
+      return associationGroup(scopeInst).reduce((n, u) => n + this.measure(plain, u, ownerIds), 0);
     }
     const isCost = field !== 'selections';
     const recursive = isCost || Boolean(m.includeChildSelections);
