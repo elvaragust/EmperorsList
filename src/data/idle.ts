@@ -1,5 +1,5 @@
 import { db, type SavedGame } from './db';
-import { closeRoom } from '@/sync/room';
+import { closeRoom, shareResults } from '@/sync/room';
 
 /** Games with no changes for this long are ended automatically (and can be resumed). */
 export const IDLE_MS = 2 * 60 * 60 * 1000;
@@ -40,9 +40,14 @@ export async function keepEnded(g: SavedGame) {
   await db.games.update(g.id, { idle: undefined, finishedAt: g.finishedAt ?? g.idle?.at ?? Date.now() });
 }
 
+/** Hosts of recently finished live games reopen the room until every phone has the result. */
+export async function shareFinishedResults(now = Date.now()) {
+  shareResults(await db.games.toArray(), now);
+}
+
 /** Check now, every minute, and whenever the app comes back to the screen. */
 export function watchIdleGames(): () => void {
-  const run = () => void endIdleGames().catch(() => undefined);
+  const run = () => void endIdleGames().then(() => shareFinishedResults()).catch(() => undefined);
   run();
   const t = setInterval(run, 60_000);
   const vis = () => document.visibilityState === 'visible' && run();

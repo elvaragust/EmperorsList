@@ -1,14 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import qrcode from 'qrcode-generator';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { PHASE_NAMES, PHASES, ROUNDS, totalScore } from '@/engine/game';
-import { canAdvance, LOCAL, MODES, missionsOf, opponentsOf, reduce, teamNames, teamsOf, teamsReady, turnOrder, vpOf, type LiveAction, type LiveMode, type LiveState, type Team } from '@/engine/live';
+import { canAdvance, LOCAL, MODES, missionsOf, opponentsOf, reduce, stampOf, teamNames, teamsOf, teamsReady, turnOrder, vpOf, type LiveAction, type LiveMode, type LiveState, type Team } from '@/engine/live';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { allowedDispositions } from '@/engine/rules/config';
 import type { SecOp } from '@/engine/missions';
-import { closeRoom, joinUrl, type Room } from '@/sync/room';
+import { applyUnlinked, closeRoom, continueAsHost, joinUrl, liveOf, moveToRoom, type Room } from '@/sync/room';
 import { useRoom } from '@/sync/useRoom';
 import { Screen } from '@/ui/Screen';
 import { ConfirmSheet, Sheet } from '@/ui/Sheet';
@@ -30,18 +30,21 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
   const state = game.live?.state;
   const myId = game.live!.myId;
   const unlinked = Boolean(game.live?.unlinked);
-  const dispatch = (a: LiveAction) => {
+  const send = (a: LiveAction) => {
     if (!unlinked) return room?.dispatch(a);
-    // Offline copy: apply locally, you may change everything.
-    if (!state || !game.live) return;
-    const next = reduce(state, a, LOCAL);
-    if (next === state) return;
-    const myTeam = next.players.find((p) => p.id === myId)?.team;
-    void db.games.update(game.id, {
-      live: { ...game.live, state: next },
-      round: next.round,
-      stage: next.stage === 'lobby' ? 'setup' : next.stage,
-      result: next.stage === 'done' ? (next.winner === 'draw' ? 'draw' : next.winner === myTeam ? 'win' : 'loss') : game.result,
+    // Offline copy: you may change everything; applied on the latest saved copy.
+    void applyUnlinked(game.id, [a]);
+  };
+  // One tap can make several changes (score a card and add its VP, redraw and pay 1CP): they go as one.
+  const tap = useRef<LiveAction[]>([]);
+  const dispatch = (a: LiveAction) => {
+    if (a.t === 'join') return send(a);
+    tap.current.push(a);
+    if (tap.current.length > 1) return;
+    queueMicrotask(() => {
+      const list = tap.current;
+      tap.current = [];
+      send(list.length === 1 ? list[0]! : { t: 'batch', actions: list });
     });
   };
 
@@ -89,15 +92,17 @@ function Status({ room }: { room?: Room }) {
   if (!room) return null;
   const text =
     room.status === 'online'
-      ? room.role === 'host'
-        ? `Live · hosting · ${room.peers} ${room.peers === 1 ? 'phone' : 'phones'} connected`
-        : 'Live · connected to host'
+      ? (room.role === 'host' ? `Live · hosting · ${room.peers} ${room.peers === 1 ? 'phone' : 'phones'} connected` : 'Live · connected to host') + (room.error ? ` · ${room.error}` : '')
       : room.status === 'connecting'
-        ? 'Connecting…'
-        : room.error || 'Offline';
+        ? room.error || 'Connecting…'
+        : room.status === 'asleep'
+          ? room.error || 'Live · every phone has the result'
+          : room.error || 'Offline';
+  const color = room.status === 'online' ? 'var(--ok)' : room.status === 'connecting' || room.status === 'asleep' ? 'var(--text-muted)' : 'var(--danger)';
   return (
-    <div className="small" style={{ color: room.status === 'online' ? 'var(--ok)' : room.status === 'connecting' ? 'var(--text-muted)' : 'var(--danger)', marginBottom: 6 }}>
+    <div className="small" style={{ color, marginBottom: 6 }}>
       ● {text}
+      {room.role === 'guest' && room.unsent > 0 ? ` · ${room.unsent} ${room.unsent === 1 ? 'change' : 'changes'} not yet with the host` : ''}
     </div>
   );
 }
@@ -315,6 +320,12 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const [note, setNote] = useState('');
   const [ending, setEnding] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [askHost, setAskHost] = useState(false);
+  const [follow, setFollow] = useState(false);
+  const [newCode, setNewCode] = useState('');
+  const at = stampOf(state);
+  const previousRoom = liveOf(game)?.previousRoom;
+  const waitingFor = state.players.length - 1 - (room?.peers ?? 0);
   // What I'm looking at is mine; the game's current phase is shared.
   // Kept when you open a unit and come back; follows the game when the shared phase moves on.
   const stamp = `${state.round}-${state.turn}-${state.phase}`;
@@ -372,6 +383,18 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
     await db.games.update(game.id, { live: { ...game.live!, unlinked: false } });
     showToast('Reconnecting to the live game…');
   };
+  const carryOn = async () => {
+    const code = await continueAsHost(game.id);
+    if (code) showToast(`You're the host now · room ${code}`);
+  };
+  const followTo = async () => {
+    if (await moveToRoom(game.id, newCode)) {
+      setFollow(false);
+      setNewCode('');
+      showToast(`Joining room ${newCode}…`);
+    } else showToast('That is not a new 6-letter room code');
+  };
+  const addCp = (id: string, value: number) => dispatch({ t: 'cpAdd', id, delta: value - (state.cp[id] ?? 0) });
 
   return (
     <Screen
@@ -392,24 +415,37 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
           <Status room={room} />
           {cutOff && (
             <div className="offline-note small" role="status">
-              <strong>Playing on without the host.</strong> Everything works on this phone. When the host is back, your team's CP, score, missions and the turn are sent over; the other team's numbers come from the host.
+              <strong>Playing on without the host.</strong> Everything works on this phone, and is kept if the app closes. When the host is back, what you did is sent over and checked like any other change: your CP and score are added to theirs, and the turn only moves on where the host's game was at the same spot. The other team's numbers come from the host.
+              <div className="btn-row" style={{ marginTop: 8 }}>
+                <button className="btn btn-sm" onClick={() => setAskHost(true)}>
+                  Host's phone gone? Carry on as host
+                </button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setFollow(true)}>
+                  New room code
+                </button>
+              </div>
+            </div>
+          )}
+          {!cutOff && game.live?.role === 'host' && previousRoom && waitingFor > 0 && (
+            <div className="offline-note small" role="status">
+              <strong>You're the host now · room {state.room}.</strong> On the other phones: Game menu → <em>Follow the game to a new room</em>, and type {state.room}. Their changes made meanwhile are added.
             </div>
           )}
         </>
       )}
       <div className="game-layout">
         <div className="game-controls">
-          <RoundBar round={state.round} disabled={!mayAdvance} onPick={(r) => dispatch({ t: 'round', round: r })} />
+          <RoundBar round={state.round} disabled={!mayAdvance} onPick={(r) => dispatch({ t: 'round', round: r, at })} />
           <TurnBanner
             mine={myTurn}
             label={myTurn ? `Your ${membersOf(state, myTeam).length > 1 ? "team's " : ''}turn` : `${teamNames(state, state.turn)}'s turn`}
             phase={PHASE_NAMES[state.phase]}
             vp={`${myScore}–${best}`}
-            onSwitch={mayAdvance ? () => dispatch({ t: 'turn' }) : undefined}
+            onSwitch={mayAdvance && !gameOver ? () => dispatch({ t: 'turn', at }) : undefined}
             switchTo={teamNames(state, order[(order.indexOf(state.turn) + 1) % order.length]!)}
           />
           <PhaseStrip value={viewPhase} current={state.phase} onPick={setViewPhase} label="Look at a phase (only on your screen)" />
-          <CpBar sides={cpRows.map((r) => ({ key: r.key, label: r.label, value: state.cp[r.id] ?? 0, onChange: r.editable ? (v: number) => dispatch({ t: 'cp', id: r.id, value: v }) : undefined }))} />
+          <CpBar sides={cpRows.map((r) => ({ key: r.key, label: r.label, value: state.cp[r.id] ?? 0, onChange: r.editable ? (v: number) => addCp(r.id, v) : undefined }))} />
           
           <NotesPanel gameId={game.id} notes={game.notes} />
         </div>
@@ -430,12 +466,13 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
                 primary={primaryOfTeam(myTeam)}
                 twist={state.twist}
                 role={game.role}
-                onCp={(d) => dispatch({ t: 'cp', id: myId, value: Math.max(0, (state.cp[myId] ?? 0) + d) })}
+                onCp={(d) => dispatch({ t: 'cpAdd', id: myId, delta: d })}
                 onVp={(kind, vp) => {
-                  const cur = vpOf(state, myTeam);
-                  const i = Math.min(state.round, cur[kind].length) - 1;
-                  dispatch({ t: 'vp', team: myTeam, kind, round: i, value: (cur[kind][i] ?? 0) + vp });
-                  showToast(`+${vp} VP added to round ${state.round}`);
+                  // Sent as a change, so a teammate's VP for the same round is added to, never replaced. Undo sends a negative one.
+                  const i = Math.min(state.round, vpOf(state, myTeam)[kind].length) - 1;
+                  dispatch({ t: 'vpAdd', team: myTeam, kind, round: i, delta: vp });
+                  if (vp > 0) showToast(`+${vp} VP added to round ${state.round}`);
+                  else if (vp < 0) showToast(`${-vp} VP taken off round ${state.round}`);
                 }}
               />
               {others.map((t) => (
@@ -498,7 +535,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
                         label={kind === 'primary' ? 'Pri' : 'Sec'}
                         values={vpOf(state, team)[kind]}
                         readOnly={!free && team !== myTeam}
-                        onChange={(r, v) => dispatch({ t: 'vp', team, kind, round: r, value: v })}
+                        onChange={(r, v) => dispatch({ t: 'vpAdd', team, kind, round: r, delta: v - (vpOf(state, team)[kind][r] ?? 0) })}
                       />
                     ))}
                   </div>
@@ -535,10 +572,10 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       </div>
 
       <div className="sticky-bar battle-bar">
-            <button className="btn" onClick={() => dispatch({ t: 'prev' })} disabled={!mayAdvance} aria-label="Previous phase">
+            <button className="btn" onClick={() => dispatch({ t: 'prev', at })} disabled={!mayAdvance} aria-label="Previous phase">
               <Icon name="back" />
             </button>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (gameOver ? isHost && setEnding(true) : dispatch({ t: 'next' }))} disabled={!mayAdvance || (gameOver && !isHost)}>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => (gameOver ? isHost && setEnding(true) : dispatch({ t: 'next', at }))} disabled={!mayAdvance || (gameOver && !isHost)}>
               {mayAdvance ? `Next: ${nextText}` : `${teamNames(state, state.turn)} moves the turn on`}
             </button>
           </div>
@@ -552,6 +589,22 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
             <span>
               End the game on my phone
               <div className="muted small">Saves the result here and stops following the host. The others carry on.</div>
+            </span>
+          </button>
+        )}
+        {!unlinked && game.live?.role === 'guest' && (
+          <button className="menu-item" onClick={() => (setMenu(false), setAskHost(true))}>
+            <span>
+              Carry on as host
+              <div className="muted small">The host's phone is gone for good: this phone opens a new room from its copy of the game, and the others follow it there.</div>
+            </span>
+          </button>
+        )}
+        {!unlinked && (
+          <button className="menu-item" onClick={() => (setMenu(false), setFollow(true))}>
+            <span>
+              Follow the game to a new room
+              <div className="muted small">Another player carries on as host: type their new room code. Your changes made meanwhile go with you.</div>
             </span>
           </button>
         )}
@@ -572,6 +625,35 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
         )}
       </Sheet>
 
+      <ConfirmSheet
+        open={askHost}
+        onClose={() => setAskHost(false)}
+        title="Carry on as host?"
+        message={`Only when ${state.players.find((p) => p.id === state.hostId)?.name ?? 'the host'}'s phone can't come back. This phone opens a new room with its copy of the game; you get a new code for the others to type in Game menu → Follow the game to a new room.`}
+        confirm="Carry on as host"
+        onConfirm={() => void carryOn()}
+      />
+
+      <Sheet open={follow} onClose={() => setFollow(false)} title="Follow the game to a new room">
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Type the room code the new host's phone shows. {game.live?.role === 'host' ? 'This phone then follows their game; changes made here since the others moved are not sent.' : 'What you did while cut off is sent there.'}
+        </p>
+        <input
+          className="input"
+          value={newCode}
+          onChange={(e) => setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+          placeholder="ABC123"
+          autoCapitalize="characters"
+          aria-label="New room code"
+          style={{ letterSpacing: '0.2em', fontSize: 22 }}
+        />
+        <div className="btn-row">
+          <button className="btn btn-primary btn-block" disabled={!/^[A-Z0-9]{6}$/.test(newCode)} onClick={() => void followTo()}>
+            Follow
+          </button>
+        </div>
+      </Sheet>
+
       <Sheet open={ending} onClose={() => setEnding(false)} title={unlinked ? 'End the game?' : 'End the game for everyone?'}>
         <p>Final score {teams.map((t) => `${teamNames(state, t)} ${totalScore(vpOf(state, t))}`).join(' – ')}.</p>
         <button className="btn btn-primary btn-block" onClick={() => (dispatch({ t: 'end' }), setEnding(false))}>
@@ -588,9 +670,22 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
   const isHost = game.live?.role === 'host';
   const myTeam = state.players.find((p) => p.id === game.live!.myId)?.team ?? 'A';
   const teams = teamsOf(state);
+  // The room stays open until every phone has the result (it closes by itself then).
+  const count = isHost && room ? room.resultCount : undefined;
+  const stuck = room && (room.status === 'offline' || room.status === 'error' || (room.status === 'asleep' && room.error));
   return (
     <Screen title="Result" back="/play">
       <Status room={room} />
+      {count && count.of > 1 && (
+        <p className="small muted" role="status">
+          {count.have}/{count.of} phones have the result{count.have < count.of ? ' — keep the app open for a moment; the others get it when their game is open.' : '.'}
+        </p>
+      )}
+      {stuck && (
+        <button className="btn btn-sm" onClick={() => room.wake()}>
+          {isHost ? 'Send the result again' : 'Get the result again'}
+        </button>
+      )}
       <ResultView
         game={game}
         roundsPlayed={state.round}
@@ -609,13 +704,7 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
                 Reopen for everyone
               </button>
             )}
-            <button
-              className="btn btn-ghost"
-              onClick={() => {
-                closeRoom(game.id);
-                navigate('/play');
-              }}
-            >
+            <button className="btn btn-ghost" onClick={() => navigate('/play')}>
               Back to games
             </button>
             <button className="btn btn-ghost btn-danger" onClick={() => setAskDelete(true)}>
