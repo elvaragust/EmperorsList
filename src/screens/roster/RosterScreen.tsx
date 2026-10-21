@@ -108,14 +108,14 @@ export function RosterScreen() {
       title={roster.name}
       back="/lists"
       actions={
-        <>
-          <ViewToggle rosterId={roster.id} roster={roster} current="build" />
-          <button className="icon-btn" aria-label="List menu" onClick={() => setMenu(true)}>
-            <Icon name="more" />
-          </button>
-        </>
+        <button className="icon-btn" aria-label="List menu" onClick={() => setMenu(true)}>
+          <Icon name="more" />
+        </button>
       }
     >
+      <div className="view-toggle-row">
+        <ViewToggle rosterId={roster.id} roster={roster} current="build" />
+      </div>
       {error && <p className="issue-title">{error} Open Settings → Data to download it.</p>}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
