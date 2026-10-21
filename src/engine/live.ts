@@ -58,7 +58,7 @@ export interface LiveLog {
 
 export interface LiveState {
   room: string;
-  /** Goes up by one with every change, so stale copies are ignored. */
+  /** Goes up by one with every change. */
   v: number;
   stage: 'lobby' | 'battle' | 'done';
   mode: LiveMode;
@@ -83,6 +83,29 @@ export interface LiveState {
   units: Record<string, UnitSummary[]>;
   log: LiveLog[];
   winner?: Team | 'draw';
+  /**
+   * The host's count of each player's numbered actions it has handled (see
+   * `Pending`). A phone resends what isn't counted yet; nothing counted is
+   * ever applied twice.
+   */
+  acks?: Record<string, number>;
+  /** The furthest turn (see `turnKey`) whose Command-phase CP has been given, so going back and forth never gives it twice. */
+  cpAt?: number;
+}
+
+/** Where the game was when a player tapped: turn moves made from an older spot are ignored. */
+export interface Stamp {
+  round: number;
+  turn: Team;
+  phase: Phase;
+}
+export const stampOf = (s: Pick<LiveState, 'round' | 'turn' | 'phase'>): Stamp => ({ round: s.round, turn: s.turn, phase: s.phase });
+
+/** One action a guest took, numbered per player, kept until the host has handled it. */
+export interface Pending {
+  seq: number;
+  action: LiveAction;
+  at: number;
 }
 
 export type LiveAction =
@@ -97,20 +120,26 @@ export type LiveAction =
   | { t: 'setFirst'; team: Team }
   | { t: 'setAttacker'; team: Team }
   | { t: 'start' }
-  | { t: 'next' }
-  | { t: 'prev' }
-  | { t: 'phase'; phase: Phase }
-  | { t: 'round'; round: number }
+  /** Turn moves carry `at`, where the game was when the player tapped; a stale one (a double tap, a phone that was cut off) is ignored. */
+  | { t: 'next'; at?: Stamp }
+  | { t: 'prev'; at?: Stamp }
+  | { t: 'phase'; phase: Phase; at?: Stamp }
+  | { t: 'round'; round: number; at?: Stamp }
   /** Hand the turn to the next team (tapping the turn banner). */
-  | { t: 'turn' }
+  | { t: 'turn'; at?: Stamp }
+  /** Older phones set CP / VP to a number. Newer phones send changes (`cpAdd`, `vpAdd`), so two phones changing it never undo each other. */
   | { t: 'cp'; id: string; value: number }
   | { t: 'vp'; team: Team; kind: 'primary' | 'secondary'; round: number; value: number }
+  | { t: 'cpAdd'; id: string; delta: number }
+  | { t: 'vpAdd'; team: Team; kind: 'primary' | 'secondary'; round: number; delta: number }
   | { t: 'strat'; name: string; cost: number }
   | { t: 'sec'; team: Team; op: SecOp; text?: string }
   | { t: 'units'; units: UnitSummary[] }
   | { t: 'note'; text: string }
   | { t: 'end' }
-  | { t: 'reopen' };
+  | { t: 'reopen' }
+  /** Several actions from one tap (e.g. score a card and add its VP): none of them count when the card is no longer there. */
+  | { t: 'batch'; actions: LiveAction[] };
 
 /** Teams in play for this game's mode. */
 export const teamsOf = (s: Pick<LiveState, 'mode'>): Team[] => MODES[s.mode]?.teams ?? ['A', 'B'];
@@ -131,6 +160,9 @@ export function turnOrder(s: Pick<LiveState, 'mode' | 'firstTurn'>): Team[] {
   const i = Math.max(0, teams.indexOf(s.firstTurn));
   return [...teams.slice(i), ...teams.slice(0, i)];
 }
+
+/** Orders the turns of a game: round, then place in the turn order. */
+export const turnKey = (s: Pick<LiveState, 'mode' | 'firstTurn'>, round: number, team: Team) => round * 10 + Math.max(0, turnOrder(s).indexOf(team));
 
 export const vpOf = (s: Pick<LiveState, 'vp'>, t: Team): Score => s.vp[t] ?? emptyScore();
 export const missionsOf = (s: Pick<LiveState, 'missions'>, t: Team): SecondaryState => s.missions?.[t] ?? emptySecondaries();
@@ -190,11 +222,24 @@ export const teamNames = (s: Pick<LiveState, 'players'>, team: Team) =>
     .map((p) => p.name)
     .join(' & ') || `Team ${team}`;
 
-/** Acting as LOCAL (an unlinked copy of the game) may change anything. */
+/**
+ * Acting as LOCAL may change anything, as nobody in particular. Prefer
+ * `reduce(s, a, myId, { local: true })`: that also allows everything but
+ * still knows who acted (so a stratagem takes your own CP).
+ */
 export const LOCAL = '__local__';
 
+export interface ReduceOpts {
+  /** An unlinked copy, or a guest playing on while cut off from the host: anything may be changed. */
+  local?: boolean;
+}
+
 /** May `from` advance the turn? The team whose turn it is, or the host. */
-export const canAdvance = (s: LiveState, from: string) => from === LOCAL || from === s.hostId || s.players.find((p) => p.id === from)?.team === s.turn;
+export const canAdvance = (s: LiveState, from: string, opts?: ReduceOpts) =>
+  Boolean(opts?.local) || from === LOCAL || from === s.hostId || s.players.find((p) => p.id === from)?.team === s.turn;
+
+/** Was a turn move made from somewhere else than where the game is now? */
+const staleAt = (s: LiveState, at?: Stamp) => Boolean(at) && (at!.round !== s.round || at!.turn !== s.turn || at!.phase !== s.phase);
 
 /** Work out each player's primary from the dispositions, unless they picked one by hand. */
 function withPrimaries(s: LiveState): LiveState {
@@ -216,13 +261,34 @@ function setCp(s: LiveState, id: string, value: number): LiveState {
   return { ...s, cp };
 }
 
-export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
-  const local = from === LOCAL;
-  const by = local ? undefined : s.players.find((p) => p.id === from)?.name;
+export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceOpts): LiveState {
+  const local = from === LOCAL || Boolean(opts?.local);
+  const by = s.players.find((p) => p.id === from)?.name;
   const isHost = local || from === s.hostId;
   const myTeam = s.players.find((p) => p.id === from)?.team;
   const log = (st: LiveState, text: string): LiveState => ({ ...st, log: [...st.log, { at: Date.now(), round: st.round, turn: st.turn, phase: st.phase, text, by }] });
   const bump = (st: LiveState): LiveState => ({ ...st, v: s.v + 1 });
+  const mayMove = (at?: Stamp) => s.stage === 'battle' && canAdvance(s, from, opts) && !staleAt(s, at);
+  /** Start a team's turn at its Command phase; everyone gains 1 CP the first time that turn starts. */
+  /** Command-phase CP has been given up to here (older games don't say: up to the turn they are in). */
+  const given = s.cpAt ?? turnKey(s, s.round, s.turn);
+  const startTurn = (round: number, turn: Team): LiveState => {
+    const key = turnKey(s, round, turn);
+    let next: LiveState = { ...s, round, turn, phase: 'command' };
+    const text = `Round ${round}, ${teamNames(s, turn)}: Command phase`;
+    if (key <= given) return bump(log(next, text));
+    // Every player gains 1 CP at the start of every Command phase (a shared pool gains 1 for the team).
+    next = { ...next, cpAt: key, cp: Object.fromEntries(Object.entries(s.cp).map(([k, v]) => [k, v + 1])) };
+    return bump(log(next, `${text} · everyone gains 1 CP`));
+  };
+  /** The end of a team's turn: the next team's turn, or the next round after the last team. */
+  const handOver = (): LiveState => {
+    const order = turnOrder(s);
+    const k = order.indexOf(s.turn);
+    if (k >= 0 && k < order.length - 1) return startTurn(s.round, order[k + 1]!);
+    if (s.round >= ROUNDS) return s;
+    return startTurn(s.round + 1, order[0]!);
+  };
 
   switch (a.t) {
     case 'join': {
@@ -293,61 +359,58 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
       if (!isHost || s.stage !== 'lobby') return s;
       const cp = Object.fromEntries(s.players.map((p) => [p.id, 1]));
       const vp = Object.fromEntries(teamsOf(s).map((t) => [t, emptyScore()])) as LiveState['vp'];
-      return bump(log({ ...s, stage: 'battle', round: 1, turn: turnOrder(s)[0]!, phase: 'command', cp, vp }, 'Battle started · everyone gains 1 CP'));
+      const first = turnOrder(s)[0]!;
+      return bump(log({ ...s, stage: 'battle', round: 1, turn: first, phase: 'command', cp, vp, cpAt: turnKey(s, 1, first) }, 'Battle started · everyone gains 1 CP'));
     }
     case 'next': {
-      if (s.stage !== 'battle' || !canAdvance(s, from)) return s;
+      if (!mayMove(a.at)) return s;
       const i = PHASES.indexOf(s.phase);
       if (i < PHASES.length - 1) return bump({ ...s, phase: PHASES[i + 1]! });
-      const order = turnOrder(s);
-      const k = order.indexOf(s.turn);
-      let next: LiveState;
-      if (k >= 0 && k < order.length - 1) next = { ...s, turn: order[k + 1]!, phase: 'command' };
-      else if (s.round >= ROUNDS) return s;
-      else next = { ...s, round: s.round + 1, turn: order[0]!, phase: 'command' };
-      // Every player gains 1 CP at the start of every Command phase (a shared pool gains 1 for the team).
-      next = { ...next, cp: Object.fromEntries(Object.entries(s.cp).map(([key, v]) => [key, v + 1])) };
-      return bump(log(next, `Round ${next.round}, ${teamNames(s, next.turn)}: Command phase · everyone gains 1 CP`));
+      return handOver();
     }
     case 'prev': {
-      if (s.stage !== 'battle' || !canAdvance(s, from)) return s;
+      // Going back never takes the Command-phase CP away, and moving on again doesn't give it twice (see `cpAt`).
+      if (!mayMove(a.at)) return s;
       const i = PHASES.indexOf(s.phase);
       if (i > 0) return bump({ ...s, phase: PHASES[i - 1]! });
       const order = turnOrder(s);
       const k = order.indexOf(s.turn);
-      if (k > 0) return bump({ ...s, turn: order[k - 1]!, phase: 'fight' });
-      if (s.round > 1) return bump({ ...s, round: s.round - 1, turn: order[order.length - 1]!, phase: 'fight' });
+      if (k > 0) return bump({ ...s, turn: order[k - 1]!, phase: 'fight', cpAt: given });
+      if (s.round > 1) return bump({ ...s, round: s.round - 1, turn: order[order.length - 1]!, phase: 'fight', cpAt: given });
       return s;
     }
     case 'phase':
-      if (!canAdvance(s, from)) return s;
+      if (!mayMove(a.at)) return s;
       return bump({ ...s, phase: a.phase });
     case 'round':
       // Jump to the start of a battle round (first player's Command phase).
-      if (!canAdvance(s, from) || a.round < 1 || a.round > ROUNDS || a.round === s.round) return s;
-      return bump(log({ ...s, round: a.round, turn: turnOrder(s)[0]!, phase: 'command' }, `Moved to round ${a.round}`));
-    case 'turn': {
-      if (!canAdvance(s, from)) return s;
-      const order = turnOrder(s);
-      const turn = order[(order.indexOf(s.turn) + 1) % order.length]!;
-      return bump(log({ ...s, turn, phase: 'command' }, `Turn handed to ${teamNames(s, turn)}`));
-    }
-    case 'cp': {
+      if (!mayMove(a.at) || a.round < 1 || a.round > ROUNDS || a.round === s.round) return s;
+      return bump(log({ ...s, round: a.round, turn: turnOrder(s)[0]!, phase: 'command', cpAt: given }, `Moved to round ${a.round}`));
+    case 'turn':
+      // Like Next at the end of the turn: the next team's Command phase (with its CP), the next round after the last team.
+      if (!mayMove(a.at)) return s;
+      return handOver();
+    case 'cp':
+    case 'cpAdd': {
       // Each player changes only their own CP (with a shared pool: their team's).
       const target = s.players.find((p) => p.id === a.id);
       if (!local && from !== a.id && !(target && target.team === myTeam)) return s;
       if (!(a.id in s.cp) && !target) return s;
-      return bump(setCp(s, a.id, a.value));
+      return bump(setCp(s, a.id, a.t === 'cp' ? a.value : (s.cp[a.id] ?? 0) + a.delta));
     }
-    case 'vp': {
+    case 'vp':
+    case 'vpAdd': {
       // Each team scores itself.
       if (!local && myTeam !== a.team) return s;
       const cur = vpOf(s, a.team);
       if (a.round < 0 || a.round >= cur[a.kind].length) return s;
-      const score = { ...cur, [a.kind]: cur[a.kind].map((x, i) => (i === a.round ? Math.max(0, a.value) : x)) };
+      const value = (x: number) => Math.max(0, a.t === 'vp' ? a.value : x + a.delta);
+      const score = { ...cur, [a.kind]: cur[a.kind].map((x, i) => (i === a.round ? value(x) : x)) };
       return bump({ ...s, vp: { ...s.vp, [a.team]: score } });
     }
     case 'strat': {
+      // Paid from the player's own (team's) pool, never from a made-up player.
+      if (!s.players.some((p) => p.id === from)) return s;
       const next = setCp(s, from, (s.cp[from] ?? 0) - a.cost);
       return bump(log(next, `${by ?? 'Someone'} used ${a.name} (${a.cost} CP)`));
     }
@@ -373,9 +436,59 @@ export function reduce(s: LiveState, a: LiveAction, from: string): LiveState {
     case 'reopen':
       if (!isHost || s.stage !== 'done') return s;
       return bump({ ...s, stage: 'battle', winner: undefined });
+    case 'batch': {
+      let st = s;
+      for (const x of a.actions) {
+        if (x.t === 'batch' || x.t === 'join') return s;
+        const n = reduce(st, x, from, opts);
+        // A card that is gone (scored or swapped on another phone): the whole tap is dropped, so its CP or VP isn't counted either.
+        if (n === st && x.t === 'sec') return s;
+        st = n;
+      }
+      return st === s ? s : bump(st);
+    }
     default:
       return s;
   }
+}
+
+/**
+ * The host handles a numbered action from a player: once only (a resent copy
+ * is skipped), through the same rules as everything else, and counts it in
+ * `acks` even when the rules turned it down, so the phone stops resending it.
+ * Actions without a number come from older phones and are simply applied.
+ */
+export function receive(s: LiveState, a: LiveAction, from: string, seq?: number): LiveState {
+  if (seq === undefined) return reduce(s, a, from);
+  if (seq <= (s.acks?.[from] ?? 0)) return s;
+  const next = reduce(s, a, from);
+  return { ...next, v: s.v + 1, acks: { ...s.acks, [from]: seq } };
+}
+
+/** The highest action number of this player's that the host has handled. */
+export const ackOf = (s: Pick<LiveState, 'acks'> | undefined, id: string) => s?.acks?.[id] ?? 0;
+
+/**
+ * What a guest shows: the host's last copy plus its own actions the host
+ * hasn't handled yet. While cut off from the host anything may be changed
+ * (`local`); the host still checks every action when they arrive.
+ */
+export function withPending(base: LiveState, pending: Pending[], me: string, local = false): LiveState {
+  const done = ackOf(base, me);
+  return pending.filter((p) => p.seq > done).reduce((st, p) => reduce(st, p.action, me, { local }), base);
+}
+
+/**
+ * Another player carries on as host (the host's phone is gone): the latest
+ * copy this phone has, with its own unhandled actions applied, under a new
+ * room code. The others join the new room and resend what this copy hasn't
+ * counted from them yet.
+ */
+export function takeOver(base: LiveState, pending: Pending[], me: string, room: string): LiveState {
+  const name = base.players.find((p) => p.id === me)?.name ?? 'A player';
+  let s: LiveState = { ...base, room, hostId: me };
+  for (const p of pending) s = receive(s, p.action, me, p.seq);
+  return { ...s, v: s.v + 1, log: [...s.log, { at: Date.now(), round: s.round, turn: s.turn, phase: s.phase, text: `${name} carries on as host · new room ${room}`, by: name }] };
 }
 
 /** How far into the game a state is: round, then whose turn in the order, then phase. */
@@ -385,15 +498,14 @@ function progress(s: LiveState): number {
 }
 
 /**
- * A player's phone was cut off from the host and kept playing on its own copy.
- * When it reconnects, the host folds that copy in:
- *  - that player's team's own things come from the phone: their CP (the whole
- *    team's with a shared pool), score, missions, disposition and primary,
- *    and the player's units left;
- *  - round / turn / phase take whichever copy is further on;
- *  - log lines written offline are added;
- *  - nothing that belongs to another team or player is ever taken from the
- *    phone — the host's copy wins for them.
+ * Older phones only: a phone cut off from the host kept playing on its own
+ * copy and sends the whole copy when it reconnects (newer phones send their
+ * actions instead, see `receive`). The host folds in that player's team's
+ * own things: CP, score, missions, disposition and primary, the player's
+ * units left, and log lines written offline. Nothing that belongs to another
+ * team or player is ever taken from the phone, and the turn stays where the
+ * host has it (moving it from the phone's copy would skip the other teams'
+ * Command-phase CP).
  */
 export function mergeOffline(host: LiveState, phone: LiveState, base: LiveState | undefined, from: string): LiveState {
   const me = host.players.find((p) => p.id === from);
@@ -416,7 +528,7 @@ export function mergeOffline(host: LiveState, phone: LiveState, base: LiveState 
       : host.players;
   const seen = new Set(host.log.map((l) => `${l.at}|${l.text}`));
   const extra = phone.log.filter((l) => !seen.has(`${l.at}|${l.text}`));
-  const moved = host.stage === 'battle' && phone.stage === 'battle' && progress(phone) > progress(host) && (!base || progress(phone) !== progress(base));
+  const ahead = host.stage === 'battle' && phone.stage === 'battle' && progress(phone) > progress(host);
   let next: LiveState = {
     ...host,
     players,
@@ -425,9 +537,7 @@ export function mergeOffline(host: LiveState, phone: LiveState, base: LiveState 
     missions: phone.missions?.[team] && changed((s) => s.missions?.[team]) ? { ...host.missions, [team]: phone.missions[team] } : host.missions,
     units: phone.units[from] ? { ...host.units, [from]: phone.units[from]! } : host.units,
     log: extra.length ? [...host.log, ...extra].sort((a, b) => a.at - b.at) : host.log,
-    ...(moved ? { round: phone.round, turn: phone.turn, phase: phone.phase } : {}),
   };
-  const ahead = moved;
   if (extra.length || ahead) next = { ...next, log: [...next.log, { at: Date.now(), round: next.round, turn: next.turn, phase: next.phase, text: `${me.name} reconnected — their offline changes were added`, by: me.name }] };
   return { ...next, v: host.v + 1 };
 }
