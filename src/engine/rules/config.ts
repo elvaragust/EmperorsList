@@ -117,11 +117,25 @@ function replaceConfig(roster: Roster, rootKey: string, sel: Selection | undefin
   return { ...roster, config, updatedAt: Date.now() };
 }
 
+/**
+ * Custom points, and battle sizes the data hides (Onslaught: the 11th edition
+ * data doesn't offer it yet), play by another size's limits (Detachment
+ * Points, Enhancements, copies of a datasheet). Returns that size's name, or
+ * undefined when the data has the size itself.
+ */
+export function borrowedLimits(choices: ConfigChoices, size: BattleSize): string | undefined {
+  if (size !== 'custom' && choices.battleSizes.some((b) => b.size === size && !b.hidden)) return undefined;
+  return choices.battleSizes.some((b) => b.size === 'strikeForce') ? 'Strike Force' : undefined;
+}
+
 export function setBattleSize(engine: RosterEngine, roster: Roster, size: BattleSize, customPoints?: number): Roster {
   const c = configChoices(engine);
   const root = c.battleSizeRoot;
-  const pick = size === 'custom' ? c.battleSizes.find((b) => b.size === 'strikeForce') : c.battleSizes.find((b) => b.size === size);
-  const points = size === 'custom' ? (customPoints ?? roster.pointsLimit) : (pick?.points ?? roster.pointsLimit);
+  const own = size === 'custom' ? undefined : c.battleSizes.find((b) => b.size === size && !b.hidden);
+  // A size the data hides would be flagged "not allowed": use Strike Force's limits with the size's own points.
+  const pick = own ?? c.battleSizes.find((b) => b.size === 'strikeForce');
+  const nominal = SIZE_BY_NAME.find(([, s]) => s === size)?.[2];
+  const points = size === 'custom' ? (customPoints ?? roster.pointsLimit) : (own?.points ?? nominal ?? roster.pointsLimit);
   let next: Roster = { ...roster, battleSize: size, pointsLimit: points };
   if (root && pick) next = replaceConfig(next, root.key, { entryId: root.key, count: 1, children: [{ entryId: pick.key, count: 1, children: [] }] });
   return next;
@@ -145,6 +159,27 @@ export function setDetachments(engine: RosterEngine, roster: Roster, keys: strin
   const allowed = allowedDispositions(e2);
   if (allowed.length && !allowed.some((d) => d.name === next.forceDisposition)) next = setDisposition(e2, next, allowed[0]!.key);
   return next;
+}
+
+/**
+ * The detachments a list has chosen: its cached ids, or, when those are
+ * missing (a list received by a share link made before ids were sent), the
+ * ones its config holds.
+ */
+export function chosenDetachmentKeys(engine: RosterEngine): string[] {
+  if (engine.roster.detachmentIds.length) return engine.roster.detachmentIds;
+  const root = rootByName(engine, /^detachments?$/i);
+  const inst = root && engine.tree.force.children.find((c) => c.node?.key === root.key);
+  return inst ? inst.children.filter((c) => c.count > 0 && c.node).map((c) => c.node!.key) : [];
+}
+
+/** Fill in the cached detachment ids and names from the config when they are missing. */
+export function syncDetachments(engine: RosterEngine, roster: Roster): Roster {
+  if (roster.detachmentIds.length) return roster;
+  const keys = chosenDetachmentKeys(engine);
+  const picked = configChoices(engine).detachments.filter((d) => keys.includes(d.key));
+  if (!picked.length) return roster;
+  return { ...roster, detachmentIds: picked.map((d) => d.key), detachmentNames: picked.map((d) => d.name) };
 }
 
 /**
@@ -177,7 +212,8 @@ export function allowedDispositions(engine: RosterEngine): ConfigOption[] {
   // By id, or by name when the data's ids changed since the list was made.
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const names = new Set((engine.roster.detachmentNames ?? []).map(norm));
-  const chosen = c.detachments.filter((d) => engine.roster.detachmentIds.includes(d.key) || names.has(norm(d.name)));
+  const keys = chosenDetachmentKeys(engine);
+  const chosen = c.detachments.filter((d) => keys.includes(d.key) || names.has(norm(d.name)));
   const allowed = new Set(chosen.flatMap((d) => d.dispositions));
   const visible = c.dispositions.filter((d) => !d.hidden || allowed.has(d.name));
   return allowed.size ? visible.filter((d) => allowed.has(d.name)) : visible;
@@ -271,6 +307,17 @@ export function showOptions(engine: RosterEngine): ShowOption[] {
     hidden: engine.ev.hidden(virtualChild(v, o.node, o.groups, 1)),
     on: Boolean(inst?.children.some((c) => c.node?.key === o.node.key && c.count > 0)),
   }));
+}
+
+/**
+ * The Show switches that reveal more datasheets: "Show Legends", and the ones
+ * for allied armies ("Show Imperial Agents", "Show Imperial Knights"…).
+ */
+export function extraSwitches(opts: ShowOption[]): { legends?: ShowOption; allies: ShowOption[] } {
+  return {
+    legends: opts.find((x) => /^show legends$/i.test(x.name)),
+    allies: opts.filter((x) => /^show (imperial|chaos|titans|.*daemons|.*knights|.*agents)/i.test(x.name) && !/legend|unaligned/i.test(x.name)),
+  };
 }
 
 /** Turn some Show/Hide switches on or off (others are kept). */

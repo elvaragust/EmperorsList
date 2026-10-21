@@ -131,31 +131,33 @@ export function WeaponTable({
     );
   };
   return (
-    <table className="wtable">
-      <thead>
-        <tr>
-          <th>{melee ? 'Melee' : 'Ranged'}</th>
-          <th>Range</th>
-          <th>A</th>
-          <th>{melee ? 'WS' : 'BS'}</th>
-          <th>S</th>
-          <th>AP</th>
-          <th>D</th>
-        </tr>
-      </thead>
-      <tbody>
-        {split
-          ? sections.map((g) => (
-              <Fragment key={g.name}>
-                <tr className="wgroup">
-                  <td colSpan={7}>{g.name}</td>
-                </tr>
-                {g.list.map((w) => row(w, `${g.name}-${w.id}`))}
-              </Fragment>
-            ))
-          : weapons.map((w) => row(w, w.id))}
-      </tbody>
-    </table>
+    <div className="table-scroll">
+      <table className="wtable">
+        <thead>
+          <tr>
+            <th>{melee ? 'Melee' : 'Ranged'}</th>
+            <th>Range</th>
+            <th>A</th>
+            <th>{melee ? 'WS' : 'BS'}</th>
+            <th>S</th>
+            <th>AP</th>
+            <th>D</th>
+          </tr>
+        </thead>
+        <tbody>
+          {split
+            ? sections.map((g) => (
+                <Fragment key={g.name}>
+                  <tr className="wgroup">
+                    <td colSpan={7}>{g.name}</td>
+                  </tr>
+                  {g.list.map((w) => row(w, `${g.name}-${w.id}`))}
+                </Fragment>
+              ))
+            : weapons.map((w) => row(w, w.id))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -200,28 +202,30 @@ export function StatTable({ profiles }: { profiles: { name: string; profile: Raw
   if (!rows.length) return null;
   const head = rows[0]!.chars.map((c) => c.k);
   return (
-    <table className="stat-table">
-      <thead>
-        <tr>
-          {rows.length > 1 && <th />}
-          {head.map((k) => (
-            <th key={k}>{k}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.names.join()}>
-            {rows.length > 1 && <td className="stat-name">{r.names.join(' / ')}</td>}
-            {r.chars.map((c) => (
-              <td key={c.k} className="v">
-                {c.v}
-              </td>
+    <div className="table-scroll">
+      <table className="stat-table">
+        <thead>
+          <tr>
+            {rows.length > 1 && <th />}
+            {head.map((k) => (
+              <th key={k}>{k}</th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.names.join()}>
+              {rows.length > 1 && <td className="stat-name">{r.names.join(' / ')}</td>}
+              {r.chars.map((c) => (
+                <td key={c.k} className="v">
+                  {c.v}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
