@@ -3184,3 +3184,54 @@ tr.pulse > td {
   font-size: 15px;
   line-height: 1.45;
 }
+
+/* Missions: the Secondaries button, the Draw bar under the card list, scored cards, the round picker. */
+.all-sec-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 10px;
+}
+.all-sec-count {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+.mission-draw-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+.mission-draw-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-foot {
+  position: sticky;
+  bottom: calc(-24px - env(safe-area-inset-bottom));
+  margin: 0 -18px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.mission-row.done {
+  border-color: var(--ok);
+}
+.mission-row.done .mission-tag {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.mission-round-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mission-round-pick .seg {
+  flex: 1;
+  margin: 0 0 6px;
+}

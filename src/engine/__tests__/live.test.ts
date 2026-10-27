@@ -4,7 +4,7 @@ import { makeRoomCode, missionsOf, newLiveState, reduce, teamNames, teamsReady, 
 const p = (id: string, name: string): LivePlayer => ({ id, name, team: 'A', army: `${name}'s army`, faction: 'X', detachments: [] });
 
 describe('live game reducer', () => {
-  it('fills teams, starts, runs turns with CP for everyone, and scores', () => {
+  it('fills teams, starts, runs turns, spends CP, and scores', () => {
     let s = newLiveState('ROOM42', p('h', 'Host'));
     s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
     expect(s.players.map((x) => x.team)).toEqual(['A', 'B']);
@@ -16,12 +16,14 @@ describe('live game reducer', () => {
     expect(reduce(s, { t: 'start' }, 'g')).toBe(s);
     s = reduce(s, { t: 'start' }, 'h');
     expect(s.stage).toBe('battle');
-    expect(s.cp).toEqual({ h: 1, g: 1 });
+    // Nobody is given CP automatically: players add it by hand.
+    expect(s.cp).toEqual({ h: 0, g: 0 });
     // Only the team whose turn it is (or the host) moves the turn on.
     expect(reduce(s, { t: 'next' }, 'g')).toBe(s);
     for (let i = 0; i < 5; i++) s = reduce(s, { t: 'next' }, 'h');
     expect(s).toMatchObject({ turn: 'B', phase: 'command', round: 1 });
-    expect(s.cp).toEqual({ h: 2, g: 2 });
+    expect(s.cp).toEqual({ h: 0, g: 0 });
+    s = reduce(s, { t: 'cpAdd', id: 'g', delta: 2 }, 'g');
     s = reduce(s, { t: 'strat', name: 'Command Re-roll', cost: 1 }, 'g');
     expect(s.cp.g).toBe(1);
     // Guest (team B) can't score for team A or change the host's CP; the host can score A.
@@ -66,12 +68,12 @@ describe('live game reducer', () => {
     s = reduce(s, { t: 'phase', phase: 'shooting' }, 'h');
     s = reduce(s, { t: 'turn' }, 'h');
     expect(s).toMatchObject({ turn: 'B', phase: 'command' });
-    // Like Next: the new turn's Command phase gives everyone 1 CP.
-    expect(s.cp).toEqual({ h: 2, g: 2 });
+    // A new turn's Command phase gives no CP by itself.
+    expect(s.cp).toEqual({ h: 0, g: 0 });
     // The team whose turn it is hands it on: after the last team, the next round starts.
     s = reduce(s, { t: 'turn' }, 'g');
     expect(s).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
-    expect(s.cp).toEqual({ h: 3, g: 3 });
+    expect(s.cp).toEqual({ h: 0, g: 0 });
   });
 
   it('plays a 2v1 with the pair on either team', () => {
@@ -123,7 +125,7 @@ describe('live game reducer', () => {
     expect(s.sharedCp).toBe(true);
     s = reduce(s, { t: 'start' }, 'a1');
     s = reduce(s, { t: 'cp', id: 'a2', value: 4 }, 'a1');
-    expect([s.cp.a1, s.cp.a2, s.cp.b1]).toEqual([4, 4, 1]);
+    expect([s.cp.a1, s.cp.a2, s.cp.b1]).toEqual([4, 4, 0]);
     s = reduce(s, { t: 'strat', name: 'Command Re-roll', cost: 1 }, 'a2');
     expect([s.cp.a1, s.cp.a2]).toEqual([3, 3]);
     // Not the other team's pool.
