@@ -71,6 +71,8 @@ export interface SavedGame {
   primaryDone?: number[];
   /** Parts of my primary scored per round (Command phase, end of turn, end of battle), each locked until undone. */
   primaryParts?: import('@/engine/missions').PrimaryPart[];
+  /** Parts of my secondary cards scored per round, with their ticks, each kept until undone. */
+  secParts?: import('@/engine/missions').SecPart[];
   /** My Tactical secondaries deck and hand. */
   tactical?: import('@/engine/missions').TacticalState;
   /** Force Dispositions for this game (mine defaults to the list's). */

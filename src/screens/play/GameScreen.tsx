@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db, type SavedGame } from '@/data/db';
 import { listFactions, type FactionFile } from '@/data/dataPacks';
 import { useRosterEngine } from '@/data/gameData';
-import { arrive, commandKey, cpGrantedSoFar, nextPhase, nextTurn, PHASE_NAMES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase, type TurnState } from '@/engine/game';
+import { nextPhase, nextTurn, PHASE_NAMES, PRE_BATTLE, previousPhase, ROUNDS, totalScore, type Phase, type TurnState } from '@/engine/game';
 import { datasheet } from '@/engine/rules/models';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { useFactionTheme } from '@/theme/themes';
@@ -24,7 +24,7 @@ import { ListChangedSheet, useGameRoster } from './gameRoster';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
 import { allowedDispositions } from '@/engine/rules/config';
-import { applyLocalSec, localSecondaries, MissionsPanel, SecondarySetup } from './secondaries';
+import { applyLocalSec, localSecondaries, MissionRoundPicker, MissionsPanel, SecondarySetup, useViewRound } from './secondaries';
 import { primaryFor } from '@/engine/missions';
 import { OpponentUnits } from './OpponentUnits';
 import { endOfBattleOpen, useMissionCards } from './missionCards';
@@ -243,7 +243,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
               void updateGame(game.id, (g) => {
                 if (g.stage !== 'setup') return undefined;
                 const first = g.firstTurn ?? 'me';
-                return withLog({ ...g, stage: 'battle', round: 1, turn: first, phase: 'command', firstTurn: first, cp: { me: 1, them: 1 }, cpGranted: [commandKey({ round: 1, turn: first })] }, 'Battle started · both players gain 1 CP', 'phase');
+                return withLog({ ...g, stage: 'battle', round: 1, turn: first, phase: 'command', firstTurn: first, cp: { me: 0, them: 0 } }, 'Battle started', 'phase');
               })
             }
           >
@@ -261,6 +261,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
   const [ending, setEnding] = useState(false);
   const [note, setNote] = useState('');
   const [jumpTo, setJumpTo] = useState<number>();
+  const [viewRound, setViewRound] = useViewRound(game.round);
   const cards = useMissionCards();
   const first = game.firstTurn ?? 'me';
   const who = (s: 'me' | 'them') => (s === 'me' ? 'You' : game.opponentName || 'Opponent');
@@ -268,20 +269,17 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
   const change = (fn: (g: SavedGame) => SavedGame | undefined) => updateGame(game.id, fn);
   // Moving through the turn only from where this screen is: a double tap on Next moves once.
   const fromHere = (fn: (g: SavedGame) => SavedGame | undefined) => change((g) => (g.stage === 'battle' && g.round === game.round && g.turn === game.turn && g.phase === game.phase ? fn(g) : undefined));
-  // To a new place in the battle; a Command phase reached for the first time gives both players 1 CP.
+  // To a new place in the battle. CP is never added here: players add their Command phase CP by hand.
   const moveTo = (g: SavedGame, to: TurnState, text?: string): SavedGame => {
-    const a = arrive(g, to, first);
-    let next: SavedGame = { ...g, round: a.round, turn: a.turn, phase: a.phase, cpGranted: a.cpGranted };
-    if (text) next = withLog(next, text, 'phase');
-    if (a.cpGain) next = withLog({ ...next, cp: { me: next.cp.me + 1, them: next.cp.them + 1 } }, `Round ${a.round}, ${who(a.turn)}: Command phase · both gain 1 CP`, 'cp');
-    return next;
+    const next: SavedGame = { ...g, round: to.round, turn: to.turn, phase: to.phase };
+    return text ? withLog(next, text, 'phase') : next;
   };
 
   const advance = () => {
     if (nextPhase(game, first).gameOver) return setEnding(true);
     void fromHere((g) => moveTo(g, nextPhase(g, first)));
   };
-  const back = () => void fromHere((g) => ({ ...g, ...previousPhase(g, first), cpGranted: cpGrantedSoFar(g, first) }));
+  const back = () => void fromHere((g) => ({ ...g, ...previousPhase(g, first) }));
   // Handing the turn over is Next to the start of the other player's turn.
   const handOver = () => {
     const n = nextTurn(game, first);
@@ -360,24 +358,25 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
 
       {tab === 'missions' && (
         <>
+        <MissionRoundPicker round={game.round} value={viewRound} onChange={setViewRound} />
         <MissionsPanel
           sec={localSecondaries(game)}
           onSec={(op, text) => void updateGame(game.id, (g) => (text ? withLog({ ...g, ...applyLocalSec(g, op) }, text, 'note') : { ...g, ...applyLocalSec(g, op) }))}
           round={game.round}
+          viewRound={viewRound}
           turnKey={`${game.round}-${game.turn}`}
           myCommandPhase={game.turn === 'me' && game.phase === 'command'}
           primary={primary}
           twist={game.twist}
           role={game.role}
-          onCp={(d, why) => void updateGame(game.id, (g) => withLog({ ...g, cp: { ...g.cp, me: Math.max(0, g.cp.me + d) } }, `${why} (${d > 0 ? '+' : ''}${d} CP)`, 'cp'))}
-          onVp={(kind, vp, why) => {
-            // A negative `vp` takes VP off again (a primary part undone).
+          onVp={(kind, vp, why, round) => {
+            // A negative `vp` takes VP off again (a scored part undone).
             void updateGame(game.id, (g) => {
-              const i = Math.min(g.round, g.vp.me[kind].length) - 1;
+              const i = Math.min(round, g.vp.me[kind].length) - 1;
               const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? Math.max(0, x + vp) : x)) };
-              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: ${vp < 0 ? '−' : '+'}${Math.abs(vp)} VP (${kind}, round ${g.round})`, 'vp');
+              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: ${vp < 0 ? '−' : '+'}${Math.abs(vp)} VP (${kind}, round ${round})`, 'vp');
             });
-            showToast(vp < 0 ? `${-vp} VP taken off round ${game.round}` : `+${vp} VP added to round ${game.round}`);
+            showToast(vp < 0 ? `${-vp} VP taken off round ${round}` : `+${vp} VP added to round ${round}`);
           }}
         />
         <div className="opp-missions">
@@ -386,6 +385,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
             who={`${who('them')}'s`}
             sec={{ mode: game.secondaryMode?.them, fixed: (game.secondaries?.them ?? '').split(',').map((x) => x.trim()).filter(Boolean) }}
             round={game.round}
+            viewRound={viewRound}
             turnKey=""
             myCommandPhase={false}
             primary={primaryFor(game.opponentDisposition, game.disposition ?? engine?.roster.forceDisposition)}
@@ -502,8 +502,8 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
         title={`Go to round ${jumpTo}?`}
         message={
           jumpTo !== undefined && jumpTo > game.round
-            ? `Moves to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase, where both players gain 1 CP. CP for Command phases skipped on the way isn't added — change it by hand if needed.`
-            : `Goes back to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase. No CP is given again, and VP and army health noted for later rounds stay as they are.`
+            ? `Moves the game to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase. CP isn't added automatically — add it by hand.`
+            : `Moves the game back to the start of round ${jumpTo}: ${who(first) === 'You' ? 'your' : `${who(first)}'s`} Command phase. CP, VP and army health noted for later rounds stay as they are.`
         }
         confirm={`Go to round ${jumpTo}`}
         onConfirm={() => {

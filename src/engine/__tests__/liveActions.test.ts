@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { newLiveState, receive, reduce, stampOf, takeOver, withPending, type LiveAction, type LivePlayer, type LiveState, type Pending } from '../live';
+import { LOCAL, newLiveState, receive, reduce, stampOf, takeOver, withPending, type LiveAction, type LivePlayer, type LiveState, type Pending } from '../live';
 
 const p = (id: string, name: string): LivePlayer => ({ id, name, team: 'A', army: `${name}'s army`, faction: 'X', detachments: [] });
 
-/** Host (team A) and guest (team B), battle started: both on 1 CP, round 1, A's Command phase. */
+/** Host (team A) and guest (team B), battle started: both on 1 CP (added by hand), round 1, A's Command phase. */
 function oneVsOne(): LiveState {
   let s = newLiveState('R', p('h', 'Host'));
   s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
-  return reduce(s, { t: 'start' }, 'h');
+  s = reduce(s, { t: 'start' }, 'h');
+  return ['h', 'g'].reduce((st, id) => reduce(st, { t: 'cp', id, value: 1 }, LOCAL), s);
 }
 
 /** Ann & Cat (A, Ann hosts) against Bob & Dan (B). */
@@ -15,7 +16,9 @@ function twoVsTwo(): LiveState {
   let s = newLiveState('R', p('a1', 'Ann'));
   s = reduce(s, { t: 'setMode', mode: '2v2' }, 'a1');
   for (const [id, n] of [['b1', 'Bob'], ['a2', 'Cat'], ['b2', 'Dan']]) s = reduce(s, { t: 'join', player: p(id!, n!) }, id!);
-  return reduce(s, { t: 'start' }, 'a1');
+  s = reduce(s, { t: 'start' }, 'a1');
+  // Each team's shared pool on 1 CP, added by hand.
+  return ['a1', 'b1'].reduce((st, id) => reduce(st, { t: 'cp', id, value: 1 }, LOCAL), s);
 }
 
 /** A phone's queue: each action numbered, the way a guest keeps them. */
@@ -39,18 +42,18 @@ const replay = (host: LiveState, from: string, sent: Pending[]) => sent.reduce((
 const next = (s: LiveState): LiveAction => ({ t: 'next', at: stampOf(s) });
 
 describe('live actions: what a guest sends, the host replays', () => {
-  it('a cut-off guest ending its turn gives the host team its Command-phase CP (N1)', () => {
+  it('a cut-off guest ending its turn moves the host’s game on, and gives nobody CP (N1)', () => {
     let s = oneVsOne();
     for (let i = 0; i < 5; i++) s = reduce(s, next(s), 'h');
     expect(s).toMatchObject({ round: 1, turn: 'B', phase: 'command' });
-    expect(s.cp).toEqual({ h: 2, g: 2 });
+    expect(s.cp).toEqual({ h: 1, g: 1 });
     // The guest (team B) plays its whole turn without the host and moves on to round 2.
     const { phone, sent } = playOffline(s, 'g', Array(5).fill(next));
     expect(phone).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
     const host = replay(s, 'g', sent);
     expect(host).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
-    // Everyone gains 1 CP at the start of round 2: the host's team too.
-    expect(host.cp).toEqual({ h: 3, g: 3 });
+    // CP is only ever added by hand.
+    expect(host.cp).toEqual({ h: 1, g: 1 });
     expect(host.acks).toEqual({ g: 5 });
   });
 
@@ -160,22 +163,22 @@ describe('live actions: what a guest sends, the host replays', () => {
     expect(withPending(s, other, 'g', true).cp.h).toBe(3);
   });
 
-  it('going back a phase and forward again never gives Command-phase CP twice', () => {
+  it('moving through phases, turns and rounds never gives CP by itself', () => {
     let s = oneVsOne();
     for (let i = 0; i < 5; i++) s = reduce(s, next(s), 'h');
-    expect(s.cp).toEqual({ h: 2, g: 2 });
+    expect(s.cp).toEqual({ h: 1, g: 1 });
     s = reduce(s, { t: 'prev' }, 'h');
     expect(s).toMatchObject({ turn: 'A', phase: 'fight' });
     s = reduce(s, next(s), 'h');
     expect(s).toMatchObject({ turn: 'B', phase: 'command' });
-    expect(s.cp).toEqual({ h: 2, g: 2 });
     expect(s.log.at(-1)?.text).not.toMatch(/gains/);
-    // Older saved games have no record: the turn they are in has had its CP.
+    s = reduce(s, { t: 'turn' }, 'g');
+    expect(s).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
+    s = reduce(s, { t: 'round', round: 4 }, 'h');
+    expect(s.cp).toEqual({ h: 1, g: 1 });
+    // Older saved games noted where CP had been given: it changes nothing now.
     const old: LiveState = { ...s, cpAt: undefined };
-    const back = reduce(reduce(old, { t: 'prev' }, 'h'), { t: 'next' }, 'h');
-    expect(back.cp).toEqual({ h: 2, g: 2 });
-    const on = reduce(reduce(old, { t: 'turn' }, 'h'), { t: 'next' }, 'h');
-    expect(on.cp).toEqual({ h: 3, g: 3 });
+    expect(reduce(reduce(old, { t: 'turn' }, 'h'), { t: 'next' }, 'h').cp).toEqual({ h: 1, g: 1 });
   });
 
   it('another player carries on as host from its own copy, with its own actions in', () => {

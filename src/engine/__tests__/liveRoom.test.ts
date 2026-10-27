@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SavedGame } from '@/data/db';
-import { newLiveState, reduce, stampOf, type LivePlayer, type LiveState } from '../live';
+import { LOCAL, newLiveState, reduce, stampOf, type LivePlayer, type LiveState } from '../live';
 import { continueAsHost, moveToRoom, Room, type ConnLike, type LiveSaved, type PeerLike, type RoomDeps } from '@/sync/room';
 
 /* ---------- a fake matchmaking server and phone-to-phone links ---------- */
@@ -152,11 +152,12 @@ function open(id: string): Room {
 }
 const settle = (ms = 50) => vi.advanceTimersByTimeAsync(ms);
 
-/** A 1v1 in battle: host phone "host", guest phone "guest", both in room ROOM01. */
+/** A 1v1 in battle: host phone "host", guest phone "guest", both in room ROOM01, both on 1 CP (added by hand). */
 async function battle(): Promise<{ host: Room; guest: Room; start: LiveState }> {
   let s = newLiveState('ROOM01', H);
   s = reduce(s, { t: 'join', player: G }, 'g');
   s = reduce(s, { t: 'start' }, 'h');
+  s = ['h', 'g'].reduce((st, id) => reduce(st, { t: 'cp', id, value: 1 }, LOCAL), s);
   saved('host', { room: 'ROOM01', role: 'host', myId: 'h', myName: 'Host', me: H, state: s });
   saved('guest', { room: 'ROOM01', role: 'guest', myId: 'g', myName: 'Guest', me: G, state: s });
   const host = open('host');
@@ -203,7 +204,7 @@ describe('live rooms', () => {
     guest.dispatch({ t: 'strat', name: 'Smokescreen', cost: 1 });
     for (let i = 0; i < 5; i++) guest.dispatch({ t: 'next', at: stampOf(guest.current!) });
     expect(guest.current).toMatchObject({ round: 2, turn: 'A' });
-    expect(guest.current?.cp).toEqual({ h: 3, g: 2 });
+    expect(guest.current?.cp).toEqual({ h: 1, g: 0 });
     await guest.flush();
     expect(store.live('guest').outbox).toHaveLength(6);
     // The guest's app is reloaded while the host is gone.
@@ -217,12 +218,12 @@ describe('live rooms', () => {
     expect(host2.status).toBe('online');
     await settle(10_000);
     expect(again.status).toBe('online');
-    // Replayed by the host: its team's round-2 CP is there, the guest's stratagem cost the guest.
+    // Replayed by the host: no CP given for the new round, the guest's stratagem cost the guest.
     expect(host2.current).toMatchObject({ round: 2, turn: 'A', phase: 'command' });
-    expect(host2.current?.cp).toEqual({ h: 3, g: 2 });
+    expect(host2.current?.cp).toEqual({ h: 1, g: 0 });
     expect(host2.current?.log.some((l) => l.text === 'Guest used Smokescreen (1 CP)')).toBe(true);
     expect(again.unsent).toBe(0);
-    expect(again.current?.cp).toEqual({ h: 3, g: 2 });
+    expect(again.current?.cp).toEqual({ h: 1, g: 0 });
   });
 
   it('the host keeps updating a guest whose new link arrives before the old one closes (N4)', async () => {
