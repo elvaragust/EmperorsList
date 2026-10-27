@@ -22,7 +22,7 @@ type Line = { key: string; name: string; color: string; dashed: boolean; vp: num
 function FlowChart({ lines, value, max, t, rounds, played, title, unit, onPick }: { lines: Line[]; value: (l: Line) => number[] | undefined; max: number; t: number; rounds: number; /** Rounds actually played (the axis always shows all five). */ played: number; title: string; unit: string; onPick: (r: number) => void }) {
   const W = 320;
   const H = 120;
-  const pad = { l: 30, r: 10, t: 10, b: 20 };
+  const pad = { l: 34, r: 10, t: 10, b: 20 };
   const x = (r: number) => pad.l + (r / rounds) * (W - pad.l - pad.r);
   const y = (v: number) => pad.t + (1 - v / max) * (H - pad.t - pad.b);
   // The line so far: every finished round, then a point part-way to the next one.
@@ -46,16 +46,17 @@ function FlowChart({ lines, value, max, t, rounds, played, title, unit, onPick }
         const r = Math.round(((e.clientX - box.left) / box.width * W - pad.l) / (W - pad.l - pad.r) * rounds);
         onPick(Math.max(1, Math.min(played, r)));
       }}>
-        {/* Recessive grid: the baseline and the top value only. */}
+        {/* Recessive grid: the baseline, then a line and a label every quarter of the scale. */}
         <line x1={pad.l} x2={W - pad.r} y1={y(0)} y2={y(0)} className="flow-axis" />
-        <line x1={pad.l} x2={W - pad.r} y1={y(max)} y2={y(max)} className="flow-grid" />
-        <text x={pad.l - 6} y={y(max) + 4} className="flow-tick" textAnchor="end">
-          {max}
-          {unit}
-        </text>
-        <text x={pad.l - 6} y={y(0) + 4} className="flow-tick" textAnchor="end">
-          0
-        </text>
+        {[0.25, 0.5, 0.75, 1].map((f) => (
+          <line key={f} x1={pad.l} x2={W - pad.r} y1={y(f * max)} y2={y(f * max)} className="flow-grid" />
+        ))}
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <text key={f} x={pad.l - 6} y={y(f * max) + 4} className="flow-tick" textAnchor="end">
+            {Math.round(f * max)}
+            {f > 0 ? unit : ''}
+          </text>
+        ))}
         {Array.from({ length: rounds + 1 }, (_, r) => (
           <text key={r} x={x(r)} y={H - 4} className={`flow-tick ${Math.ceil(t) === r && r > 0 ? 'on' : ''} ${r > played ? 'unplayed' : ''}`} textAnchor="middle">
             {r === 0 ? 'Start' : `R${r}`}
@@ -105,7 +106,8 @@ export function BattleReplay({ sides, health, rounds: playedIn }: { sides: (Resu
     [sides, health, rounds],
   );
   const vpMax = Math.max(10, ...lines.map((l) => l.vp[l.vp.length - 1]!));
-  const niceVp = Math.ceil(vpMax / 10) * 10;
+  // A top value that splits into four whole quarters for the axis labels.
+  const niceVp = Math.ceil(vpMax / 20) * 20;
   const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const [t, setT] = useState(reduce ? rounds : 0);
   const [playing, setPlaying] = useState(false);

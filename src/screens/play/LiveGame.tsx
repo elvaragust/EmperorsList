@@ -20,7 +20,7 @@ import { useHealthRecorder } from './games';
 import { ScoreRow } from './GameScreen';
 import { BattleTabs, CpBar, healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
-import { MissionsPanel, SecondarySetup } from './secondaries';
+import { MissionRoundPicker, MissionsPanel, SecondarySetup, useViewRound } from './secondaries';
 import { OpponentUnits } from './OpponentUnits';
 import { gameDuration, ResultLog, ResultView } from './ResultView';
 
@@ -35,7 +35,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
     // Offline copy: you may change everything; applied on the latest saved copy.
     void applyUnlinked(game.id, [a]);
   };
-  // One tap can make several changes (score a card and add its VP, redraw and pay 1CP): they go as one.
+  // One tap can make several changes (score a card and add its VP): they go as one.
   const tap = useRef<LiveAction[]>([]);
   const dispatch = (a: LiveAction) => {
     if (a.t === 'join') return send(a);
@@ -88,17 +88,36 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
   return <LiveResult game={game} state={state} room={room} dispatch={dispatch} />;
 }
 
+/** True once `on` has stayed true for `ms` (a link that drops for a moment and comes back says nothing). */
+function useSteady(on: boolean, ms: number): boolean {
+  const [steady, setSteady] = useState(false);
+  useEffect(() => {
+    if (!on) return setSteady(false);
+    const timer = setTimeout(() => setSteady(true), ms);
+    return () => clearTimeout(timer);
+  }, [on, ms]);
+  return on && steady;
+}
+
+/** How long a guest's link to the host must be down before the screen says so. */
+const CUT_OFF_GRACE_MS = 15_000;
+
 function Status({ room }: { room?: Room }) {
+  // A guest's link blips (screen locked, app switched, a weak signal): only a lasting drop is shown as one.
+  const lost = useSteady(Boolean(room?.cutOff), CUT_OFF_GRACE_MS);
   if (!room) return null;
-  const text =
-    room.status === 'online'
-      ? (room.role === 'host' ? `Live · hosting · ${room.peers} ${room.peers === 1 ? 'phone' : 'phones'} connected` : 'Live · connected to host') + (room.error ? ` · ${room.error}` : '')
+  const guestBlip = room.role === 'guest' && room.cutOff && !lost;
+  const text = guestBlip
+    ? 'Live · reconnecting…'
+    : room.status === 'online'
+      ? // A guest with its link to the host up doesn't need the matchmaking server: no news there.
+        (room.role === 'host' ? `Live · hosting · ${room.peers} ${room.peers === 1 ? 'phone' : 'phones'} connected` : 'Live · connected to host') + (room.error && room.role === 'host' ? ` · ${room.error}` : '')
       : room.status === 'connecting'
         ? room.error || 'Connecting…'
         : room.status === 'asleep'
           ? room.error || 'Live · every phone has the result'
           : room.error || 'Offline';
-  const color = room.status === 'online' ? 'var(--ok)' : room.status === 'connecting' || room.status === 'asleep' ? 'var(--text-muted)' : 'var(--danger)';
+  const color = room.status === 'online' ? 'var(--ok)' : guestBlip || room.status === 'connecting' || room.status === 'asleep' ? 'var(--text-muted)' : 'var(--danger)';
   return (
     <div className="small" style={{ color, marginBottom: 6 }}>
       ● {text}
@@ -311,6 +330,8 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   // A guest cut off from the host plays on with every change allowed; its team's changes sync when the host is back.
   const cutOff = Boolean(room?.cutOff) && !unlinked;
   const free = unlinked || cutOff;
+  // The "playing on without the host" note only once the link has been down a while, not on every blip.
+  const showCutOff = useSteady(cutOff, CUT_OFF_GRACE_MS);
   const isHost = game.live?.role === 'host' || unlinked;
   const me = state.players.find((p) => p.id === myId)!;
   const myTeam = me.team;
@@ -323,6 +344,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
   const [askHost, setAskHost] = useState(false);
   const [follow, setFollow] = useState(false);
   const [newCode, setNewCode] = useState('');
+  const [viewRound, setViewRound] = useViewRound(state.round);
   const at = stampOf(state);
   const previousRoom = liveOf(game)?.previousRoom;
   const waitingFor = state.players.length - 1 - (room?.peers ?? 0);
@@ -413,7 +435,7 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
       ) : (
         <>
           <Status room={room} />
-          {cutOff && (
+          {showCutOff && (
             <div className="offline-note small" role="status">
               <strong>Playing on without the host.</strong> Everything works on this phone, and is kept if the app closes. When the host is back, what you did is sent over and checked like any other change: your CP and score are added to theirs, and the turn only moves on where the host's game was at the same spot. The other team's numbers come from the host.
               <div className="btn-row" style={{ marginTop: 8 }}>
@@ -457,27 +479,28 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
 
           {tab === 'missions' && (
             <>
+              <MissionRoundPicker round={state.round} value={viewRound} onChange={setViewRound} />
               <MissionsPanel
                 sec={secOf(myTeam)}
                 onSec={(op: SecOp, text?: string) => dispatch({ t: 'sec', team: myTeam, op, text })}
                 round={state.round}
+                viewRound={viewRound}
                 turnKey={`${state.round}-${state.turn}`}
                 myCommandPhase={myTurn && state.phase === 'command'}
                 primary={primaryOfTeam(myTeam)}
                 twist={state.twist}
                 role={game.role}
-                onCp={(d) => dispatch({ t: 'cpAdd', id: myId, delta: d })}
-                onVp={(kind, vp) => {
+                onVp={(kind, vp, _why, round) => {
                   // Sent as a change, so a teammate's VP for the same round is added to, never replaced. Undo sends a negative one.
-                  const i = Math.min(state.round, vpOf(state, myTeam)[kind].length) - 1;
+                  const i = Math.min(round, vpOf(state, myTeam)[kind].length) - 1;
                   dispatch({ t: 'vpAdd', team: myTeam, kind, round: i, delta: vp });
-                  if (vp > 0) showToast(`+${vp} VP added to round ${state.round}`);
-                  else if (vp < 0) showToast(`${-vp} VP taken off round ${state.round}`);
+                  if (vp > 0) showToast(`+${vp} VP added to round ${round}`);
+                  else if (vp < 0) showToast(`${-vp} VP taken off round ${round}`);
                 }}
               />
               {others.map((t) => (
                 <div key={t} className="opp-missions">
-                  <MissionsPanel readOnly who={`${teamNames(state, t)}'s`} sec={secOf(t)} round={state.round} turnKey="" myCommandPhase={false} primary={primaryOfTeam(t)} />
+                  <MissionsPanel readOnly who={`${teamNames(state, t)}'s`} sec={secOf(t)} round={state.round} viewRound={viewRound} turnKey={`${state.round}-${state.turn}`} myCommandPhase={false} primary={primaryOfTeam(t)} />
                 </div>
               ))}
             </>

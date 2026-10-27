@@ -152,6 +152,13 @@ export interface SecondaryState {
   primaryDone?: number[];
   /** Parts of the primary scored, per round (each locked until undone). */
   primaryParts?: PrimaryPart[];
+  /** Parts of secondary cards scored, per card and round, with their ticks (each kept until undone). */
+  secParts?: SecPart[];
+}
+
+/** A part of a secondary card scored in a battle round (see PrimaryPart). */
+export interface SecPart extends PrimaryPart {
+  name: string;
 }
 
 export type SecOp =
@@ -175,6 +182,13 @@ export type SecOp =
    * `at` is where it goes in the deck (picked by the phone, so every copy agrees); never on top.
    */
   | { op: 'shuffleBack'; name: string; at: number }
+  /** Put a card from the hand back into the deck (a draw taken back); `at` is where it goes, picked by the phone. */
+  | { op: 'putBack'; name: string; at: number }
+  /**
+   * A part of a secondary card was scored (`done`) or undone, with its ticks.
+   * A Tactical card leaves the hand when scored and comes back when its last part is undone.
+   */
+  | { op: 'secPart'; name: string; round: number; done: boolean; part: string; vp?: number; counts?: Record<number, number[]> }
   /**
    * The primary was scored (`done`) or opened again. With `part`, only that
    * part of the round (see PrimaryPart); without, the whole round (older saves).
@@ -230,6 +244,29 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
       const drawn = drawTactical({ ...t, active: t.active.filter((a) => a !== o.name) }, 1);
       const at = Math.max(0, Math.min(o.at, drawn.deck.length));
       return { ...s, tactical: { ...drawn, deck: [...drawn.deck.slice(0, at), o.name, ...drawn.deck.slice(at)] } };
+    }
+    case 'putBack': {
+      if (!t || !t.active.includes(o.name)) return s;
+      const deck = t.deck.filter((d) => d !== o.name);
+      const at = Math.max(0, Math.min(o.at, deck.length));
+      return { ...s, tactical: { ...t, active: t.active.filter((a) => a !== o.name), deck: [...deck.slice(0, at), o.name, ...deck.slice(at)] } };
+    }
+    case 'secPart': {
+      const parts = s.secParts ?? [];
+      const same = (p: SecPart) => p.name === o.name && p.round === o.round && p.part === o.part;
+      const has = parts.some(same);
+      // Scoring a part twice (a double tap, two phones) keeps the first.
+      if (o.done === has) return s;
+      if (o.done) {
+        // A Tactical card is scored from the hand: one that has left it (discarded, scored elsewhere) can't be.
+        if (s.mode === 'tactical' && !(t?.active.includes(o.name) || t?.scored.some((x) => x.name === o.name && x.round === o.round))) return s;
+        const tactical = t && t.active.includes(o.name) ? scoreTactical(t, o.name, o.round) : t;
+        return { ...s, tactical, secParts: [...parts, { name: o.name, round: o.round, part: o.part, vp: o.vp ?? 0, counts: o.counts }] };
+      }
+      const rest = parts.filter((p) => !same(p));
+      // The last part of a Tactical card undone: it goes back into the hand.
+      const back = t && !rest.some((p) => p.name === o.name && p.round === o.round) && t.scored.some((x) => x.name === o.name && x.round === o.round);
+      return { ...s, secParts: rest, tactical: back ? restoreTactical(t, o.name) : t };
     }
     case 'primaryDone': {
       if (o.part !== undefined) {
