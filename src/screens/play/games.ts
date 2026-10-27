@@ -32,7 +32,7 @@ export const practiceId = (rosterId: string) => `practice-${rosterId}`;
 
 /** A fresh practice game for a list: straight into round 1, nothing set up, against "Opponent". */
 export async function startPractice(roster: Roster) {
-  const g: SavedGame = { ...newGame(roster), id: practiceId(roster.id), practice: true, opponentName: 'Opponent', stage: 'battle', firstTurn: 'me', cp: { me: 1, them: 1 }, cpGranted: ['1-me'] };
+  const g: SavedGame = { ...newGame(roster), id: practiceId(roster.id), practice: true, opponentName: 'Opponent', stage: 'battle', firstTurn: 'me', cp: { me: 0, them: 0 } };
   await db.games.put(g);
 }
 

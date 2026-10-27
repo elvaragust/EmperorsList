@@ -195,6 +195,18 @@ export function groupsUnder(index: DataIndex, node: OptNode): { group: OptNode; 
   return out.sort((a, b) => b.depth - a.depth);
 }
 
+/** A link's name with its unconditional name modifiers applied ("Deadly Demise" + append "D6"). */
+export function linkName(l: RawLink): string {
+  let n = l.name ?? '';
+  for (const { mod, outer } of flattenModifiers(l.modifiers, l.modifierGroups)) {
+    if (mod.field !== 'name' || mod.conditions?.length || mod.conditionGroups?.length || mod.repeats?.length || outer.some((o) => o.conditions?.length || o.conditionGroups?.length)) continue;
+    const v = String(mod.value);
+    if (mod.type === 'set') n = v;
+    else if (mod.type === 'append') n = `${n}${mod.join ?? ' '}${v}`;
+  }
+  return n;
+}
+
 /** Profiles and rules an entry shows: its own plus the ones its infoLinks point at. */
 export function infoOf(index: DataIndex, node: OptNode): { profiles: RawProfile[]; rules: RawRule[] } {
   const profiles = [...node.profiles];
@@ -209,7 +221,9 @@ export function infoOf(index: DataIndex, node: OptNode): { profiles: RawProfile[
         if (p) profiles.push(l.name && l.name !== p.name ? { ...p, name: p.name } : p);
       } else if (l.type === 'rule') {
         const r = index.rules.get(l.targetId);
-        if (r) rules.push(l.name && /\d/.test(l.name) && l.name !== r.name ? { ...r, name: l.name } : r);
+        // The link's name can carry the rule's value ("Deadly Demise D6"), as text or as a name modifier.
+        const name = linkName(l);
+        if (r) rules.push(name && /\d/.test(name) && name !== r.name ? { ...r, name } : r);
       } else if (l.type === 'infoGroup') {
         const g = index.entries.get(l.targetId);
         if (g) {

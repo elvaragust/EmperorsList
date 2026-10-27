@@ -89,7 +89,7 @@ export interface LiveState {
    * ever applied twice.
    */
   acks?: Record<string, number>;
-  /** The furthest turn (see `turnKey`) whose Command-phase CP has been given, so going back and forth never gives it twice. */
+  /** Older games: the furthest turn whose Command-phase CP was given automatically (CP is now only added by hand). */
   cpAt?: number;
 }
 
@@ -269,18 +269,8 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
   const log = (st: LiveState, text: string): LiveState => ({ ...st, log: [...st.log, { at: Date.now(), round: st.round, turn: st.turn, phase: st.phase, text, by }] });
   const bump = (st: LiveState): LiveState => ({ ...st, v: s.v + 1 });
   const mayMove = (at?: Stamp) => s.stage === 'battle' && canAdvance(s, from, opts) && !staleAt(s, at);
-  /** Start a team's turn at its Command phase; everyone gains 1 CP the first time that turn starts. */
-  /** Command-phase CP has been given up to here (older games don't say: up to the turn they are in). */
-  const given = s.cpAt ?? turnKey(s, s.round, s.turn);
-  const startTurn = (round: number, turn: Team): LiveState => {
-    const key = turnKey(s, round, turn);
-    let next: LiveState = { ...s, round, turn, phase: 'command' };
-    const text = `Round ${round}, ${teamNames(s, turn)}: Command phase`;
-    if (key <= given) return bump(log(next, text));
-    // Every player gains 1 CP at the start of every Command phase (a shared pool gains 1 for the team).
-    next = { ...next, cpAt: key, cp: Object.fromEntries(Object.entries(s.cp).map(([k, v]) => [k, v + 1])) };
-    return bump(log(next, `${text} · everyone gains 1 CP`));
-  };
+  /** Start a team's turn at its Command phase. CP is never given here: players add the Command phase CP by hand. */
+  const startTurn = (round: number, turn: Team): LiveState => bump(log({ ...s, round, turn, phase: 'command' }, `Round ${round}, ${teamNames(s, turn)}: Command phase`));
   /** The end of a team's turn: the next team's turn, or the next round after the last team. */
   const handOver = (): LiveState => {
     const order = turnOrder(s);
@@ -357,10 +347,11 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
       return bump({ ...s, firstTurn: a.team, turn: s.stage === 'lobby' ? a.team : s.turn });
     case 'start': {
       if (!isHost || s.stage !== 'lobby') return s;
-      const cp = Object.fromEntries(s.players.map((p) => [p.id, 1]));
+      // Nobody is given CP automatically: each player adds their own, so the count is always what they entered.
+      const cp = Object.fromEntries(s.players.map((p) => [p.id, 0]));
       const vp = Object.fromEntries(teamsOf(s).map((t) => [t, emptyScore()])) as LiveState['vp'];
       const first = turnOrder(s)[0]!;
-      return bump(log({ ...s, stage: 'battle', round: 1, turn: first, phase: 'command', cp, vp, cpAt: turnKey(s, 1, first) }, 'Battle started · everyone gains 1 CP'));
+      return bump(log({ ...s, stage: 'battle', round: 1, turn: first, phase: 'command', cp, vp }, 'Battle started'));
     }
     case 'next': {
       if (!mayMove(a.at)) return s;
@@ -369,14 +360,13 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
       return handOver();
     }
     case 'prev': {
-      // Going back never takes the Command-phase CP away, and moving on again doesn't give it twice (see `cpAt`).
       if (!mayMove(a.at)) return s;
       const i = PHASES.indexOf(s.phase);
       if (i > 0) return bump({ ...s, phase: PHASES[i - 1]! });
       const order = turnOrder(s);
       const k = order.indexOf(s.turn);
-      if (k > 0) return bump({ ...s, turn: order[k - 1]!, phase: 'fight', cpAt: given });
-      if (s.round > 1) return bump({ ...s, round: s.round - 1, turn: order[order.length - 1]!, phase: 'fight', cpAt: given });
+      if (k > 0) return bump({ ...s, turn: order[k - 1]!, phase: 'fight' });
+      if (s.round > 1) return bump({ ...s, round: s.round - 1, turn: order[order.length - 1]!, phase: 'fight' });
       return s;
     }
     case 'phase':
@@ -385,7 +375,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
     case 'round':
       // Jump to the start of a battle round (first player's Command phase).
       if (!mayMove(a.at) || a.round < 1 || a.round > ROUNDS || a.round === s.round) return s;
-      return bump(log({ ...s, round: a.round, turn: turnOrder(s)[0]!, phase: 'command', cpAt: given }, `Moved to round ${a.round}`));
+      return bump(log({ ...s, round: a.round, turn: turnOrder(s)[0]!, phase: 'command' }, `Moved to round ${a.round}`));
     case 'turn':
       // Like Next at the end of the turn: the next team's Command phase (with its CP), the next round after the last team.
       if (!mayMove(a.at)) return s;
