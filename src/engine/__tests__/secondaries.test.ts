@@ -40,6 +40,23 @@ describe('secondary missions in battle', () => {
   });
 });
 
+describe('secondaries score as you tick', () => {
+  it('sets a part to what is ticked, checks the VP it had, and unticking takes it back to the hand', () => {
+    let s = tactical(['Cleanse'], []);
+    const set = (vp: number, n: number, prev: number) => applySecOp(s, { op: 'secSet', name: 'Cleanse', round: 1, part: 'turn', vp, counts: { 0: n ? [n] : [] }, prev });
+    s = set(2, 1, 0);
+    expect(s.secParts).toEqual([{ name: 'Cleanse', round: 1, part: 'turn', vp: 2, counts: { 0: [1] } }]);
+    expect(s.tactical?.active).toEqual([]);
+    // Another phone changed it meanwhile: the stale change is refused (so its VP isn't counted either).
+    expect(set(4, 2, 0)).toBe(s);
+    s = set(4, 2, 2);
+    expect(s.secParts?.[0]).toMatchObject({ vp: 4, counts: { 0: [2] } });
+    s = set(0, 0, 4);
+    expect(s.secParts).toEqual([]);
+    expect(s.tactical?.active).toEqual(['Cleanse']);
+  });
+});
+
 describe('rule names on links', () => {
   const link = (extra: Partial<RawLink>): RawLink => ({ id: 'l', name: 'Deadly Demise', targetId: 'r', type: 'rule', ...extra });
   it('applies an unconditional name append ("Deadly Demise" + "D6")', () => {
