@@ -125,28 +125,6 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
     }
   };
 
-  const checklist = useMemo(() => {
-    const items: { id: string; text: string }[] = [
-      { id: 'formations', text: 'Declare Battle Formations: attach Leaders, put units in Transports, choose Strategic Reserves' },
-      { id: 'warlord', text: engine && engine.roster.units.some((u) => engine.isWarlord(u.id)) ? 'Warlord chosen' : 'Choose a Warlord (none set in the list)' },
-    ];
-    if (!engine) return items;
-    const unattached = engine.roster.units.filter((u) => engine.canLead(u.id) && !u.leaderOf && engine.attachTargets(u.id).length);
-    if (unattached.length) items.push({ id: 'leaders', text: `Not attached yet: ${unattached.map((u) => u.name).join(', ')}` });
-    for (const u of engine.roster.units) {
-      const inst = engine.unitInst(u.id);
-      if (!inst) continue;
-      const ds = datasheet(engine, inst);
-      const hits = [
-        ...ds.rules.map((r) => r.name).filter((n) => PRE_BATTLE.test(n)),
-        ...ds.abilities.filter((a) => a.name !== 'Leader' && PRE_BATTLE.test(a.characteristics?.map((c) => c.$text).join(' ') ?? '')).map((a) => a.name),
-      ];
-      if (hits.length) items.push({ id: `u-${u.id}`, text: `${u.nickname || u.name}: ${[...new Set(hits)].join(', ')}` });
-    }
-    items.push({ id: 'roll', text: 'Roll off for attacker/defender and first turn' });
-    return items;
-  }, [engine]);
-
   return (
     <Screen title="New game" back="/play" onBack={step > 1 ? () => void set({ setupStep: step - 1 }) : undefined}>
       <WizardSteps titles={SETUP_TITLES} step={step} />
@@ -209,16 +187,7 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
 
       {step === 3 && <SecondarySetup sec={localSecondaries(game)} onSec={(op) => void set((g) => applyLocalSec(g, op))} role={game.role} game={game} setGame={(p) => void set(p)} />}
 
-      {step === 4 && (
-        <div className="card">
-          {checklist.map((c) => (
-            <button key={c.id} className="choice" role="checkbox" aria-checked={Boolean(game.checklist?.[c.id])} onClick={() => set((g) => ({ checklist: { ...g.checklist, [c.id]: !g.checklist?.[c.id] } }))}>
-              <span className="mark square" />
-              <span style={{ flex: 1 }}>{c.text}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {step === 4 && <PreBattleChecklist game={game} engine={engine} />}
 
       <div className="sticky-bar">
         {step > 1 && (
@@ -252,6 +221,45 @@ function Setup({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
         )}
       </div>
     </Screen>
+  );
+}
+
+/**
+ * The pre-battle checklist: battle formations, the Warlord, Leaders not yet
+ * attached, units with rules used before the battle, and the roll-offs. Ticks
+ * are kept on this phone's copy of the game (in a live game, each player's own).
+ */
+export function PreBattleChecklist({ game, engine }: { game: SavedGame; engine?: RosterEngine }) {
+  const checklist = useMemo(() => {
+    const items: { id: string; text: string }[] = [
+      { id: 'formations', text: 'Declare Battle Formations: attach Leaders, put units in Transports, choose Strategic Reserves' },
+      { id: 'warlord', text: engine && engine.roster.units.some((u) => engine.isWarlord(u.id)) ? 'Warlord chosen' : 'Choose a Warlord (none set in the list)' },
+    ];
+    if (!engine) return items;
+    const unattached = engine.roster.units.filter((u) => engine.canLead(u.id) && !u.leaderOf && engine.attachTargets(u.id).length);
+    if (unattached.length) items.push({ id: 'leaders', text: `Not attached yet: ${unattached.map((u) => u.name).join(', ')}` });
+    for (const u of engine.roster.units) {
+      const inst = engine.unitInst(u.id);
+      if (!inst) continue;
+      const ds = datasheet(engine, inst);
+      const hits = [
+        ...ds.rules.map((r) => r.name).filter((n) => PRE_BATTLE.test(n)),
+        ...ds.abilities.filter((a) => a.name !== 'Leader' && PRE_BATTLE.test(a.characteristics?.map((c) => c.$text).join(' ') ?? '')).map((a) => a.name),
+      ];
+      if (hits.length) items.push({ id: `u-${u.id}`, text: `${u.nickname || u.name}: ${[...new Set(hits)].join(', ')}` });
+    }
+    items.push({ id: 'roll', text: 'Roll off for attacker/defender and first turn' });
+    return items;
+  }, [engine]);
+  return (
+    <div className="card">
+      {checklist.map((c) => (
+        <button key={c.id} className="choice" role="checkbox" aria-checked={Boolean(game.checklist?.[c.id])} onClick={() => void patchGame(game.id, (g) => ({ checklist: { ...g.checklist, [c.id]: !g.checklist?.[c.id] } }))}>
+          <span className="mark square" />
+          <span style={{ flex: 1 }}>{c.text}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 

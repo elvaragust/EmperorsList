@@ -252,6 +252,25 @@ function withPrimaries(s: LiveState): LiveState {
   return { ...s, players };
 }
 
+/**
+ * Missions are kept per team. A player who moves to another team in the lobby
+ * takes the secondaries they chose with them, if they were alone on their old
+ * team and the new one hasn't chosen yet.
+ */
+function carryMissions(before: LiveState, after: LiveState): LiveState {
+  let missions = after.missions;
+  for (const p of after.players) {
+    const was = before.players.find((x) => x.id === p.id)?.team;
+    if (!was || was === p.team) continue;
+    const mine = before.missions?.[was];
+    const alone = !before.players.some((x) => x.id !== p.id && x.team === was);
+    if (!mine?.mode || !alone || missions?.[p.team]?.mode) continue;
+    const { [was]: _left, ...rest } = missions ?? {};
+    missions = { ...rest, [p.team]: mine };
+  }
+  return missions === after.missions ? after : { ...after, missions };
+}
+
 /** Set a player's CP; with a shared pool their teammates get the same number. */
 function setCp(s: LiveState, id: string, value: number): LiveState {
   const team = s.players.find((p) => p.id === id)?.team;
@@ -308,7 +327,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
     case 'setTeam':
       if (!isHost && from !== a.id) return s;
       if (!teamsOf(s).includes(a.team)) return s;
-      return bump(withPrimaries({ ...s, players: s.players.map((p) => (p.id === a.id ? { ...p, team: a.team } : p)) }));
+      return bump(carryMissions(s, withPrimaries({ ...s, players: s.players.map((p) => (p.id === a.id ? { ...p, team: a.team } : p)) })));
     case 'setMode': {
       if (!isHost || s.stage !== 'lobby') return s;
       const teams = MODES[a.mode].teams;
@@ -318,7 +337,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
         const others = { ...next, players: next.players.filter((x) => x.id !== p.id) };
         next = { ...next, players: next.players.map((x) => (x.id === p.id ? { ...x, team: pickTeam(others) } : x)) };
       }
-      return bump(withPrimaries(next));
+      return bump(carryMissions(s, withPrimaries(next)));
     }
     case 'setSharedCp':
       // Teams always share one CP pool now; kept so older phones' messages are understood.

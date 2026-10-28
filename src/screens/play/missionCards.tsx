@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { db } from '@/data/db';
 import { useRulePopup } from '@/ui/RulePopup';
 import { Icon } from '@/ui/Icon';
@@ -126,6 +126,8 @@ const vpLabel = (it: ScoreItem) => `${it.bonus ? '+' : ''}${it.vp}VP${it.each ? 
  * With `parts` (the primary) each moment of the round — end of the Command
  * phase, end of turn, end of the battle — has its own Add and locks on its
  * own: its lines stay ticked while the others can still be scored.
+ * With `parts.onSet` (secondaries) there is no Add: every tick or count sets
+ * that part's score straight away, and unticking takes it off again.
  */
 export function ScoreCard({
   name,
@@ -161,6 +163,8 @@ export function ScoreCard({
     turnKey: string;
     onAdd?: (part: string, vp: number, counts: Record<number, number[]>, label: string) => void;
     onUndo?: (p: PrimaryPart, label: string) => void;
+    /** Score as you tick: the part's VP and ticks now, and the VP it had (`prev`). */
+    onSet?: (part: string, vp: number, counts: Record<number, number[]>, label: string, prev: number) => void;
   };
 }) {
   const c = cards.get(name.toLowerCase());
@@ -172,7 +176,16 @@ export function ScoreCard({
     return p;
   }, [c, mode]);
   // Ticks and counters per section (by position: two sections can have the same heading).
-  const [counts, setCounts] = useState<Record<number, number[]>>({});
+  const [counts, setCountsState] = useState<Record<number, number[]>>({});
+  // The latest ticks, so two quick taps each build on the one before.
+  const current = useRef(counts);
+  const setCounts = (next: Record<number, number[]> | ((all: Record<number, number[]>) => Record<number, number[]>)) => {
+    current.current = typeof next === 'function' ? next(current.current) : next;
+    setCountsState(current.current);
+  };
+  const auto = Boolean(parts?.onSet) && !readOnly;
+  // Score as you tick: what this phone has sent for a part and not yet seen come back.
+  const sent = useRef<Record<string, { sig: string; vp: number }>>({});
   const [open, setOpen] = useState(true);
   const sections = parsed?.sections ?? [];
   // The first intro line is flavour text (left out); the rest (WHEN DRAWN, actions) are rules you need while playing.
@@ -194,11 +207,48 @@ export function ScoreCard({
       else liveParts.push({ key: partOf(si), label: TIMING_NAMES[timing(si)], sections: [si] });
     });
   const allScored = liveParts.length > 0 && liveParts.every((p) => scoredPart(p.sections[0]!));
+  // A part's ticks, the same however they were made (all-zero lists count as none).
+  const norm = (l: number[] = []) => (l.some((n) => n > 0) ? Array.from(l, (n) => n || 0) : []);
+  const sigOf = (secs: number[], of: Record<number, number[]> | undefined) => JSON.stringify(secs.map((x) => norm(of?.[x])));
+  // Score as you tick: show what is saved, except a part whose latest tap is still on its way.
+  const savedSig = parts ? JSON.stringify(parts.scored.filter((p) => p.round === round)) : '';
+  useLayoutEffect(() => {
+    if (!auto) return;
+    setCounts((all) => {
+      const next = { ...all };
+      for (const p of liveParts) {
+        const got = scoredPart(p.sections[0]!);
+        const pending = sent.current[p.key];
+        if (pending && pending.sig !== sigOf(p.sections, got?.counts)) continue;
+        delete sent.current[p.key];
+        for (const x of p.sections) next[x] = got?.counts?.[x] ?? [];
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSig, auto, round, parsed]);
   // Under the last section of a part: its Add, or once scored, what it gave and Undo.
   const partFooter = (si: number) => {
     const p = liveParts.find((x) => x.sections[x.sections.length - 1] === si);
     if (!p || !parts) return null;
     const got = scoredPart(si);
+    if (auto) {
+      const vp = p.sections.reduce((sum, x) => sum + scoreItems(sections[x]!.items, counts[x] ?? []), 0);
+      const ticked = p.sections.some((x) => norm(counts[x]).length > 0);
+      if (done) return null;
+      return ticked ? (
+        <div className="score-done">
+          <span style={{ flex: 1 }}>
+            ✓ Scored at {p.label} · +{vp} VP
+          </span>
+          <button className="btn btn-sm" title="Untick every line: these VP come off again" onClick={() => setPart(p, Object.fromEntries(p.sections.map((x) => [x, []])))}>
+            Clear
+          </button>
+        </div>
+      ) : (
+        <p className="small muted score-hint">Tick what you achieved: the VP is added straight away.</p>
+      );
+    }
     if (got)
       return (
         <div className="score-done">
@@ -234,21 +284,35 @@ export function ScoreCard({
       </button>
     );
   };
-  const setCount = (si: number, i: number, n: number) =>
-    setCounts((all) => {
-      const items = sections[si]!.items;
-      const list = [...(all[si] ?? [])];
-      if (n > 0) {
-        // A line and its "OR" alternatives: only one of them scores.
-        let start = i;
-        while (start > 0 && items[start]!.or) start--;
-        let end = start + 1;
-        while (end < items.length && items[end]!.or) end++;
-        if (end - start > 1) for (let k = start; k < end; k++) if (k !== i) list[k] = 0;
-      }
-      list[i] = Math.max(0, n);
-      return { ...all, [si]: list };
-    });
+  // Score as you tick: set a part to these ticks and send its VP (with the VP it had, so nothing counts twice).
+  function setPart(p: (typeof liveParts)[number], next: Record<number, number[]>) {
+    if (!parts?.onSet) return;
+    const all = { ...current.current, ...next };
+    setCounts(all);
+    const partCounts = Object.fromEntries(p.sections.map((x) => [x, norm(all[x])]));
+    const vp = p.sections.reduce((sum, x) => sum + scoreItems(sections[x]!.items, all[x] ?? []), 0);
+    const prev = sent.current[p.key]?.vp ?? scoredPart(p.sections[0]!)?.vp ?? 0;
+    sent.current[p.key] = { sig: sigOf(p.sections, partCounts), vp };
+    parts.onSet(p.key, vp, partCounts, p.label, prev);
+  }
+  // A line's tick or count as it is now (taps follow each other faster than the screen redraws).
+  const at = (si: number, i: number) => current.current[si]?.[i] ?? 0;
+  const setCount = (si: number, i: number, n: number) => {
+    const items = sections[si]!.items;
+    const list = [...(current.current[si] ?? [])];
+    if (n > 0) {
+      // A line and its "OR" alternatives: only one of them scores.
+      let start = i;
+      while (start > 0 && items[start]!.or) start--;
+      let end = start + 1;
+      while (end < items.length && items[end]!.or) end++;
+      if (end - start > 1) for (let k = start; k < end; k++) if (k !== i) list[k] = 0;
+    }
+    list[i] = Math.max(0, n);
+    const p = auto ? liveParts.find((x) => x.sections.includes(si)) : undefined;
+    if (p) setPart(p, { [si]: list });
+    else setCounts((all) => ({ ...all, [si]: list }));
+  };
   return (
     <div className={`score-card ${done || allScored ? 'is-done' : ''}`}>
       <button className="score-card-head" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -280,7 +344,7 @@ export function ScoreCard({
           )}
           {sections.map((s, si) => {
             const got = scoredPart(si);
-            const now = live(si) && !done && !readOnly && !got;
+            const now = live(si) && !done && !readOnly && (auto || !got);
             return (
               <div key={si} className={`score-section ${now || got ? 'now' : 'later'}`}>
                 {!s.cont && (
@@ -295,7 +359,7 @@ export function ScoreCard({
                   </div>
                 )}
                 {s.items.map((it, i) => {
-                  const n = (got ? got.counts?.[si]?.[i] : counts[si]?.[i]) ?? 0;
+                  const n = (got && !auto ? got.counts?.[si]?.[i] : counts[si]?.[i]) ?? 0;
                   const text = (
                     <span className="score-text">
                       <RulesText inline text={it.text} />
@@ -324,17 +388,17 @@ export function ScoreCard({
                           {text}
                           {vp}
                           <span className="wounds">
-                            <button className="btn btn-sm" onClick={() => setCount(si, i, n - 1)} aria-label="One fewer">
+                            <button className="btn btn-sm" onClick={() => setCount(si, i, at(si, i) - 1)} aria-label="One fewer">
                               −
                             </button>
                             <span className="num">{n}</span>
-                            <button className="btn btn-sm" onClick={() => setCount(si, i, n + 1)} aria-label="One more">
+                            <button className="btn btn-sm" onClick={() => setCount(si, i, at(si, i) + 1)} aria-label="One more">
                               +
                             </button>
                           </span>
                         </div>
                       ) : (
-                        <button className="score-line" role="checkbox" aria-checked={n > 0} onClick={() => setCount(si, i, n > 0 ? 0 : 1)}>
+                        <button className="score-line" role="checkbox" aria-checked={n > 0} onClick={() => setCount(si, i, at(si, i) > 0 ? 0 : 1)}>
                           {text}
                           {vp}
                           <span className={`check ${n > 0 ? 'on' : ''}`}>{n > 0 ? '✓' : ''}</span>

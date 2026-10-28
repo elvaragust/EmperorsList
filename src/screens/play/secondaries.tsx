@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SavedGame } from '@/data/db';
 import { Sheet } from '@/ui/Sheet';
-import { applySecOp, fixedSecondaries, MISSION_DECK, secondariesFor, shuffled, type PrimaryPart, type SecOp, type SecondaryState } from '@/engine/missions';
+import { applySecOp, fixedSecondaries, MISSION_DECK, secondariesFor, shuffled, type SecOp, type SecondaryState } from '@/engine/missions';
 import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 import { cardTags, MissionRow, ScoreCard, useMissionCards, type CardInfo } from './missionCards';
@@ -56,7 +56,7 @@ export function ModeRules({ mode }: { mode: Mode }) {
         <strong>Start of your Command phase:</strong> open <strong>Secondaries</strong> and tap <strong>Draw secondary</strong> once for each card you draw. Tap a drawn card again to put it back. Cards you haven't scored stay in your hand.
       </li>
       <li>
-        <strong>End of your turn:</strong> tick what you achieved on a card and add it (the card is then scored), and you may discard any others. A score can always be undone on its card.
+        <strong>End of your turn:</strong> tick what you achieved on a card: its VP is added straight away and the card is scored (untick to take it back). You may discard any others.
       </li>
       <li>At most 15VP from secondaries per battle round, 45VP per game.</li>
     </ul>
@@ -246,16 +246,16 @@ export function MissionsPanel({
   // Older saves locked the whole card for the round after one Add.
   const primaryDone = (sec.primaryDone ?? []).includes(viewRound);
   const [showAll, setShowAll] = useState(false);
-  // A secondary card scored part by part, like the primary: each part kept with its ticks until undone.
+  // A secondary card scores as you tick it: each part kept with its ticks, its VP added (or taken off) straight away.
   const partsOf = (n: string) => ({
     scored: (sec.secParts ?? []).filter((p) => p.name === n),
     turnKey: viewKey,
-    onAdd: readOnly
+    onSet: readOnly
       ? undefined
-      : (part: string, vp: number, counts: Record<number, number[]>, label: string) => (
-          onVp?.('secondary', vp, `${n} (${label})`, viewRound), act({ op: 'secPart', name: n, round: viewRound, done: true, part, vp, counts }, `Scored ${n} (+${vp} VP, round ${viewRound})`)
-        ),
-    onUndo: readOnly ? undefined : (p: PrimaryPart, label: string) => (onVp?.('secondary', -p.vp, `Undid ${n} (${label})`, p.round), act({ op: 'secPart', name: n, round: p.round, done: false, part: p.part }, `Undid ${n} (round ${p.round})`)),
+      : (part: string, vp: number, counts: Record<number, number[]>, label: string, prev: number) => {
+          if (vp !== prev) onVp?.('secondary', vp - prev, `${n} (${label})`, viewRound);
+          act({ op: 'secSet', name: n, round: viewRound, part, vp, counts, prev }, vp === prev ? undefined : `${n}: ${prev} → ${vp} VP (round ${viewRound})`);
+        },
   });
   // Tactical: the hand (in the current round) and the cards scored in the round shown.
   const scoredHere = t?.scored.filter((x) => x.round === viewRound).map((x) => x.name) ?? [];
@@ -324,7 +324,7 @@ export function MissionsPanel({
       <SecondariesSheet open={showAll} onClose={() => setShowAll(false)} sec={sec} cards={cards} readOnly={readOnly} who={who} act={act} />
       {mode === 'fixed' &&
         (sec.fixed.length ? (
-          sec.fixed.map((n) => <ScoreCard key={`${n}-${viewRound}`} kind="Secondary" mode="fixed" name={n} cards={cards} round={viewRound} parts={partsOf(n)} addLabel={`Add to round ${viewRound}:`} readOnly={readOnly} />)
+          sec.fixed.map((n) => <ScoreCard key={`${n}-${viewRound}`} kind="Secondary" mode="fixed" name={n} cards={cards} round={viewRound} parts={partsOf(n)} readOnly={readOnly} />)
         ) : (
           <p className="muted small">{readOnly ? 'No Fixed cards chosen yet.' : 'No Fixed cards chosen yet: open Secondaries to choose two.'}</p>
         ))}
@@ -346,7 +346,6 @@ export function MissionsPanel({
                 parts={old ? undefined : partsOf(n)}
                 done={old ? `Scored in round ${viewRound}` : undefined}
                 onEnable={readOnly || !old ? undefined : () => (act({ op: 'restore', name: n }), showToast(`${n} back in your hand — take its VP off in Score if needed`))}
-                addLabel="Achieved — add"
                 footer={
                   readOnly || !inHand ? undefined : (
                     <div className="btn-row" style={{ marginTop: 8 }}>

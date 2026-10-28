@@ -3235,3 +3235,6 @@ tr.pulse > td {
   flex: 1;
   margin: 0 0 6px;
 }
+.score-hint {
+  margin: 6px 0 2px;
+}

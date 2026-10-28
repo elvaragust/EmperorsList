@@ -233,4 +233,16 @@ describe('live game reducer', () => {
   it('makes readable room codes', () => {
     expect(makeRoomCode()).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   });
+
+  it('a player moving team in the lobby takes the secondaries they chose with them', () => {
+    let s = newLiveState('R', p('h', 'Host'));
+    s = reduce(s, { t: 'join', player: p('g', 'Guest') }, 'g');
+    s = reduce(s, { t: 'sec', team: 'B', op: { op: 'mode', mode: 'fixed' } }, 'g');
+    s = reduce(s, { t: 'sec', team: 'B', op: { op: 'fixed', cards: ['Assassination', 'Bring It Down'] } }, 'g');
+    s = reduce(s, { t: 'setMode', mode: 'ffa' }, 'h');
+    s = reduce(s, { t: 'setTeam', id: 'g', team: 'C' }, 'g');
+    expect(s.players.find((x) => x.id === 'g')!.team).toBe('C');
+    expect(s.missions?.B).toBeUndefined();
+    expect(s.missions?.C).toMatchObject({ mode: 'fixed', fixed: ['Assassination', 'Bring It Down'] });
+  });
 });
