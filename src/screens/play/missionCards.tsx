@@ -60,7 +60,7 @@ export function CardText({ name, cards, compact }: { name?: string; cards: Map<s
  * picks it. Chosen cards are lit; `tag` says where a card is ("In hand"),
  * and a scored one (`done`) keeps a check without being greyed out.
  */
-export function MissionRow({ name, cards, selected, done, tag, dim, onSelect, selectLabel, children }: { name: string; cards: Map<string, CardInfo>; selected?: boolean; done?: boolean; tag?: string; dim?: boolean; onSelect?: () => void; selectLabel?: string; children?: React.ReactNode }) {
+export function MissionRow({ name, cards, selected, done, struck, tag, dim, onSelect, selectLabel, children }: { name: string; cards: Map<string, CardInfo>; selected?: boolean; done?: boolean; /** Discarded: the name crossed out. */ struck?: boolean; tag?: string; dim?: boolean; onSelect?: () => void; selectLabel?: string; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const c = cards.get(name.toLowerCase());
   const emblem = (
@@ -69,7 +69,7 @@ export function MissionRow({ name, cards, selected, done, tag, dim, onSelect, se
     </span>
   );
   return (
-    <div className={`mission-row ${selected ? 'on' : ''} ${done ? 'done' : ''} ${dim ? 'dim' : ''} ${open ? 'open' : ''}`}>
+    <div className={`mission-row ${selected ? 'on' : ''} ${done ? 'done' : ''} ${struck ? 'struck' : ''} ${dim ? 'dim' : ''} ${open ? 'open' : ''}`}>
       <div className="mission-row-head">
         <button className="mission-row-name" aria-expanded={open} onClick={() => setOpen(!open)}>
           <span className="mission-chev" aria-hidden="true">

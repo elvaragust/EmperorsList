@@ -266,6 +266,8 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
       if (o.done) {
         // A Tactical card is scored from the hand: one that has left it (discarded, scored elsewhere) can't be.
         if (s.mode === 'tactical' && !(t?.active.includes(o.name) || t?.scored.some((x) => x.name === o.name && x.round === o.round))) return s;
+        // A Fixed card is one of the two chosen.
+        if (s.mode === 'fixed' && !s.fixed.includes(o.name)) return s;
         const tactical = t && t.active.includes(o.name) ? scoreTactical(t, o.name, o.round) : t;
         return { ...s, tactical, secParts: [...parts, { name: o.name, round: o.round, part: o.part, vp: o.vp ?? 0, counts: o.counts }] };
       }

@@ -287,7 +287,7 @@ function Lobby({ game, state, room, engine, dispatch, allowed }: { game: SavedGa
       {isHost && (
         <div className="btn-row">
           <button className="btn btn-primary btn-block" disabled={!ready} onClick={() => dispatch({ t: 'start' })}>
-            {ready ? 'Start battle' : `Waiting for ${mode.players} players (${mode.label})`}
+            {ready ? 'Start battle' : state.players.length === mode.players ? `Move players so the teams fit ${mode.label}` : `Waiting for ${mode.players} players (${mode.label})`}
           </button>
         </div>
       )}

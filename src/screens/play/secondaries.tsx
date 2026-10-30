@@ -321,7 +321,7 @@ export function MissionsPanel({
           {sheetLabel ? <span className="all-sec-count">{sheetLabel}</span> : null}
         </button>
       )}
-      <SecondariesSheet open={showAll} onClose={() => setShowAll(false)} sec={sec} cards={cards} readOnly={readOnly} who={who} act={act} />
+      <SecondariesSheet open={showAll} onClose={() => setShowAll(false)} sec={sec} cards={cards} round={round} readOnly={readOnly} who={who} act={act} />
       {mode === 'fixed' &&
         (sec.fixed.length ? (
           sec.fixed.map((n) => <ScoreCard key={`${n}-${viewRound}`} kind="Secondary" mode="fixed" name={n} cards={cards} round={viewRound} parts={partsOf(n)} readOnly={readOnly} />)
@@ -358,6 +358,18 @@ export function MissionsPanel({
               />
             );
           })}
+          {t.discarded.length > 0 && (
+            <>
+              <div className="small muted">{readOnly ? 'Discarded' : 'Discarded — tap one to take it back into your hand'}</div>
+              <div className="done-list">
+                {t.discarded.map((d, i) => (
+                  <button key={`${d}-${i}`} className="discarded" disabled={readOnly} aria-label={`${d}, discarded${readOnly ? '' : ': take it back into your hand'}`} onClick={() => (act({ op: 'take', name: d }, `Took ${d} back into the hand`), showToast(`${d} is back in your hand`))}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
       {!readOnly && <ModeRules mode={mode ?? 'tactical'} />}
@@ -376,6 +388,7 @@ function SecondariesSheet({
   onClose,
   sec,
   cards,
+  round,
   readOnly,
   who,
   act,
@@ -383,6 +396,8 @@ function SecondariesSheet({
   open: boolean;
   onClose: () => void;
   sec: SecondaryState;
+  /** The battle round now: cards scored before it are left out. */
+  round: number;
   cards: Map<string, CardInfo>;
   readOnly?: boolean;
   who?: string;
@@ -400,7 +415,10 @@ function SecondariesSheet({
   }
   // The cards this side plays with (its deck was made for its role), in the deck's printed order.
   const mine = t ? new Set([...t.deck, ...t.active, ...t.discarded, ...t.scored.map((x) => x.name)]) : undefined;
-  const pool = MISSION_DECK.secondaries.filter((n) => !mine || mine.has(n));
+  // A card scored in an earlier round is done with (pick that round in Missions to see it); discarded ones go last, crossed out.
+  const gone = (n: string) => Boolean(t?.scored.some((x) => x.name === n && x.round < round) && !t?.active.includes(n));
+  const out = (n: string) => Boolean(t?.discarded.includes(n) && !t?.active.includes(n));
+  const pool = MISSION_DECK.secondaries.filter((n) => (!mine || mine.has(n)) && !gone(n)).sort((a, b) => Number(out(a)) - Number(out(b)));
   const canDraw = Boolean(t && (t.deck.length || t.discarded.length));
   const draw = () => {
     if (!t) return;
@@ -416,8 +434,8 @@ function SecondariesSheet({
       <div className="mission-pick-list">
         {pool.map((n) => {
           const inHand = Boolean(t?.active.includes(n));
-          const sc = t?.scored.filter((x) => x.name === n).at(-1);
-          const tag = inHand ? 'In hand' : sc ? `Scored R${sc.round}` : t?.discarded.includes(n) ? 'Discarded' : undefined;
+          const sc = t?.scored.filter((x) => x.name === n && x.round === round).at(-1);
+          const tag = inHand ? 'In hand' : sc ? `Scored R${sc.round}` : out(n) ? 'Discarded' : undefined;
           const onSelect =
             readOnly || !t
               ? undefined
@@ -433,7 +451,7 @@ function SecondariesSheet({
                     showToast(`${n} is in your hand`);
                   }
                 };
-          return <MissionRow key={n} name={n} cards={cards} selected={inHand} done={Boolean(sc) && !inHand} tag={tag} onSelect={onSelect} selectLabel={inHand ? `Put ${n} back` : `Take ${n} into the hand`} />;
+          return <MissionRow key={n} name={n} cards={cards} selected={inHand} done={Boolean(sc) && !inHand} struck={!sc && out(n)} tag={tag} onSelect={onSelect} selectLabel={inHand ? `Put ${n} back` : `Take ${n} into the hand`} />;
         })}
       </div>
       {!readOnly && t && (
