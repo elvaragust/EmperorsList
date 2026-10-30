@@ -17,7 +17,7 @@ import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
 import { useHealthRecorder } from './games';
-import { ScoreRow } from './GameScreen';
+import { PreBattleChecklist, ScoreRow } from './GameScreen';
 import { BattleTabs, CpBar, healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
 import { MissionRoundPicker, MissionsPanel, SecondarySetup, useViewRound } from './secondaries';
@@ -83,7 +83,7 @@ export function LiveGame({ game, engine }: { game: SavedGame; engine?: RosterEng
       </Screen>
     );
   }
-  if (state.stage === 'lobby') return <Lobby game={game} state={state} room={room} dispatch={dispatch} allowed={allowed} />;
+  if (state.stage === 'lobby') return <Lobby game={game} state={state} room={room} engine={engine} dispatch={dispatch} allowed={allowed} />;
   if (state.stage === 'battle') return <LiveBattle game={game} state={state} room={room} engine={engine} dispatch={dispatch} />;
   return <LiveResult game={game} state={state} room={room} dispatch={dispatch} />;
 }
@@ -129,7 +129,7 @@ function Status({ room }: { room?: Room }) {
 /** Players on a team. */
 const membersOf = (state: LiveState, team: Team) => state.players.filter((p) => p.team === team);
 
-function Lobby({ game, state, room, dispatch, allowed }: { game: SavedGame; state: LiveState; room?: Room; dispatch: (a: LiveAction) => void; allowed?: string[] }) {
+function Lobby({ game, state, room, engine, dispatch, allowed }: { game: SavedGame; state: LiveState; room?: Room; engine?: RosterEngine; dispatch: (a: LiveAction) => void; allowed?: string[] }) {
   const isHost = game.live?.role === 'host';
   const myId = game.live!.myId;
   const url = joinUrl(state.room);
@@ -280,15 +280,36 @@ function Lobby({ game, state, room, dispatch, allowed }: { game: SavedGame; stat
           onSec={(op) => dispatch({ t: 'sec', team: me.team, op })}
         />
       )}
+      {me && <OtherSecondaries state={state} myTeam={me.team} />}
+      <div className="section-label">Pre-battle</div>
+      <p className="small muted" style={{ marginTop: 0 }}>Your own checklist, on this phone.</p>
+      <PreBattleChecklist game={game} engine={engine} />
       {isHost && (
         <div className="btn-row">
           <button className="btn btn-primary btn-block" disabled={!ready} onClick={() => dispatch({ t: 'start' })}>
-            {ready ? 'Start battle' : `Waiting for ${mode.players} players (${mode.label})`}
+            {ready ? 'Start battle' : state.players.length === mode.players ? `Move players so the teams fit ${mode.label}` : `Waiting for ${mode.players} players (${mode.label})`}
           </button>
         </div>
       )}
       <LeaveButton game={game} />
     </Screen>
+  );
+}
+
+/** What the other teams chose for their secondaries, so everyone sees both sides before the battle. */
+function OtherSecondaries({ state, myTeam }: { state: LiveState; myTeam: Team }) {
+  const others = teamsOf(state).filter((t) => t !== myTeam && membersOf(state, t).length);
+  if (!others.length) return null;
+  return (
+    <p className="small muted">
+      {others
+        .map((t) => {
+          const m = missionsOf(state, t);
+          const what = m.mode === 'fixed' ? `Fixed${m.fixed.length ? ` (${m.fixed.join(', ')})` : ', not chosen yet'}` : m.mode === 'tactical' ? 'Tactical' : 'not chosen yet';
+          return `${teamNames(state, t)}'s secondaries: ${what}`;
+        })
+        .join(' · ')}
+    </p>
   );
 }
 

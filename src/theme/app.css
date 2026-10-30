@@ -3226,6 +3226,10 @@ tr.pulse > td {
   border-color: var(--ok);
   color: var(--ok);
 }
+.mission-row.struck .mission-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
 .mission-round-pick {
   display: flex;
   align-items: center;
@@ -3234,4 +3238,7 @@ tr.pulse > td {
 .mission-round-pick .seg {
   flex: 1;
   margin: 0 0 6px;
+}
+.score-hint {
+  margin: 6px 0 2px;
 }

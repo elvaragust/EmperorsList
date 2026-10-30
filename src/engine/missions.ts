@@ -190,6 +190,12 @@ export type SecOp =
    */
   | { op: 'secPart'; name: string; round: number; done: boolean; part: string; vp?: number; counts?: Record<number, number[]> }
   /**
+   * Ticking a secondary scores it straight away: a part's VP and ticks set to
+   * what is ticked now (no ticks: not scored). `prev` is the VP the phone saw
+   * for it, so a change made on another phone in between isn't counted twice.
+   */
+  | { op: 'secSet'; name: string; round: number; part: string; vp: number; counts: Record<number, number[]>; prev: number }
+  /**
    * The primary was scored (`done`) or opened again. With `part`, only that
    * part of the round (see PrimaryPart); without, the whole round (older saves).
    */
@@ -260,6 +266,8 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
       if (o.done) {
         // A Tactical card is scored from the hand: one that has left it (discarded, scored elsewhere) can't be.
         if (s.mode === 'tactical' && !(t?.active.includes(o.name) || t?.scored.some((x) => x.name === o.name && x.round === o.round))) return s;
+        // A Fixed card is one of the two chosen.
+        if (s.mode === 'fixed' && !s.fixed.includes(o.name)) return s;
         const tactical = t && t.active.includes(o.name) ? scoreTactical(t, o.name, o.round) : t;
         return { ...s, tactical, secParts: [...parts, { name: o.name, round: o.round, part: o.part, vp: o.vp ?? 0, counts: o.counts }] };
       }
@@ -267,6 +275,20 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
       // The last part of a Tactical card undone: it goes back into the hand.
       const back = t && !rest.some((p) => p.name === o.name && p.round === o.round) && t.scored.some((x) => x.name === o.name && x.round === o.round);
       return { ...s, secParts: rest, tactical: back ? restoreTactical(t, o.name) : t };
+    }
+    case 'secSet': {
+      const parts = s.secParts ?? [];
+      const same = (p: SecPart) => p.name === o.name && p.round === o.round && p.part === o.part;
+      const had = parts.find(same);
+      if ((had?.vp ?? 0) !== o.prev) return s;
+      const ticked = Object.values(o.counts).some((l) => l.some((n) => n > 0));
+      if (!ticked) {
+        if (!had) return s;
+        return applySecOp(s, { op: 'secPart', name: o.name, round: o.round, done: false, part: o.part });
+      }
+      if (!had) return applySecOp(s, { op: 'secPart', name: o.name, round: o.round, done: true, part: o.part, vp: o.vp, counts: o.counts });
+      if (had.vp === o.vp && JSON.stringify(had.counts) === JSON.stringify(o.counts)) return s;
+      return { ...s, secParts: parts.map((p) => (same(p) ? { ...p, vp: o.vp, counts: o.counts } : p)) };
     }
     case 'primaryDone': {
       if (o.part !== undefined) {

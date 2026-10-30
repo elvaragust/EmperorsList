@@ -195,6 +195,8 @@ export function newLiveState(room: string, host: LivePlayer): LiveState {
   };
 }
 
+const membersIn = (s: Pick<LiveState, 'players'>, t: Team) => s.players.filter((p) => p.team === t);
+
 /** The team with the most room gets the newcomer (1v1: the second player is team B). */
 function pickTeam(s: LiveState): Team {
   const m = MODES[s.mode];
@@ -250,6 +252,25 @@ function withPrimaries(s: LiveState): LiveState {
     return { ...p, primary: theirs.length === 1 ? primaryFor(p.disposition, theirs[0]) : undefined };
   });
   return { ...s, players };
+}
+
+/**
+ * Missions are kept per team. A player who moves to another team in the lobby
+ * takes the secondaries they chose with them, if they were alone on their old
+ * team and the new one hasn't chosen yet.
+ */
+function carryMissions(before: LiveState, after: LiveState): LiveState {
+  let missions = after.missions;
+  for (const p of after.players) {
+    const was = before.players.find((x) => x.id === p.id)?.team;
+    if (!was || was === p.team) continue;
+    const mine = before.missions?.[was];
+    const alone = !before.players.some((x) => x.id !== p.id && x.team === was);
+    if (!mine?.mode || !alone || missions?.[p.team]?.mode) continue;
+    const { [was]: _left, ...rest } = missions ?? {};
+    missions = { ...rest, [p.team]: mine };
+  }
+  return missions === after.missions ? after : { ...after, missions };
 }
 
 /** Set a player's CP; with a shared pool their teammates get the same number. */
@@ -308,7 +329,7 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
     case 'setTeam':
       if (!isHost && from !== a.id) return s;
       if (!teamsOf(s).includes(a.team)) return s;
-      return bump(withPrimaries({ ...s, players: s.players.map((p) => (p.id === a.id ? { ...p, team: a.team } : p)) }));
+      return bump(carryMissions(s, withPrimaries({ ...s, players: s.players.map((p) => (p.id === a.id ? { ...p, team: a.team } : p)) })));
     case 'setMode': {
       if (!isHost || s.stage !== 'lobby') return s;
       const teams = MODES[a.mode].teams;
@@ -318,7 +339,18 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
         const others = { ...next, players: next.players.filter((x) => x.id !== p.id) };
         next = { ...next, players: next.players.map((x) => (x.id === p.id ? { ...x, team: pickTeam(others) } : x)) };
       }
-      return bump(withPrimaries(next));
+      // A team with more players than the new mode holds (a 2v1 pair when it becomes three players):
+      // the last to join moves to a team with room, so the teams are ready without moving anyone by hand.
+      const cap = (t: Team) => (a.mode === '2v1' ? 2 : (MODES[a.mode].sizes[teams.indexOf(t)] ?? 1));
+      for (const t of teams) {
+        while (membersIn(next, t).length > cap(t)) {
+          const open = teams.filter((x) => membersIn(next, x).length < cap(x)).sort((x, y) => membersIn(next, x).length - membersIn(next, y).length)[0];
+          const mover = [...membersIn(next, t)].reverse().find((p) => p.id !== s.hostId);
+          if (!open || !mover) break;
+          next = { ...next, players: next.players.map((x) => (x.id === mover.id ? { ...x, team: open } : x)) };
+        }
+      }
+      return bump(carryMissions(s, withPrimaries(next)));
     }
     case 'setSharedCp':
       // Teams always share one CP pool now; kept so older phones' messages are understood.
