@@ -195,6 +195,8 @@ export function newLiveState(room: string, host: LivePlayer): LiveState {
   };
 }
 
+const membersIn = (s: Pick<LiveState, 'players'>, t: Team) => s.players.filter((p) => p.team === t);
+
 /** The team with the most room gets the newcomer (1v1: the second player is team B). */
 function pickTeam(s: LiveState): Team {
   const m = MODES[s.mode];
@@ -336,6 +338,17 @@ export function reduce(s: LiveState, a: LiveAction, from: string, opts?: ReduceO
       for (const p of next.players.filter((x) => !teams.includes(x.team))) {
         const others = { ...next, players: next.players.filter((x) => x.id !== p.id) };
         next = { ...next, players: next.players.map((x) => (x.id === p.id ? { ...x, team: pickTeam(others) } : x)) };
+      }
+      // A team with more players than the new mode holds (a 2v1 pair when it becomes three players):
+      // the last to join moves to a team with room, so the teams are ready without moving anyone by hand.
+      const cap = (t: Team) => (a.mode === '2v1' ? 2 : (MODES[a.mode].sizes[teams.indexOf(t)] ?? 1));
+      for (const t of teams) {
+        while (membersIn(next, t).length > cap(t)) {
+          const open = teams.filter((x) => membersIn(next, x).length < cap(x)).sort((x, y) => membersIn(next, x).length - membersIn(next, y).length)[0];
+          const mover = [...membersIn(next, t)].reverse().find((p) => p.id !== s.hostId);
+          if (!open || !mover) break;
+          next = { ...next, players: next.players.map((x) => (x.id === mover.id ? { ...x, team: open } : x)) };
+        }
       }
       return bump(carryMissions(s, withPrimaries(next)));
     }
