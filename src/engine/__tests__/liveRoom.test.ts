@@ -339,3 +339,44 @@ describe('live rooms', () => {
     expect(follower.current?.hostId).toBe('g');
   });
 });
+
+describe('dead links', () => {
+  it('a guest whose link died without closing redials and catches up on the new round', async () => {
+    const { host, guest } = await battle();
+    await settle(6000); // a heartbeat arrives, so this host is known to send them
+    // The link dies silently: both ends still look open, nothing gets through.
+    const gc = (guest as unknown as { hostConn: FakeConn }).hostConn;
+    gc.send = () => undefined;
+    gc.other!.send = () => undefined;
+    // The host plays on into the opponent's turn.
+    for (let i = 0; i < 6; i++) host.dispatch({ t: 'next', at: stampOf(host.current!) });
+    await settle();
+    expect(guest.current?.turn).not.toBe(host.current?.turn);
+    await settle(25_000);
+    expect(guest.status).toBe('online');
+    expect(stampOf(guest.current!)).toEqual(stampOf(host.current!));
+  });
+
+  it('a guest that missed one update gets the game again from the next heartbeat', async () => {
+    const { host, guest } = await battle();
+    await settle(6000);
+    const hc = (guest as unknown as { hostConn: FakeConn }).hostConn.other!;
+    const send = hc.send.bind(hc);
+    let drop = true;
+    hc.send = (d: unknown) => (drop && (d as { k: string }).k === 'state' ? ((drop = false), undefined) : send(d));
+    host.dispatch({ t: 'next', at: stampOf(host.current!) });
+    await settle();
+    expect(guest.current?.phase).not.toBe(host.current?.phase);
+    await settle(6000);
+    expect(guest.current?.phase).toBe(host.current?.phase);
+  });
+
+  it('an older host that sends no heartbeats is never treated as gone', async () => {
+    const { guest } = await battle();
+    (guest as unknown as { hostBeats: boolean }).hostBeats = false;
+    const gc = (guest as unknown as { hostConn: FakeConn }).hostConn;
+    gc.other!.send = () => undefined; // nothing from the host at all
+    await settle(60_000);
+    expect(guest.status).toBe('online');
+  });
+});

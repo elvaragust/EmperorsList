@@ -12,6 +12,8 @@ import { ackOf, makeRoomCode, mergeOffline, receive, reduce, takeOver, withPendi
  *   guest -> host  { k: 'act', action, seq }     every action, numbered per player
  *   guest -> host  { k: 'have', v }              "I have the final result"
  *   host -> guests { k: 'state', state }         after every change
+ *   host -> guests { k: 'beat', v }              every few seconds, so a guest can
+ *                                                tell a silently dead link from a quiet game
  *
  * A guest keeps every action it takes in an outbox (saved with the game, so a
  * reload keeps it) until the host has handled it (`state.acks`). The guest
@@ -28,6 +30,8 @@ type Msg =
   | { k: 'merge'; from: string; state: LiveState; base?: LiveState }
   | { k: 'state'; state: LiveState }
   | { k: 'have'; from: string; v: number }
+  /** Host: "still here, the game is at version v". */
+  | { k: 'beat'; v: number }
   | { k: 'error'; message: string };
 
 /** `asleep`: a finished game whose result every phone has, or one that stopped waiting for the others. */
@@ -41,6 +45,15 @@ const KEEP_DONE = 100;
 export const DONE_WAIT_MS = 10 * 60 * 1000;
 /** Results are offered to phones that haven't got them for this long after the game ends. */
 export const RESULT_SHARE_MS = 24 * 60 * 60 * 1000;
+/** How often the host says it's still there. */
+export const BEAT_MS = 5000;
+/**
+ * A guest that hears nothing from the host for this long treats the link as
+ * dead and redials. Phones often drop a link without telling anyone (screen
+ * locked, app switched, Wi-Fi to mobile data), and the guest would otherwise
+ * keep showing the round and cards it last got.
+ */
+export const SILENT_MS = 15_000;
 
 /** Optional own PeerJS server, as "host:port/path" or a URL. Empty = the free public PeerJS server. */
 export function peerServer(): string {
@@ -142,6 +155,11 @@ export class Room {
   private have: Set<string>;
   private saving: Promise<unknown> = Promise.resolve();
   private writeQueued = false;
+  private beatTimer?: ReturnType<typeof setInterval>;
+  /** Guest: when the current link last brought anything from the host. */
+  private lastHeard = 0;
+  /** Guest: the host on this link sends heartbeats (older app versions don't, so silence means nothing there). */
+  private hostBeats = false;
 
   constructor(
     readonly gameId: string,
@@ -158,6 +176,30 @@ export class Room {
     this.have = new Set(live?.resultHave ?? []);
     if (role === 'host' && this.state?.stage === 'done' && this.everyoneHasResult()) this.status = 'asleep';
     else void this.open();
+    this.beatTimer = setInterval(() => this.beat(), BEAT_MS);
+  }
+
+  /** Host: tell every guest we're here and how far the game is. Guest: check the link is still alive. */
+  private beat() {
+    if (this.closed || this.status === 'asleep') return;
+    if (this.role === 'host') {
+      const v = this.state?.v;
+      if (v !== undefined) this.conns.forEach((c) => c.open && c.send({ k: 'beat', v } satisfies Msg));
+    } else this.check();
+  }
+
+  /**
+   * Guest: if the host has gone quiet on a link that looks open, the link is
+   * dead: drop it and dial again (the host answers a new link with the game as it is now).
+   * Also called when the app comes back to the screen.
+   */
+  check() {
+    if (this.closed || this.role !== 'guest' || !this.hostConn?.open || !this.hostBeats) return;
+    if (Date.now() - this.lastHeard <= SILENT_MS) return;
+    this.dropHostConn();
+    this.setStatus('offline', 'Lost the host. Reconnecting…');
+    this.refresh();
+    this.scheduleRetry(500);
   }
 
   subscribe(fn: () => void): () => void {
@@ -353,13 +395,19 @@ export class Room {
       if (conn !== this.hostConn) return;
       clearTimeout(this.dialTimer);
       clearTimeout(this.retry);
+      this.lastHeard = Date.now();
+      this.hostBeats = false;
       this.setStatus('online');
       this.refresh();
       conn.send({ k: 'hello', player: this.me } satisfies Msg);
       // Always send what the host may not have handled yet; it skips anything it has.
       for (const p of this.outbox) conn.send({ k: 'act', action: p.action, from: this.me.id, seq: p.seq } satisfies Msg);
     });
-    conn.on('data', (d: unknown) => conn === this.hostConn && this.onGuestMessage(d as Msg, conn));
+    conn.on('data', (d: unknown) => {
+      if (conn !== this.hostConn) return;
+      this.lastHeard = Date.now();
+      this.onGuestMessage(d as Msg, conn);
+    });
     const lost = () => {
       // A link we replaced or hung up on ourselves says nothing about the current one.
       if (conn !== this.hostConn || this.closed) return;
@@ -391,6 +439,10 @@ export class Room {
         clearTimeout(this.finishTimer);
         clearTimeout(this.giveUp);
       }
+    } else if (m.k === 'beat') {
+      this.hostBeats = true;
+      // The host is further on than our copy: an update went missing. Saying hello again makes it send the game.
+      if (this.base && m.v > this.base.v) conn.send({ k: 'hello', player: this.me } satisfies Msg);
     } else if (m.k === 'error') this.setStatus('error', m.message);
   }
 
@@ -549,6 +601,7 @@ export class Room {
 
   close() {
     this.closed = true;
+    clearInterval(this.beatTimer);
     clearTimeout(this.retry);
     clearTimeout(this.dialTimer);
     clearTimeout(this.giveUp);
