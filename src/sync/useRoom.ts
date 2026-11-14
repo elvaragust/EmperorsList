@@ -10,7 +10,12 @@ export function useRoom(game: SavedGame | undefined): Room | undefined {
   // Back from the background (screen unlocked, app switched to): redial at once instead of waiting for the next retry.
   useEffect(() => {
     if (!room) return;
-    const back = () => document.visibilityState === 'visible' && room.status !== 'online' && room.status !== 'asleep' && room.wake();
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      // A link that looks open may have died while the screen was off.
+      room.check();
+      if (room.status !== 'online' && room.status !== 'asleep') room.wake();
+    };
     document.addEventListener('visibilitychange', back);
     return () => document.removeEventListener('visibilitychange', back);
   }, [room]);

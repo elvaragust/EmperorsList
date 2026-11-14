@@ -184,3 +184,11 @@ describe('Wahapedia rows over several lines', () => {
     ]);
   });
 });
+
+describe('core stratagems in the "Core – …" typing', () => {
+  const row = (name: string, type: string): ImportedRule => ({ id: name + type, kind: 'stratagem', faction: '', factionId: '', name, type, cp: '1', source: 'Wahapedia', text: '' });
+  it('keeps them even when another core row is typed plainly "Core Stratagem"', () => {
+    const all = [row('Command Re-Roll', 'Core Stratagem'), row('Counter-Offensive', 'Core – Strategic Ploy Stratagem'), row('Fire Overwatch', 'Core – Strategic Ploy Stratagem'), row('Grenade', 'Core – Wargear Stratagem')];
+    expect(stratagemsFor(all, [], []).map((s) => s.name).sort()).toEqual(['Command Re-Roll', 'Counter-Offensive', 'Fire Overwatch', 'Grenade']);
+  });
+});

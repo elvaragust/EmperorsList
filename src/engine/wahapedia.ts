@@ -204,14 +204,16 @@ export function stratagemsFor(all: ImportedRule[], detachmentNames: string[], fa
   const dets = detachmentNames.map(norm);
   const hints = factionHints.map((h) => h.toLowerCase()).filter((h) => h.length > 2);
   const strats = all.filter((r) => r.kind === 'stratagem' && isPlayableStratagem(r));
-  // Wahapedia keeps the previous edition's core set ("Core – Battle Tactic Stratagem")
-  // next to the current one ("Core Stratagem"); use the current one when it's there.
-  const current = strats.some((r) => isCore(r) && /^core stratagem/i.test(r.type ?? ''));
+  // Wahapedia can list a core stratagem twice, typed "Core Stratagem" and
+  // "Core – Strategic Ploy Stratagem". Keep one of each name, the "Core Stratagem"
+  // one when both exist. Never drop a whole typing: if most of the current core
+  // set uses the "Core – …" form, dropping it hid Counter-offensive and the rest.
+  const plain = (r: ImportedRule) => /^core stratagem/i.test(r.type ?? '');
+  strats.sort((a, b) => Number(isCore(b) && plain(b)) - Number(isCore(a) && plain(a)));
   const seen = new Set<string>();
   return strats.filter((r) => {
     const det = norm(r.detachment ?? '');
     const core = isCore(r);
-    if (core && current && !/^core stratagem/i.test(r.type ?? '')) return false;
     const ok = (det && dets.includes(det)) || core || (!det && r.factionId !== '' && hints.some((h) => r.faction.toLowerCase() === h || r.faction.toLowerCase().includes(h)));
     if (!ok) return false;
     const key = `${r.name.toLowerCase().replace(/[^a-z]/g, '')}|${core ? 'core' : det}`;
