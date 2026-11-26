@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState } from 'react';
 import { db } from '@/data/db';
@@ -288,6 +289,21 @@ export function SettingsScreen() {
             </button>
           </div>
           {backupStatus && <div className="small">{backupStatus}</div>}
+        </div>
+      </div>
+
+      <div className="section-label">Moving address</div>
+      <div className="card">
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
+          <div className="small">Each web address keeps its own data. Moving to a new one? Send everything there — including the downloaded army data — or bring it in from the old one.</div>
+          <div className="btn-row" style={{ margin: 0 }}>
+            <Link className="btn btn-sm" to="/move-out">
+              Send my data to a new address
+            </Link>
+            <Link className="btn btn-sm" to="/move">
+              Bring data from the old address
+            </Link>
+          </div>
         </div>
       </div>
 
