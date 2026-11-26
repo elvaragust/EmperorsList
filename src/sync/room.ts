@@ -1,4 +1,5 @@
 import { db, type SavedGame } from '@/data/db';
+import { RELAY_URL } from './relayUrl';
 import { ackOf, makeRoomCode, mergeOffline, receive, reduce, takeOver, withPending, type LiveAction, type LivePlayer, type LiveState, type Pending } from '@/engine/live';
 
 /**
@@ -107,6 +108,11 @@ export interface RoomDeps {
 }
 const defaultDeps: RoomDeps = {
   async makePeer(id) {
+    // Served by the EmperorsList server: go through its relay, unless the player set their own PeerJS server.
+    if (RELAY_URL && !peerServer()) {
+      const { RelayPeer } = await import('./relay');
+      return new RelayPeer(RELAY_URL, id);
+    }
     const { default: Peer } = await import('peerjs');
     return (id ? new Peer(id, peerOptions()) : new Peer(peerOptions())) as unknown as PeerLike;
   },

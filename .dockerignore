@@ -1,0 +1,9 @@
+node_modules
+server/node_modules
+dist
+dev-dist
+coverage
+.git
+data-cache
+wahapedia
+*.local

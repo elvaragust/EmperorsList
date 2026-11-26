@@ -570,7 +570,10 @@ const totalOf = (s: LiveState, t: Team) => {
 };
 
 /** Room codes avoid look-alike characters so they're easy to read out loud. */
-export function makeRoomCode(rand: () => number = Math.random): string {
+/** A secure random number in [0, 1) where the platform has one (room codes shouldn't be guessable). */
+const secureRandom = (): number => (globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0]! / 2 ** 32 : Math.random());
+
+export function makeRoomCode(rand: () => number = secureRandom): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   return Array.from({ length: 6 }, () => chars[Math.floor(rand() * chars.length)]).join('');
 }

@@ -1,0 +1,10 @@
+{
+  "name": "emperorslist-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Serves the EmperorsList app, relays live games and holds encrypted move-to-new-address parcels.",
+  "type": "module",
+  "engines": { "node": ">=18.18" },
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": { "ws": "8.22.2" }
+}
