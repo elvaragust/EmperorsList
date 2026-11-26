@@ -340,6 +340,15 @@ describe('live rooms', () => {
   });
 });
 
+/** Kill a link silently: nothing gets through and neither end hears the other hang up. */
+function killLink(guest: Room) {
+  const gc = (guest as unknown as { hostConn: FakeConn }).hostConn;
+  for (const c of [gc, gc.other!]) {
+    c.send = () => undefined;
+    c.close = () => void (c.open = false);
+  }
+}
+
 describe('dead links', () => {
   it('a guest whose link died without closing redials and catches up on the new round', async () => {
     const { host, guest } = await battle();
@@ -378,5 +387,67 @@ describe('dead links', () => {
     gc.other!.send = () => undefined; // nothing from the host at all
     await settle(60_000);
     expect(guest.status).toBe('online');
+  });
+
+  it('a host forgets a guest whose link died without closing, and the guest gets back in', async () => {
+    const { host, guest } = await battle();
+    await settle(6000); // pings arrive, so this guest is known to send them
+    expect(host.peers).toBe(1);
+    killLink(guest);
+    await settle(25_000);
+    // The host no longer counts the dead link; the guest has redialled on a fresh one.
+    expect(guest.status).toBe('online');
+    expect(host.peers).toBe(1);
+    host.dispatch({ t: 'note', text: 'after the dead link' });
+    await settle();
+    expect(guest.current?.log.at(-1)?.text).toBe('after the dead link');
+  });
+
+  it('a host with only dead links shows nobody connected', async () => {
+    const { host, guest } = await battle();
+    await settle(6000);
+    // The guest phone vanishes; its link never closes on the host's side.
+    killLink(guest);
+    guest.close();
+    await settle(25_000);
+    expect(host.peers).toBe(0);
+  });
+
+  it('a host that fell off the server with only dead links rebuilds its peer so guests can find it again', async () => {
+    const { host, guest } = await battle();
+    await settle(6000);
+    const hp = net.peers.get('emperorslist-ROOM01')!;
+    // The server drops the host and every reconnect attempt fails.
+    hp.reconnect = () => undefined;
+    hp.serverDrop();
+    killLink(guest);
+    await settle(120_000);
+    expect(net.peers.get('emperorslist-ROOM01')).not.toBe(hp);
+    expect(host.status).toBe('online');
+    expect(guest.status).toBe('online');
+    guest.dispatch({ t: 'note', text: 'found you' });
+    await settle();
+    expect(host.current?.log.at(-1)?.text).toBe('found you');
+  });
+
+  it('a guest behind the host gets the game again from its own ping', async () => {
+    const { host, guest } = await battle();
+    await settle(6000);
+    const hc = (guest as unknown as { hostConn: FakeConn }).hostConn.other!;
+    const send = hc.send.bind(hc);
+    // Drop the next state AND every host heartbeat: only the guest's ping can notice.
+    let drop = true;
+    hc.send = (d: unknown) => {
+      const k = (d as { k: string }).k;
+      if (k === 'beat') return;
+      if (drop && k === 'state') return void (drop = false);
+      send(d);
+    };
+    (guest as unknown as { hostBeats: boolean }).hostBeats = false;
+    host.dispatch({ t: 'next', at: stampOf(host.current!) });
+    await settle();
+    expect(guest.current?.phase).not.toBe(host.current?.phase);
+    await settle(6000);
+    expect(guest.current?.phase).toBe(host.current?.phase);
   });
 });

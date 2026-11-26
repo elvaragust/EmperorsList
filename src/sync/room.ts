@@ -11,6 +11,8 @@ import { ackOf, makeRoomCode, mergeOffline, receive, reduce, takeOver, withPendi
  *   guest -> host  { k: 'hello', player }        on connect (also on reconnect)
  *   guest -> host  { k: 'act', action, seq }     every action, numbered per player
  *   guest -> host  { k: 'have', v }              "I have the final result"
+ *   guest -> host  { k: 'ping', v }              every few seconds, so the host can
+ *                                                drop links that died without closing
  *   host -> guests { k: 'state', state }         after every change
  *   host -> guests { k: 'beat', v }              every few seconds, so a guest can
  *                                                tell a silently dead link from a quiet game
@@ -32,6 +34,8 @@ type Msg =
   | { k: 'have'; from: string; v: number }
   /** Host: "still here, the game is at version v". */
   | { k: 'beat'; v: number }
+  /** Guest: "still here, I have version v". */
+  | { k: 'ping'; from: string; v?: number }
   | { k: 'error'; message: string };
 
 /** `asleep`: a finished game whose result every phone has, or one that stopped waiting for the others. */
@@ -160,6 +164,8 @@ export class Room {
   private lastHeard = 0;
   /** Guest: the host on this link sends heartbeats (older app versions don't, so silence means nothing there). */
   private hostBeats = false;
+  /** Host: when each guest link last brought anything. Only links that ping are listed (older guests don't). */
+  private guestHeard = new Map<ConnLike, number>();
 
   constructor(
     readonly gameId: string,
@@ -179,27 +185,60 @@ export class Room {
     this.beatTimer = setInterval(() => this.beat(), BEAT_MS);
   }
 
-  /** Host: tell every guest we're here and how far the game is. Guest: check the link is still alive. */
+  /** Host: tell every guest we're here and how far the game is. Guest: tell the host the same. Both: check the links. */
   private beat() {
     if (this.closed || this.status === 'asleep') return;
     if (this.role === 'host') {
       const v = this.state?.v;
       if (v !== undefined) this.conns.forEach((c) => c.open && c.send({ k: 'beat', v } satisfies Msg));
-    } else this.check();
+    } else if (this.hostConn?.open) this.hostConn.send({ k: 'ping', from: this.me.id, v: this.base?.v } satisfies Msg);
+    this.check();
   }
 
   /**
-   * Guest: if the host has gone quiet on a link that looks open, the link is
-   * dead: drop it and dial again (the host answers a new link with the game as it is now).
-   * Also called when the app comes back to the screen.
+   * Find links that died without closing (screen locked, app switched, Wi-Fi to
+   * mobile data) and get back on the matchmaking server if we fell off it.
+   * Runs with every heartbeat and when the app comes back to the screen.
+   *
+   * Guest: a host gone quiet on a link that looks open means the link is dead:
+   * drop it and dial again (the host answers a new link with the game as it is now).
+   * Host: forget guests gone quiet, so the player count is true and a dead link
+   * never keeps the room from reopening.
    */
   check() {
-    if (this.closed || this.role !== 'guest' || !this.hostConn?.open || !this.hostBeats) return;
-    if (Date.now() - this.lastHeard <= SILENT_MS) return;
-    this.dropHostConn();
-    this.setStatus('offline', 'Lost the host. Reconnecting…');
-    this.refresh();
-    this.scheduleRetry(500);
+    if (this.closed || this.status === 'asleep') return;
+    const now = Date.now();
+    if (this.role === 'host') {
+      let dropped = false;
+      for (const [id, c] of [...this.conns]) {
+        const heard = this.guestHeard.get(c);
+        if (c.open && (heard === undefined || now - heard <= SILENT_MS)) continue;
+        this.conns.delete(id);
+        this.guestHeard.delete(c);
+        c.close();
+        dropped = true;
+      }
+      if (dropped) {
+        this.peers = this.conns.size;
+        if (this.peer && !this.peer.open) this.serverLost();
+        else this.emit();
+      }
+    } else if (this.hostConn?.open && this.hostBeats && now - this.lastHeard > SILENT_MS) {
+      this.dropHostConn();
+      this.setStatus('offline', 'Lost the host. Reconnecting…');
+      this.refresh();
+      this.scheduleRetry(500);
+    }
+  }
+
+  /** The app is back on the screen: check the links and, if anything is down, try again now rather than at the next backed-off retry. */
+  resume() {
+    if (this.closed || this.status === 'asleep') return;
+    this.check();
+    if (this.status !== 'online' || (this.peer && !this.peer.open)) {
+      this.failures = 0;
+      this.wake();
+    }
   }
 
   subscribe(fn: () => void): () => void {
@@ -356,6 +395,7 @@ export class Room {
     this.dropHostConn();
     this.conns.forEach((c) => c.close());
     this.conns.clear();
+    this.guestHeard.clear();
     this.peers = 0;
     this.peer?.destroy();
     this.peer = undefined;
@@ -461,11 +501,20 @@ export class Room {
     });
     conn.on('data', (d: unknown) => {
       const m = d as Msg;
+      if (m.k === 'ping' || this.guestHeard.has(conn)) this.guestHeard.set(conn, Date.now());
+      if (m.k === 'ping') {
+        // The guest is behind (an update went missing): send the game again.
+        if (this.state && m.v !== undefined && m.v < this.state.v) conn.send({ k: 'state', state: this.state } satisfies Msg);
+        return;
+      }
       if (m.k === 'hello') {
         id = m.player.id;
         const old = this.conns.get(id);
         this.conns.set(id, conn);
-        if (old && old !== conn) old.close();
+        if (old && old !== conn) {
+          this.guestHeard.delete(old);
+          old.close();
+        }
         this.peers = this.conns.size;
         this.emit();
         // Always answer with the game, even when the hello changes nothing.
@@ -484,6 +533,7 @@ export class Room {
       }
     });
     conn.on('close', () => {
+      this.guestHeard.delete(conn);
       // Only forget the link if it is still this player's current one (a reconnect may have replaced it).
       if (!id || this.conns.get(id) !== conn) return;
       this.conns.delete(id);

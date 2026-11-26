@@ -12,9 +12,8 @@ export function useRoom(game: SavedGame | undefined): Room | undefined {
     if (!room) return;
     const back = () => {
       if (document.visibilityState !== 'visible') return;
-      // A link that looks open may have died while the screen was off.
-      room.check();
-      if (room.status !== 'online' && room.status !== 'asleep') room.wake();
+      // A link that looks open may have died while the screen was off; host or guest, check and redial now.
+      room.resume();
     };
     document.addEventListener('visibilitychange', back);
     return () => document.removeEventListener('visibilitychange', back);
