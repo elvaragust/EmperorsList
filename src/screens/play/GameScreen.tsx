@@ -24,8 +24,8 @@ import { ListChangedSheet, useGameRoster } from './gameRoster';
 import { keepEnded, lastActive, resumeGame } from '@/data/idle';
 import { MissionFields } from './MissionFields';
 import { allowedDispositions } from '@/engine/rules/config';
-import { applyLocalSec, localSecondaries, MissionRoundPicker, MissionsPanel, SecondarySetup, useViewRound } from './secondaries';
-import { primaryFor } from '@/engine/missions';
+import { applyLocalSec, localSecondaries, localSecondariesPatch, MissionRoundPicker, MissionsPanel, SecondarySetup, useViewRound } from './secondaries';
+import { applySecOp, primaryFor, type SecOp } from '@/engine/missions';
 import { OpponentUnits } from './OpponentUnits';
 import { endOfBattleOpen, useMissionCards } from './missionCards';
 import { importListText } from '@/data/importList';
@@ -275,6 +275,26 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
   const who = (s: 'me' | 'them') => (s === 'me' ? 'You' : game.opponentName || 'Opponent');
   // Every change is made to the latest saved copy of the game (see updateGame).
   const change = (fn: (g: SavedGame) => SavedGame | undefined) => updateGame(game.id, fn);
+  // A scoring tap sends its VP (onVp) and then its card change (onSec) together: both are saved in one
+  // update, and the VP only when the card really changed — a double tap adds it once.
+  const pendingVp = useRef<{ add: (g: SavedGame) => SavedGame; toast: string }[]>([]);
+  const takeVp = () => {
+    const list = pendingVp.current;
+    pendingVp.current = [];
+    return list;
+  };
+  const onLocalSec = (op: SecOp, text?: string) => {
+    const vps = takeVp();
+    let changed = false;
+    void updateGame(game.id, (g) => {
+      const cur = localSecondaries(g);
+      const next = applySecOp(cur, op);
+      if (next === cur) return undefined;
+      changed = true;
+      const base = { ...g, ...localSecondariesPatch(g, next) };
+      return vps.reduce((x, v) => v.add(x), text ? withLog(base, text, 'note') : base);
+    }).then(() => changed && vps.forEach((v) => showToast(v.toast)));
+  };
   // Moving through the turn only from where this screen is: a double tap on Next moves once.
   const fromHere = (fn: (g: SavedGame) => SavedGame | undefined) => change((g) => (g.stage === 'battle' && g.round === game.round && g.turn === game.turn && g.phase === game.phase ? fn(g) : undefined));
   // To a new place in the battle. CP is never added here: players add their Command phase CP by hand.
@@ -369,7 +389,7 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
         <MissionRoundPicker round={game.round} value={viewRound} onChange={setViewRound} />
         <MissionsPanel
           sec={localSecondaries(game)}
-          onSec={(op, text) => void updateGame(game.id, (g) => (text ? withLog({ ...g, ...applyLocalSec(g, op) }, text, 'note') : { ...g, ...applyLocalSec(g, op) }))}
+          onSec={onLocalSec}
           round={game.round}
           viewRound={viewRound}
           turnKey={`${game.round}-${game.turn}`}
@@ -378,13 +398,15 @@ export function Battle({ game, engine }: { game: SavedGame; engine?: RosterEngin
           twist={game.twist}
           role={game.role}
           onVp={(kind, vp, why, round) => {
-            // A negative `vp` takes VP off again (a scored part undone).
-            void updateGame(game.id, (g) => {
-              const i = Math.min(round, g.vp.me[kind].length) - 1;
-              const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? Math.max(0, x + vp) : x)) };
-              return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: ${vp < 0 ? '−' : '+'}${Math.abs(vp)} VP (${kind}, round ${round})`, 'vp');
+            // A negative `vp` takes VP off again (a scored part undone). Saved with the card change that follows (onLocalSec).
+            pendingVp.current.push({
+              add: (g) => {
+                const i = Math.min(round, g.vp.me[kind].length) - 1;
+                const sc = { ...g.vp.me, [kind]: g.vp.me[kind].map((x, k) => (k === i ? Math.max(0, x + vp) : x)) };
+                return withLog({ ...g, vp: { ...g.vp, me: sc } }, `${why}: ${vp < 0 ? '−' : '+'}${Math.abs(vp)} VP (${kind}, round ${round})`, 'vp');
+              },
+              toast: vp < 0 ? `${-vp} VP taken off round ${round}` : `+${vp} VP added to round ${round}`,
             });
-            showToast(vp < 0 ? `${-vp} VP taken off round ${round}` : `+${vp} VP added to round ${round}`);
           }}
         />
         <div className="opp-missions">
@@ -571,7 +593,8 @@ function Result({ game }: { game: SavedGame }) {
         ]}
         actions={
           <>
-            <button className="btn" onClick={() => void patchGame(game.id, { stage: 'battle' })}>
+            {/* Back into play: score corrections made on the result screen no longer apply. */}
+            <button className="btn" onClick={() => void patchGame(game.id, { stage: 'battle', scoreEdits: undefined, finishedAt: undefined })}>
               Reopen game
             </button>
             <button className="btn btn-ghost" onClick={() => navigate('/play')}>

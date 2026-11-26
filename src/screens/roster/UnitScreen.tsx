@@ -365,7 +365,7 @@ export function UnitScreen() {
       )}
 
       <div className="sticky-bar">
-        <span className={`pts-chip`} style={{ background: total > limit || listErrors ? 'var(--danger)' : undefined, color: total > limit || listErrors ? '#1a0000' : undefined }}>
+        <span className={`pts-chip`} style={{ background: total > limit || listErrors ? 'var(--danger)' : undefined, color: total > limit || listErrors ? 'var(--on-danger)' : undefined }}>
           {total > limit || listErrors ? '!' : '✓'} {total.toLocaleString('en')}/{limit.toLocaleString('en')}
         </span>
         <span className="muted small" style={{ flex: 1 }}>

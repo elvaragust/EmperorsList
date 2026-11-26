@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { metasInUse } from '@/data/dataPacks';
 import { db, type CollectionItem } from '@/data/db';
 import { rootsFor, useIndex, useRosterEngine } from '@/data/gameData';
 import { unitModels } from '@/engine/rules/models';
@@ -18,7 +19,7 @@ const FACTION_KEY = 'emperorslist.collectionFaction';
 export function CollectionScreen() {
   const [params] = useSearchParams();
   const rosterId = params.get('roster') ?? '';
-  const files = useLiveQuery(() => db.dataMeta.toArray(), []);
+  const files = useLiveQuery(() => metasInUse(), []);
   const items = useLiveQuery(() => db.collection.toArray(), []);
   const roster = useLiveQuery(() => (rosterId ? db.rosters.get(rosterId) : undefined), [rosterId]);
   const factions = (files ?? []).filter((f) => !f.library && !f.gameSystem && f.catalogueId);

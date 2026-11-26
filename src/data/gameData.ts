@@ -7,7 +7,8 @@ import { RosterEngine, rootOptions, type RootOption } from '@/engine/rules/roste
 import { refreshCaches } from '@/engine/rules/edit';
 import type { Roster } from '@/engine/types';
 import { db } from './db';
-import { parseDataFile } from './dataPacks';
+import { currentSource, parseDataFile, sourceName } from './dataPacks';
+import { pickSource, preferSource } from './fileKeys';
 
 /**
  * Builds the in-memory data index for a faction from the device cache:
@@ -26,7 +27,11 @@ export async function loadIndex(catalogueId: string): Promise<DataIndex> {
   if (!p) {
     p = (async () => {
       const files: RawFile[] = [];
-      const gstMeta = (await db.dataMeta.toArray()).find((m) => m.gameSystem);
+      // Every file comes from one source: the current one, or (offline, after a
+      // switch) the source this faction was cached from. Never a mix of both.
+      const main = preferSource(await db.dataMeta.where('catalogueId').equals(catalogueId).toArray(), sourceName(currentSource()));
+      const src = main?.source;
+      const gstMeta = (await db.dataMeta.toArray()).find((m) => m.gameSystem && m.source === src);
       const gst = gstMeta ? await db.dataFiles.get(gstMeta.path) : undefined;
       if (gst) files.push(parseDataFile(gst.json));
       const seen = new Set<string>();
@@ -35,7 +40,11 @@ export async function loadIndex(catalogueId: string): Promise<DataIndex> {
         const id = queue.shift()!;
         if (seen.has(id)) continue;
         seen.add(id);
-        const m = await db.dataMeta.where('catalogueId').equals(id).first();
+        const m = await db.dataMeta
+          .where('catalogueId')
+          .equals(id)
+          .filter((x) => x.source === src)
+          .first();
         const rec = m ? await db.dataFiles.get(m.path) : undefined;
         if (!rec) continue;
         const file = parseDataFile(rec.json);
@@ -56,7 +65,12 @@ export async function loadAllIndex(): Promise<DataIndex> {
   const key = '*all*';
   let p = indexes.get(key);
   if (!p) {
-    p = db.dataFiles.toArray().then((recs) => buildIndex(recs.map((r) => parseDataFile(r.json))));
+    p = (async () => {
+      // One source only (see pickSource), so two repos' copies of a faction never both show.
+      const src = pickSource(await db.dataMeta.toArray(), sourceName(currentSource()));
+      const recs = src ? await db.dataFiles.where('source').equals(src).toArray() : [];
+      return buildIndex(recs.map((r) => parseDataFile(r.json)));
+    })();
     indexes.set(key, p);
     p.catch(() => indexes.delete(key));
   }
@@ -134,6 +148,17 @@ export function useRosterEngine(roster: Roster | undefined): { engine?: RosterEn
     return new RosterEngine(index, roster, rootsFor(index, roster.catalogueId));
   }, [index, roster]);
   return { engine, index, error };
+}
+
+/**
+ * Apply an edit to the stored copy of a list, read fresh inside one
+ * transaction, so quick edits in a row (several adds) never undo each other.
+ */
+export async function editRoster(index: DataIndex | undefined, id: string, fn: (r: Roster) => Roster): Promise<Roster | undefined> {
+  return db.transaction('rw', db.rosters, async () => {
+    const cur = await db.rosters.get(id);
+    return cur ? saveRoster(index, fn(cur)) : undefined;
+  });
 }
 
 /** Save a roster after recomputing cached unit names and points from the data. */

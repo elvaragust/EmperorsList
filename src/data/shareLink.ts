@@ -1,6 +1,7 @@
 import { fromPayload, toPayload, type SharePayload } from '@/engine/share';
 import type { Roster } from '@/engine/types';
-import { db } from './db';
+import { metaForCatalogue } from './dataPacks';
+import { realPath } from './fileKeys';
 import { uid } from './rosters';
 
 const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -13,8 +14,8 @@ async function pipe(bytes: Uint8Array, stream: CompressionStream | Decompression
 
 /** "z" prefix = deflate-raw compressed, "j" = plain JSON (older browsers). */
 export async function encodeRoster(roster: Roster): Promise<string> {
-  const file = await db.dataMeta.where('catalogueId').equals(roster.catalogueId).first();
-  const json = new TextEncoder().encode(JSON.stringify(toPayload(roster, file?.path)));
+  const file = await metaForCatalogue(roster.catalogueId);
+  const json = new TextEncoder().encode(JSON.stringify(toPayload(roster, file && realPath(file))));
   if (typeof CompressionStream !== 'undefined') {
     try {
       return `z${b64url(await pipe(json, new CompressionStream('deflate-raw')))}`;

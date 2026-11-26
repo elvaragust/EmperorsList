@@ -1,6 +1,7 @@
 import { normalizeXml } from '@/engine/bsdata/normalizeXml';
 import type { RawCatalogue, RawFile } from '@/engine/bsdata/raw';
-import { db, metaOf, type CachedDataFile, type DataSourceState } from './db';
+import { db, metaOf, type CachedDataFile, type DataMeta, type DataSourceState } from './db';
+import { altKey, fileKey, pickSource, preferSource, realPath } from './fileKeys';
 
 /**
  * Game data is downloaded on the user's own device from a public GitHub repo
@@ -41,7 +42,14 @@ const raw = (s: SourceConfig, commit: string, file: string) =>
   `https://raw.githubusercontent.com/${s.owner}/${s.repo}/${commit}/${file.split('/').map(encodeURIComponent).join('/')}`;
 
 export async function latestCommit(s: SourceConfig = currentSource()): Promise<string> {
-  const res = await fetch(api(s, `commits/${s.branch}`), { headers: { Accept: 'application/vnd.github+json' } });
+  let res: Response;
+  try {
+    res = await fetch(api(s, `commits/${s.branch}`), { headers: { Accept: 'application/vnd.github+json' } });
+  } catch {
+    throw new Error(`Couldn't reach the data source ${sourceName(s)} — check your connection.`);
+  }
+  // A missing repo (deleted or renamed) can't be fixed by retrying: point to where the source is changed.
+  if (res.status === 404) throw new Error(`The data source ${sourceName(s)} is no longer available. Pick another source in Settings → Data.`);
   if (!res.ok) throw new Error(`Could not reach ${s.owner}/${s.repo} (${res.status}${res.status === 403 ? ', GitHub rate limit — try again in a while' : ''})`);
   const body = (await res.json()) as { sha: string };
   return body.sha;
@@ -83,16 +91,55 @@ export async function fetchDataFile(s: SourceConfig, commit: string, path: strin
   // Look the file id up before the write: only dataFiles and dataMeta are part of the transaction.
   const id = sha ?? (await db.dataSources.get(sourceName(s)))?.shas?.[path];
   await db.transaction('rw', db.dataFiles, db.dataMeta, async () => {
+    // Another source's copy at this path is kept: this one goes under its own key.
+    rec.path = fileKey(path, rec.source, await db.dataMeta.get(path));
     await db.dataFiles.put(rec);
     await db.dataMeta.put(metaOf(rec, id));
   });
   return rec;
 }
 
+/** This source's cached copy of a file, if any (never another source's). */
+export async function cachedFile(s: SourceConfig, path: string): Promise<CachedDataFile | undefined> {
+  const src = sourceName(s);
+  const hit = await db.dataFiles.get(path);
+  if (hit?.source === src) return hit;
+  return db.dataFiles.get(altKey(path, src));
+}
+
+/** Same as cachedFile, metadata only. */
+async function cachedMeta(s: SourceConfig, path: string): Promise<DataMeta | undefined> {
+  const src = sourceName(s);
+  const hit = await db.dataMeta.get(path);
+  if (hit?.source === src) return hit;
+  return db.dataMeta.get(altKey(path, src));
+}
+
+/** Metadata of every file cached from this source. */
+export const cachedMetas = (s: SourceConfig = currentSource()): Promise<DataMeta[]> => {
+  const src = sourceName(s);
+  return db.dataMeta.filter((m) => m.source === src).toArray();
+};
+
+/** Metadata of the files screens show: one source's only (see pickSource), so a faction never appears twice. */
+export async function metasInUse(): Promise<DataMeta[]> {
+  const all = await db.dataMeta.toArray();
+  const src = pickSource(all, sourceName(currentSource()));
+  return all.filter((m) => m.source === src);
+}
+
+/** The cached copy of a catalogue, from the current source when it has one. */
+export async function metaForCatalogue(catalogueId: string): Promise<DataMeta | undefined> {
+  return preferSource(await db.dataMeta.where('catalogueId').equals(catalogueId).toArray(), sourceName(currentSource()));
+}
+
 const isGameSystemPath = (p: string) => /\.gst$/i.test(p) || /^Warhammer 40,000\.json$/i.test(p);
 
-/** The repo's file list, from the cache when offline. Refreshes the source record when online. */
-export async function sourceState(refresh = false, s: SourceConfig = currentSource()): Promise<DataSourceState> {
+/**
+ * The repo's file list, from the cache when offline. Refreshes the source record when online.
+ * `onUnreachable` hears about a failed check that was covered by the cached list.
+ */
+export async function sourceState(refresh = false, s: SourceConfig = currentSource(), onUnreachable?: (e: unknown) => void): Promise<DataSourceState> {
   const cached = await db.dataSources.get(sourceName(s));
   if (cached && !refresh) return cached;
   try {
@@ -105,7 +152,10 @@ export async function sourceState(refresh = false, s: SourceConfig = currentSour
     await db.dataSources.put(state);
     return state;
   } catch (e) {
-    if (cached) return cached;
+    if (cached) {
+      onUnreachable?.(e);
+      return cached;
+    }
     throw e;
   }
 }
@@ -122,7 +172,7 @@ export interface FactionFile {
 /** Pickable factions: every catalogue file except libraries and the game system. */
 export async function listFactions(refresh = false): Promise<FactionFile[]> {
   const state = await sourceState(refresh);
-  const cached = new Set((await db.dataMeta.toCollection().primaryKeys()) as string[]);
+  const cached = new Set((await cachedMetas()).map(realPath));
   return state.files
     .filter((p) => !isGameSystemPath(p) && !/library/i.test(p))
     .map((path) => {
@@ -136,14 +186,17 @@ export async function listFactions(refresh = false): Promise<FactionFile[]> {
 
 /**
  * Download a faction file plus the game system and every catalogue it links
- * to (recursively). Already-cached files at the same commit are reused.
+ * to (recursively). Files already cached from this source are reused
+ * (the background sync brings them up to date); other sources' copies never are.
  */
 export async function ensureFaction(path: string, onProgress?: (msg: string) => void, s: SourceConfig = currentSource()): Promise<CachedDataFile> {
   const state = await sourceState(false, s);
   const commit = state.commit;
   const files = state.files;
+  const src = sourceName(s);
+  // Only this source's files are reused: switching source never mixes two repos' data.
   const get = async (p: string): Promise<CachedDataFile> => {
-    const hit = await db.dataFiles.get(p);
+    const hit = await cachedFile(s, p);
     if (hit) return hit;
     onProgress?.(`Downloading ${p.replace(/\.json$/, '')}…`);
     return fetchDataFile(s, commit, p);
@@ -160,7 +213,11 @@ export async function ensureFaction(path: string, onProgress?: (msg: string) => 
     for (const link of cat?.catalogueLinks ?? []) {
       if (seen.has(link.targetId)) continue;
       seen.add(link.targetId);
-      const knownMeta = await db.dataMeta.where('catalogueId').equals(link.targetId).first();
+      const knownMeta = await db.dataMeta
+        .where('catalogueId')
+        .equals(link.targetId)
+        .filter((m) => m.source === src)
+        .first();
       const known = knownMeta ? await db.dataFiles.get(knownMeta.path) : undefined;
       if (known) {
         queue.push(known);
@@ -175,7 +232,7 @@ export async function ensureFaction(path: string, onProgress?: (msg: string) => 
       if (!found) {
         // Fall back to scanning: download candidates until the id turns up.
         for (const p of files) {
-          if (isGameSystemPath(p) || (await db.dataMeta.get(p))) continue;
+          if (isGameSystemPath(p) || (await cachedMeta(s, p))) continue;
           const f = await get(p);
           if (f.catalogueId === link.targetId) {
             found = f;
@@ -198,13 +255,14 @@ function guessPath(files: string[], name: string): string | undefined {
 /** Re-download every cached file at the latest commit. */
 export async function updateAll(onProgress?: (done: number, total: number, path: string) => void, s: SourceConfig = currentSource()): Promise<DataSourceState> {
   const state = await sourceState(true, s);
-  const cached = await db.dataMeta.toArray();
+  const cached = await cachedMetas(s);
   let done = 0;
   for (const f of cached) {
-    onProgress?.(done, cached.length, f.path);
-    const sha = state.shas?.[f.path];
+    const path = realPath(f);
+    onProgress?.(done, cached.length, path);
+    const sha = state.shas?.[path];
     const stale = sha ? f.sha !== sha : f.commit !== state.commit;
-    if (stale && state.files.includes(f.path)) await fetchDataFile(s, state.commit, f.path, sha);
+    if (stale && state.files.includes(path)) await fetchDataFile(s, state.commit, path, sha);
     done += 1;
   }
   return state;

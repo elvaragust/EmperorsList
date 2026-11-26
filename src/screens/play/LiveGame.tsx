@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import qrcode from 'qrcode-generator';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +15,7 @@ import { Icon } from '@/ui/Icon';
 import { showToast } from '@/ui/Toast';
 import { useSessionState } from '@/ui/useSessionState';
 import { NotesPanel } from './panels';
-import { useHealthRecorder } from './games';
+import { patchGame, updateGame, useHealthRecorder } from './games';
 import { PreBattleChecklist, ScoreRow } from './GameScreen';
 import { BattleTabs, CpBar, healthOf, PhasePanel, PhaseStrip, RoundBar, RulesPanel, TurnBanner, SummaryList, toSummaries, unitsLeft, UnitsPanel } from './panels';
 import { MissionFields } from './MissionFields';
@@ -291,7 +290,8 @@ function Lobby({ game, state, room, engine, dispatch, allowed }: { game: SavedGa
           </button>
         </div>
       )}
-      <LeaveButton game={game} />
+      {/* A guest says it's leaving, so the host doesn't keep a ghost player in the lobby. */}
+      <LeaveButton game={game} onLeave={!isHost && room && !game.live?.unlinked ? () => dispatch({ t: 'leave', id: myId }) : undefined} />
     </Screen>
   );
 }
@@ -320,7 +320,7 @@ function PrimariesList({ state }: { state: LiveState }) {
   return <p className="small muted">Primaries: {state.players.map((p) => `${p.name}: ${p.primary ?? '—'}`).join(' · ')}</p>;
 }
 
-function LeaveButton({ game }: { game: SavedGame }) {
+function LeaveButton({ game, onLeave }: { game: SavedGame; onLeave?: () => void }) {
   const navigate = useNavigate();
   const [ask, setAsk] = useState(false);
   return (
@@ -336,6 +336,11 @@ function LeaveButton({ game }: { game: SavedGame }) {
         confirm="Leave game"
         danger
         onConfirm={async () => {
+          if (onLeave) {
+            onLeave();
+            // Give the message a moment to go out before the link is closed.
+            await new Promise((r) => setTimeout(r, 300));
+          }
           closeRoom(game.id);
           await db.games.delete(game.id);
           navigate('/play', { replace: true });
@@ -391,7 +396,6 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
     teams.map((t) => [t, healthOf(membersOf(state, t).flatMap((p) => (p.id === myId ? toSummaries(myUnits) : (state.units[p.id] ?? []))))]),
   );
   useHealthRecorder(game.id, state.round, health, 'battle');
-  const usedThisPhase = useLiveQuery(() => db.games.get(game.id).then((g) => g?.used ?? []), [game.id]);
   const myScore = totalScore(vpOf(state, myTeam));
   const best = Math.max(...others.map((t) => totalScore(vpOf(state, t))));
   // With a shared pool, one CP counter per team; otherwise one per player.
@@ -534,9 +538,14 @@ function LiveBattle({ game, state, room, engine, dispatch }: { game: SavedGame; 
               myTurn={myTurn}
               cp={state.cp[myId] ?? 0}
               onSpend={(s, cost) => {
-                const again = (usedThisPhase ?? []).some((u) => u.id === s.id && u.round === state.round && u.phase === state.phase);
-                void db.games.update(game.id, { used: [...(usedThisPhase ?? []), { round: state.round, turn: myTurn ? 'me' : 'them', phase: state.phase, id: s.id, name: s.name }] });
-                dispatch({ t: 'strat', name: again ? `${s.name} (again this phase!)` : s.name, cost });
+                // Noted on the latest saved copy (two quick taps both count); "again" means this round, turn and phase.
+                const turn = myTurn ? 'me' : 'them';
+                let again = false;
+                void updateGame(game.id, (g) => {
+                  const used = g.used ?? [];
+                  again = used.some((u) => u.id === s.id && u.round === state.round && u.turn === turn && u.phase === state.phase);
+                  return { ...g, used: [...used, { round: state.round, turn, phase: state.phase, id: s.id, name: s.name }] };
+                }).finally(() => dispatch({ t: 'strat', name: again ? `${s.name} (again this phase!)` : s.name, cost }));
               }}
             />
           )}
@@ -744,7 +753,14 @@ function LiveResult({ game, state, room, dispatch }: { game: SavedGame; state: L
         actions={
           <>
             {isHost && (
-              <button className="btn" onClick={() => dispatch({ t: 'reopen' })}>
+              <button
+                className="btn"
+                onClick={() => {
+                  // This phone's score corrections were for the finished result: drop them as play resumes.
+                  void patchGame(game.id, { scoreEdits: undefined, finishedAt: undefined });
+                  dispatch({ t: 'reopen' });
+                }}
+              >
                 Reopen for everyone
               </button>
             )}

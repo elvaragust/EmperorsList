@@ -50,7 +50,10 @@ export function parseBackup(text: string): BackupData {
     }) as T[];
   };
   const rosters = list<Roster>('rosters').map((r) => ({ ...r, config: r.config ?? [], detachmentIds: r.detachmentIds ?? [], units: r.units ?? [] }));
-  const games = list<SavedGame>('games').filter((g) => !g.practice);
+  // Games from older or hand-edited backups may lack lists the screens loop over.
+  const games = list<SavedGame>('games')
+    .filter((g) => !g.practice)
+    .map((g) => ({ ...g, log: Array.isArray(g.log) ? g.log : [], used: Array.isArray(g.used) ? g.used : [], casualties: isObj(g.casualties) ? g.casualties : {} }));
   const data: BackupData = {
     version,
     exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : undefined,

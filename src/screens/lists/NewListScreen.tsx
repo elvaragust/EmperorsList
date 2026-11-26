@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
+import { cachedMetas, ensureFaction, listFactions, type FactionFile } from '@/data/dataPacks';
 import { rootsFor, saveRoster, useIndex } from '@/data/gameData';
 import { configChoices, enhancementsByDetachment, setBattleSize, setDetachments, setDisposition , allowedDispositions, borrowedLimits } from '@/engine/rules/config';
 import { DetachmentCard } from '@/ui/DetachmentCard';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
 import type { BattleSize, Roster } from '@/engine/types';
-import { db } from '@/data/db';
 import { useFactionTheme } from '@/theme/themes';
 import { Screen } from '@/ui/Screen';
 import { WizardSteps } from '@/ui/WizardSteps';
@@ -79,7 +78,7 @@ export function NewListScreen() {
     try {
       setBusy(`Getting ${f.name}…`);
       const rec = await ensureFaction(f.path, setBusy);
-      const gst = (await db.dataMeta.toArray()).find((x) => Boolean(x.gameSystem));
+      const gst = (await cachedMetas()).find((x) => Boolean(x.gameSystem));
       const name = f.name;
       setRoster({ ...blankRoster(rec.catalogueId ?? '', name, gst?.catalogueId ?? ''), dataCommit: rec.commit, name: `${name} list` });
       setStep(1);

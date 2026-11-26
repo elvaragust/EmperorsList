@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
@@ -22,6 +22,8 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
  */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: ReactNode; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
+  // A title that isn't plain text names the dialog through its heading.
+  const titleId = useId();
   // Callers pass a new onClose on every render: keep the latest without re-running the open effect
   // (that used to pull focus out of a field after every typed letter).
   const close = useRef(onClose);
@@ -93,10 +95,10 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
   if (!open) return null;
   return createPortal(
     <div className="sheet-backdrop" onClick={() => close.current()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} tabIndex={-1} ref={box} onClick={(e) => e.stopPropagation()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} aria-labelledby={title && typeof title !== 'string' ? titleId : undefined} tabIndex={-1} ref={box} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
         <div className="sheet-head">
-          {title ? <h2>{title}</h2> : <span style={{ flex: 1 }} />}
+          {title ? <h2 id={titleId}>{title}</h2> : <span style={{ flex: 1 }} />}
           <button className="icon-btn sheet-close" aria-label="Close" onClick={() => close.current()}>
             <Icon name="close" />
           </button>

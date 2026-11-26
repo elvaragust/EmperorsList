@@ -2,7 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { db } from '@/data/db';
-import { saveRoster, useRosterEngine } from '@/data/gameData';
+import { editRoster, useRosterEngine } from '@/data/gameData';
+import type { Roster } from '@/engine/types';
 import { newUnit } from '@/engine/rules/edit';
 import { allWeapons, datasheet, unitModels } from '@/engine/rules/models';
 import { RosterEngine } from '@/engine/rules/rosterEngine';
@@ -128,10 +129,11 @@ export function AddUnitScreen() {
     if (!engine || !roster) return;
     // An ally behind a Show switch: turn the switch on for this list first.
     const needs = needsOf.get(key);
-    const r = needs ? setShowOptions(engine, roster, Object.fromEntries(needs.map((k) => [k, true]))) : roster;
-    const e = needs ? new RosterEngine(engine.index, r, [...engine.roots.values()]) : engine;
+    const show = (r: Roster) => (needs ? setShowOptions(engine, r, Object.fromEntries(needs.map((k) => [k, true]))) : r);
+    const e = needs ? new RosterEngine(engine.index, show(roster), [...engine.roots.values()]) : engine;
     const unit = newUnit(e, key);
-    await saveRoster(index, { ...r, units: [...r.units, unit] });
+    // Appended to the saved list, not this render's copy, so a quick second tap keeps the first unit.
+    await editRoster(index, roster.id, (r) => ({ ...show(r), units: [...r.units, unit] }));
     if (open) navigate(`/roster/${roster.id}/unit/${unit.id}`, { replace: true });
     else showToast(`Added ${unit.name}`, { label: 'EDIT', to: `/roster/${roster.id}/unit/${unit.id}` });
   };

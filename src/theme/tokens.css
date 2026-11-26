@@ -17,6 +17,8 @@
   /* Text on an --accent fill (the current round): the darkest background. */
   --on-accent: var(--bg-deep);
   --danger: #ff8e86;
+  /* Text on a --danger fill. */
+  --on-danger: #1a0000;
   --ok: #72e3a0;
 
   --font-title: 'UnifrakturCook', serif;
@@ -131,6 +133,7 @@
   --text: color-mix(in oklab, var(--accent-strong) 15%, #19140f);
   --text-muted: color-mix(in oklab, var(--accent-strong) 22%, #645b4f);
   --danger: #b3261e;
+  --on-danger: #fff;
   --ok: #1d7a4c;
   --rule-core: #4a5a70;
   --rule-datasheet: #1f5fae;

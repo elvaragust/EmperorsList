@@ -35,6 +35,13 @@ describe('parseBackup', () => {
     expect(d.layouts).toEqual([]);
     expect(d.pins).toEqual([]);
   });
+
+  it('gives restored games the lists the screens expect, so idle checks never throw', () => {
+    const d = parseBackup(file({ games: [game('g', 1)] }));
+    expect(d.games[0]!.log).toEqual([]);
+    expect(d.games[0]!.used).toEqual([]);
+    expect(d.games[0]!.casualties).toEqual({});
+  });
 });
 
 describe('planRestore', () => {

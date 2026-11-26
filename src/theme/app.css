@@ -446,8 +446,8 @@ textarea.input {
   font-family: var(--font-ui);
 }
 .stepper button {
-  width: 40px;
-  height: 40px;
+  width: var(--tap);
+  height: var(--tap);
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--raised);
@@ -572,7 +572,7 @@ textarea.input {
 .btn-danger-solid {
   background: var(--danger);
   border-color: var(--danger);
-  color: #1a0000;
+  color: var(--on-danger);
 }
 
 /* Rules text */
@@ -687,6 +687,18 @@ textarea.input {
   font-weight: 600;
   color: var(--text-muted);
   text-decoration: none;
+}
+/* Plain buttons inside the unit grid's clickable headers and rows (for keyboards and screen readers). */
+.grid-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
 }
 /* Tap a weapon's name to write a note under it. */
 .weapon-name-btn {
@@ -1056,6 +1068,9 @@ textarea.input {
 }
 .toast-pop .toast-text {
   flex: 1;
+}
+.toast-pop .btn {
+  min-height: var(--tap);
 }
 @keyframes toast-in {
   from {
@@ -1637,7 +1652,7 @@ textarea.input {
 }
 .round-bar button {
   flex: 1;
-  min-height: 34px;
+  min-height: var(--tap);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -1699,8 +1714,8 @@ textarea.input {
 .role-add {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: var(--tap);
+  height: var(--tap);
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 22px;
@@ -2320,13 +2335,6 @@ tr.pulse > td {
   min-height: 40px;
 }
 .collapse-chev {
-  width: 40px;
-  height: 40px;
-}
-.round-bar button {
-  min-height: 40px;
-}
-.role-add {
   width: 40px;
   height: 40px;
 }
@@ -3241,4 +3249,14 @@ tr.pulse > td {
 }
 .score-hint {
   margin: 6px 0 2px;
+}
+
+/* QR codes need a white quiet zone to scan, whatever the theme. */
+.qr-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  max-width: 280px;
+  align-self: center;
+  width: 100%;
 }

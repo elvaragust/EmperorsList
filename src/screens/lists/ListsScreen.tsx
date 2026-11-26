@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@/data/db';
-import { deleteRoster, duplicateRoster } from '@/data/rosters';
+import { deleteRoster, duplicateRoster, patchRoster } from '@/data/rosters';
 import { backupDue, saveBackupFile, snoozeBackup } from '@/data/backup';
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
@@ -129,7 +129,7 @@ export function ListsScreen() {
                 className="input"
                 defaultValue={menu.folder ?? ''}
                 placeholder="No folder"
-                onBlur={(e) => db.rosters.put({ ...menu, folder: e.target.value.trim() || undefined })}
+                onBlur={(e) => patchRoster(menu.id, { folder: e.target.value.trim() || undefined, updatedAt: Date.now() })}
               />
             </label>
             <button className="menu-item btn-danger" onClick={() => setConfirm(true)}>

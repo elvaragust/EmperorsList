@@ -5,7 +5,7 @@ import { closeRoom, shareResults } from '@/sync/room';
 export const IDLE_MS = 2 * 60 * 60 * 1000;
 
 export function lastActive(g: SavedGame): number {
-  return Math.max(g.lastActiveAt ?? 0, g.startedAt, g.log.at(-1)?.at ?? 0);
+  return Math.max(g.lastActiveAt ?? 0, g.startedAt, g.log?.at(-1)?.at ?? 0);
 }
 
 /** End every unfinished game that has been quiet for two hours. Returns how many were ended. */

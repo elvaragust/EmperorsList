@@ -32,8 +32,15 @@ export async function duplicateRoster(id: string): Promise<string | undefined> {
 }
 
 export async function renameRoster(id: string, name: string) {
-  const r = await db.rosters.get(id);
-  if (r) await db.rosters.put({ ...r, name, updatedAt: Date.now() });
+  await patchRoster(id, { name, updatedAt: Date.now() });
+}
+
+/** Change some fields of a saved list in place, so an edit saved at the same moment isn't overwritten by a stale copy. */
+export async function patchRoster(id: string, changes: Partial<Roster>) {
+  await db.rosters
+    .where('id')
+    .equals(id)
+    .modify((r) => void Object.assign(r, changes));
 }
 
 export async function deleteRoster(id: string) {

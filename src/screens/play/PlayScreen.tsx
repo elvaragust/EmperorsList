@@ -9,7 +9,7 @@ import type { SavedGame } from '@/data/db';
 function liveTitle(g: SavedGame): string {
   const st = g.live?.state;
   if (!st) return `${g.rosterName} · joining room ${g.live?.room}`;
-  return `${teamNames(st, 'A')} vs ${teamNames(st, 'B')}`;
+  return teamsOf(st).map((t) => teamNames(st, t)).join(' vs ');
 }
 import { Screen } from '@/ui/Screen';
 import { Loading } from '@/ui/Loading';
@@ -88,7 +88,7 @@ export function PlayScreen() {
                   <div style={{ fontWeight: 600 }}>
                     {g.live ? liveTitle(g) : `${g.rosterName} vs ${g.opponentName || 'opponent'}`}
                   </div>
-                  <div className="muted small">{g.idle ? 'Ended after 2 hours with no changes · tap to resume · ' : ''}{g.live ? `Live · room ${g.live.room} · ` : ''}{(g.idle?.stage ?? g.stage) === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${totalScore(g.live.state.vp.A)}–${totalScore(g.live.state.vp.B)}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
+                  <div className="muted small">{g.idle ? 'Ended after 2 hours with no changes · tap to resume · ' : ''}{g.live ? `Live · room ${g.live.room} · ` : ''}{(g.idle?.stage ?? g.stage) === 'setup' ? (g.live ? 'Lobby' : `Setting up · step ${g.setupStep}`) : g.live?.state ? `Round ${g.live.state.round} · ${teamsOf(g.live.state).map((t) => totalScore(vpOf(g.live!.state!, t))).join('–')}` : `Round ${g.round} · ${totalScore(g.vp.me)}–${totalScore(g.vp.them)}`}</div>
                 </span>
                 {more(g)}
               </Link>

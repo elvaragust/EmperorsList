@@ -5,7 +5,8 @@ import { PinnedMark, usePinnedNames } from '@/ui/PinButton';
 import { ViewToggle } from '@/ui/ViewToggle';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { db } from '@/data/db';
-import { saveRoster, useRosterEngine } from '@/data/gameData';
+import { editRoster, useRosterEngine } from '@/data/gameData';
+import { metaForCatalogue } from '@/data/dataPacks';
 import { deleteRoster, duplicateRoster } from '@/data/rosters';
 import type { RosterEngine } from '@/engine/rules/rosterEngine';
 import { ROLES, roleOfCategory, unitRole, type Role } from '@/engine/rules/roles';
@@ -45,7 +46,7 @@ export function RosterScreen() {
     }
     return m;
   }, [engine]);
-  const fileCommit = useLiveQuery(() => (roster ? db.dataMeta.where('catalogueId').equals(roster.catalogueId).first() : undefined), [roster?.catalogueId])?.commit;
+  const fileCommit = useLiveQuery(() => (roster ? metaForCatalogue(roster.catalogueId) : undefined), [roster?.catalogueId])?.commit;
   const sections = useMemo(() => {
     if (!roster) return [];
     const led = new Set(roster.units.filter((u) => u.leaderOf && roster.units.some((b) => b.id === u.leaderOf)).map((u) => u.id));
@@ -60,7 +61,7 @@ export function RosterScreen() {
 
   if (!roster) return <Screen title="Roster" back><Loading what="the list" /></Screen>;
 
-  const update = (fn: (r: Roster) => Roster) => saveRoster(index, fn(roster));
+  const update = (fn: (r: Roster) => Roster) => editRoster(index, roster.id, fn);
   const total = engine?.totalPoints() ?? roster.units.reduce((s, u) => s + u.points, 0);
   const limit = engine?.pointsLimit() ?? roster.pointsLimit;
   const dp = engine?.detachmentPoints();

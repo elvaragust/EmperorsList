@@ -224,7 +224,9 @@ export function applySecOp(s: SecondaryState, o: SecOp): SecondaryState {
     case 'discard':
       return t && t.active.includes(o.name) ? { ...s, tactical: discardTactical(t, o.name) } : s;
     case 'restore':
-      return t ? { ...s, tactical: restoreTactical(t, o.name) } : s;
+      // Only a discarded or scored card comes back, and never a second copy of one already in hand (a double tap).
+      if (!t || t.active.includes(o.name) || !(t.discarded.includes(o.name) || t.scored.some((x) => x.name === o.name))) return s;
+      return { ...s, tactical: restoreTactical(t, o.name) };
     case 'redraw':
       if (!t || !t.active.includes(o.name)) return s;
       return { ...s, tactical: { ...drawTactical(discardTactical(t, o.name), 1), redraws: (t.redraws ?? 0) + 1 } };

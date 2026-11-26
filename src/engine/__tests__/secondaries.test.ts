@@ -25,6 +25,22 @@ describe('secondary missions in battle', () => {
     expect(s.tactical?.scored).toEqual([]);
   });
 
+  it('restores only a discarded or scored card, once', () => {
+    const s = applySecOp(tactical(['Beacon'], []), { op: 'discard', name: 'Beacon' });
+    const back = applySecOp(s, { op: 'restore', name: 'Beacon' });
+    expect(back.tactical).toMatchObject({ active: ['Beacon'], discarded: [] });
+    // A double tap doesn't put a second copy in the hand.
+    expect(applySecOp(back, { op: 'restore', name: 'Beacon' })).toBe(back);
+    // A card never drawn can't be "restored" into the hand.
+    expect(applySecOp(s, { op: 'restore', name: 'Plunder' })).toBe(s);
+  });
+
+  it('scoring a card twice with the same tap changes nothing, so its VP is added once', () => {
+    const s = applySecOp(tactical(['Cleanse'], []), { op: 'secSet', name: 'Cleanse', round: 1, part: 'turn', vp: 3, counts: { 0: [1] }, prev: 0 });
+    expect(s.secParts).toHaveLength(1);
+    expect(applySecOp(s, { op: 'secSet', name: 'Cleanse', round: 1, part: 'turn', vp: 3, counts: { 0: [1] }, prev: 0 })).toBe(s);
+  });
+
   it('a Tactical card that left the hand cannot be scored', () => {
     const s = applySecOp(tactical(['Beacon'], []), { op: 'discard', name: 'Beacon' });
     expect(applySecOp(s, { op: 'secPart', name: 'Beacon', round: 1, done: true, part: 'turn', vp: 3 })).toBe(s);

@@ -22,7 +22,16 @@ export function ExportScreen() {
   const text = useMemo(() => (engine && roster ? exportText(engine, roster) : ''), [engine, roster]);
 
   useEffect(() => {
-    if (roster) encodeRoster(roster).then(setCode);
+    if (!roster) return;
+    // Ignore a slow result for an older copy of the list; no link if encoding fails.
+    let live = true;
+    encodeRoster(roster).then(
+      (c) => live && setCode(c),
+      () => live && setCode(''),
+    );
+    return () => {
+      live = false;
+    };
   }, [roster]);
   const url = code ? shareUrl(code) : '';
   const qr = useMemo(() => {

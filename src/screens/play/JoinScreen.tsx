@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/data/db';
+import { storageMessage } from '@/data/storage';
 import { movableGames, moveToRoom } from '@/sync/room';
 import { Screen } from '@/ui/Screen';
 import { saveGame } from './games';
@@ -17,9 +18,21 @@ export function JoinScreen() {
   const [rosterId, setRosterId] = useState('');
   const games = useLiveQuery(() => db.games.filter((g) => Boolean(g.live)).toArray(), []);
   const movable = /^[A-Z0-9]{6}$/.test(code) ? movableGames(games ?? [], code) : [];
+  // One join or follow at a time: a second tap while saving would make a second game.
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   // Another player carried on as host: bring a game already on this phone into their room.
   const follow = async (gameId: string) => {
-    if (await moveToRoom(gameId, code)) navigate(`/play/${gameId}`, { replace: true });
+    if (busy) return;
+    setError('');
+    try {
+      setBusy(true);
+      if (await moveToRoom(gameId, code)) navigate(`/play/${gameId}`, { replace: true });
+    } catch (e) {
+      setError(`Couldn't move the game: ${storageMessage(e)}`);
+    } finally {
+      setBusy(false);
+    }
   };
   useEffect(() => {
     const c = location.hash.replace('#', '').trim();
@@ -31,11 +44,19 @@ export function JoinScreen() {
   const ok = /^[A-Z0-9]{6}$/.test(code) && name.trim() && rosterId;
   const join = async () => {
     const r = rosters?.find((x) => x.id === rosterId);
-    if (!r) return;
-    rememberName(name.trim());
-    const g = newJoinedGame(r, name.trim(), code);
-    await saveGame(g);
-    navigate(`/play/${g.id}`, { replace: true });
+    if (!r || busy) return;
+    setError('');
+    try {
+      setBusy(true);
+      rememberName(name.trim());
+      const g = newJoinedGame(r, name.trim(), code);
+      await saveGame(g);
+      navigate(`/play/${g.id}`, { replace: true });
+    } catch (e) {
+      setError(`Couldn't join the game: ${storageMessage(e)}`);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Screen title="Join a live game" back="/play">
@@ -51,7 +72,7 @@ export function JoinScreen() {
           </p>
           <div className="card">
             {movable.map((g) => (
-              <button key={g.id} className="choice" onClick={() => void follow(g.id)}>
+              <button key={g.id} className="choice" onClick={() => void follow(g.id)} disabled={busy}>
                 <span style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{g.rosterName}</div>
                   <div className="muted small">
@@ -86,10 +107,15 @@ export function JoinScreen() {
         </p>
       )}
       <div className="btn-row">
-        <button className="btn btn-primary btn-block" disabled={!ok} onClick={join}>
-          Join
+        <button className="btn btn-primary btn-block" disabled={!ok || busy} onClick={() => void join()}>
+          {busy ? 'Joining…' : 'Join'}
         </button>
       </div>
+      {error && (
+        <p className="issue-title" role="alert">
+          {error}
+        </p>
+      )}
       {!ok && (
         <p className="small muted" role="status">
           To join: {[!/^[A-Z0-9]{6}$/.test(code) && 'the 6-letter room code from the host', !name.trim() && 'your name', !rosterId && 'an army'].filter(Boolean).join(', ')}.

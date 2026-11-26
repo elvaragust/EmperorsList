@@ -73,10 +73,13 @@ export function WeaponGridView({
             </th>
             {grid.columns.map((c, i) => (
               <th key={c.weaponId} className={`grid-weapon ${i === firstMelee ? 'melee-start' : ''} ${c.gone ? 'gone' : ''}`} title={c.gone ? `${c.name} — no model carrying it is left` : `${c.name} — tap to see its profile`} onClick={() => jumpToWeapon(c.weaponId)}>
-                {c.perModel > 1 && <span className="per-model">{c.perModel}×</span>}
-                {shorts[i]}
-                <span className="total">{c.gone ? '–' : c.total}</span>
-                <span className="unit">{c.melee ? 'ATK' : 'SHOTS'}</span>
+                {/* A real button inside, so the header can be reached and used from a keyboard. */}
+                <button type="button" className="grid-btn" aria-label={`${c.name}: show profile`}>
+                  {c.perModel > 1 && <span className="per-model">{c.perModel}×</span>}
+                  {shorts[i]}
+                  <span className="total">{c.gone ? '–' : c.total}</span>
+                  <span className="unit">{c.melee ? 'ATK' : 'SHOTS'}</span>
+                </button>
               </th>
             ))}
           </tr>
@@ -94,11 +97,20 @@ export function WeaponGridView({
                   <tr
                     onClick={() => onToggle && setOpen((o) => ({ ...o, [r.loadoutKey]: !o[r.loadoutKey] }))}
                     style={{ cursor: onToggle ? 'pointer' : undefined }}
-                    aria-expanded={onToggle ? Boolean(open[r.loadoutKey]) : undefined}
                   >
                     <td className="name">
-                      <span className="mult">{r.count}×</span>
-                      {r.name}
+                      {/* The row toggles on tap; this button makes it keyboard-reachable and says whether it's open. */}
+                      {onToggle ? (
+                        <button type="button" className="grid-btn" aria-expanded={Boolean(open[r.loadoutKey])}>
+                          <span className="mult">{r.count}×</span>
+                          {r.name}
+                        </button>
+                      ) : (
+                        <>
+                          <span className="mult">{r.count}×</span>
+                          {r.name}
+                        </>
+                      )}
                       {(() => {
                         const lost = r.modelIds.reduce((n, id) => n + (wounds?.[id] ?? 0), 0);
                         return lost > 0 ? <span className="wound-tag">−{lost}W</span> : lost < 0 ? <span className="wound-tag boosted">+{-lost}W</span> : null;

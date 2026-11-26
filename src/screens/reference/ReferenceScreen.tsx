@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { metasInUse } from '@/data/dataPacks';
 import { db } from '@/data/db';
 import { useAllIndex } from '@/data/gameData';
 import type { RuleKind } from '@/engine/types';
@@ -29,7 +30,7 @@ export function ReferenceScreen() {
   const popup = useRulePopup();
   const { index, error } = useAllIndex();
   const imported = useLiveQuery(() => db.imported.toArray(), []);
-  const files = useLiveQuery(() => db.dataMeta.toArray(), []);
+  const files = useLiveQuery(() => metasInUse(), []);
   const pins = useLiveQuery(() => db.pins.orderBy('createdAt').reverse().toArray(), []);
   const [q, setQ] = useState('');
   const [kinds, setKinds] = useState<RuleKind[]>([]);
