@@ -8,15 +8,57 @@ The app ships with **no game data**. Each device downloads units, rules and poin
 
 ## Run it
 
-Requires Node 18.18 or newer.
+Requires Node 18.18 or newer (22+ to also run the relay server test).
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173, open on your phone via your computer's IP with `npm run dev -- --host`
-npm test           # engine and search tests
+npm test           # engine, search, sync and transfer tests
 npm run build      # production build with offline service worker, output in dist/
 npm run preview    # serve the production build
 ```
+
+To run the server locally too (live games through the relay, move parcels):
+
+```bash
+npm ci --prefix server
+VITE_RELAY_URL=/relay npm run build
+PORT=8080 STATIC_DIR=dist DATA_DIR=./data node server/server.mjs   # http://localhost:8080
+```
+
+## Self-hosting
+
+`Dockerfile` builds the app and a small Node server (`server/server.mjs`, one dependency: `ws`):
+
+```bash
+docker build -t emperorslist .
+docker run -d -p 8080:8080 -v emperorslist-data:/data -e TRUST_PROXY=1 emperorslist
+```
+
+Put it behind a TLS reverse proxy (Caddy, nginx); WebSockets must be passed through (Caddy's `reverse_proxy` does). The server:
+
+| Path | What |
+|---|---|
+| `/` | The built app, with SPA fallback. Hashed assets are cached for a year; the page, service worker and manifest are `no-cache`. |
+| `/relay` | WebSocket relay for live games (see below). Keeps nothing. |
+| `/api/transfer` | `POST` an encrypted move parcel (≤ `TRANSFER_MAX_MB`), `GET /api/transfer/<id>` to fetch it. Deleted after `TRANSFER_TTL_H`. |
+| `/healthz` | `{ok, sockets, links}` |
+
+Environment: `PORT` (8080), `STATIC_DIR`, `DATA_DIR` (`/data`), `ALLOWED_ORIGINS` (comma-separated other origins allowed to use the relay and upload parcels — e.g. the old GitHub Pages origin; same-origin is always allowed), `TRUST_PROXY=1` (take the client IP from `X-Forwarded-For` for rate limits), `TRANSFER_MAX_MB` (80), `TRANSFER_TTL_H` (48).
+
+Build args: `BASE_PATH` (`/`), `VITE_RELAY_URL` (`/relay`; empty = PeerJS/WebRTC as on GitHub Pages).
+
+**What the server never does:** download, store or serve game data. Wahapedia extras (`scripts/wahapedia.mjs` etc.) are not run in the Docker build; without them the app still works and players can import the CSVs in Settings.
+
+## Build-time switches
+
+| Variable | Effect |
+|---|---|
+| `BASE_PATH` | Path the app is served from (`/EmperorsList/` on Pages). |
+| `VITE_RELAY_URL` | Live games go through this relay (`/relay`, or a full `wss://…/relay` to share one relay between addresses). Unset = PeerJS. |
+| `VITE_NEW_HOME` | The app has moved: shows a *new home* banner and *Move my data* pointing at this address. |
+
+The Pages workflow passes the repo variables `RELAY_URL` and `NEW_HOME` (Settings → Secrets and variables → Actions → Variables) through to these, so the old address can use the new server's relay and point players at it without code changes.
 
 To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and use "Add to Home Screen". It then runs full-screen and works offline.
 
@@ -54,8 +96,13 @@ To install on a phone: open the app in Safari (iPhone) or Chrome (Android) and u
 **Live games**
 - Play → Host live game shows a room code and QR; other phones scan it (or Play → Join and type the code)
 - 1v1, 2v2, 2v1 or a three-player free-for-all. Turn, phase, CP (per player or one pool per team), VP per team, each team's primary and secondaries and a shared log sync between phones; each player's units-left are shown to the others
-- Phones talk directly (WebRTC). The free public PeerJS server only introduces them; nothing is stored on a server. If a phone drops or reloads it reconnects. The host's phone is the referee, so it must stay open
-- Optional own PeerJS server in Settings → Live games
+- The host's phone is the referee (`src/sync/room.ts`), so it must stay open. Guests keep an outbox of numbered actions the host replays once each
+- Transport is pluggable behind `PeerLike`/`ConnLike`: with `VITE_RELAY_URL` set, `src/sync/relay.ts` sends everything over one WebSocket to the server (works on any network, dead phones noticed within seconds); otherwise PeerJS/WebRTC with the free public PeerJS server introducing the phones. Optional own PeerJS server in Settings → Live games
+- Liveness, both ways: the host sends `beat` and guests send `ping` every 5 s; a side that hears nothing for 15 s drops the link and redials (guest) or forgets it (host). The relay adds a server-side ping and a 10 s `tick` so a dead socket is noticed on the phone too
+- Tests: `src/engine/__tests__/liveRoom.test.ts` (fake network, including links that die without closing) and `src/sync/__tests__/relay.test.ts` (the real server)
+
+**Moving address**
+- `src/data/transfer.ts`: packs the backup, cached data files and imported rules, gzips, AES-GCM-encrypts with a random key, uploads to the new address's `/api/transfer`; the key travels only in the link's `#fragment`. Receiving merges (`applyRestore('newer')`, data files only where missing, source records only where none)
 
 **Wahapedia extras**
 - The Pages workflow runs `scripts/wahapedia.mjs dist/wahapedia` after building (and daily on a schedule), so the CSVs are published next to the app; the app imports them on startup (`src/data/bootstrap.ts`). Locally there are none; use Settings → Extra rules → import
@@ -81,6 +128,8 @@ npm test                                        # the real-data suite runs when 
 ```
 
 ## Known gaps
+
+- The default data source, `BSData/wh40k-11e`, is offline (all BSData 40k repos return 404 since late 2026). Cached data keeps working and is never removed for an unreachable source; new devices need a move parcel or another source (Settings → Advanced)
 
 - Modifiers that change other entries' profiles (New Recruit "affects", mostly Crusade upgrades) are not applied yet
 - Mission cards are typed in by hand (not in BSData or Wahapedia's export)

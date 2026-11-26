@@ -2,7 +2,9 @@
 
 A free army builder and game companion for **Warhammer 40,000 (11th edition)**. It works on phones, tablets and computers, and keeps working offline.
 
-**Open it:** https://elvaragust.github.io/EmperorsList/
+**Open it:** https://emperorslist.ellisprelli.uk/
+
+Used the old address (`elvaragust.github.io/EmperorsList`)? Your lists and games are still there — see **[Moving from the old address](#moving-from-the-old-address)** to bring them over in one tap.
 
 > Unofficial fan project, not affiliated with Games Workshop. Units, rules and points come from the community **BSData** project; stratagems, enhancements and mission card names from **Wahapedia** ("Powered by Wahapedia").
 
@@ -19,6 +21,15 @@ A free army builder and game companion for **Warhammer 40,000 (11th edition)**. 
 It then opens like a normal app, full screen, with its own icon. Updates arrive by themselves the next time you open it.
 
 **First start:** all factions download in the background (a thin bar at the top shows progress). You can start using the app straight away. After that it only fetches what changed, and everything works without internet.
+
+### Moving from the old address
+Browsers keep each web address's data apart, so the new address starts empty. To take everything along — lists, games, collection, pins, table layouts **and the downloaded army data**:
+
+1. Open the **old** address (or your installed old app). Tap **Move my data** in the banner at the top (or Settings → *Moving address* → *Send my data to a new address*).
+2. Tap **Open the new address**. It opens with your data ready to add: tap **Bring my data here**.
+3. **Installed on your home screen (iPhone especially)?** The installed app keeps its own data. Install the new address on the home screen first and open it, then Settings → *Bring data from the old address* and paste the link (*Copy link* on the old one), or scan its QR code with that phone.
+
+Nothing is removed from the old address. Anything already at the new one is kept — a list or game is only replaced by a newer copy of itself. The parcel is encrypted on your phone; the key is only in the link, never on the server, and the parcel is deleted after 48 hours.
 
 ---
 
@@ -113,7 +124,9 @@ Tap the **★** on a rule, stratagem, enhancement, detachment or unit to pin it.
 
 **End of the game:** a big *Victory / Defeat / Draw*, both scores with the winner marked, by how much, and the score round by round. **Correct the score** fixes numbers — both sides' — but only on your phone: it changes how *you* see the result, never anyone else's (in a live game each player can correct their own view). **Back to the game's score** undoes it. **Round by round replay** plays the battle back over the five rounds, one chart at a time: switch between **Victory points** (the running total) and **Battle wounds** (how much of each army's starting wounds is still on the table, so any two armies compare fairly). The lines draw themselves round after round, with that round's numbers underneath; switching plays the other chart from the start. Pause, replay, or tap a round to stop there. In a game on one phone only your own losses are known. Finished games are listed with a coloured Win / Loss / Draw badge, the score and who won.
 
-**Where the data comes from:** units, points and wargear come from the community BSData project (wh40k-11e), checked for updates once a day. If a new codex isn't reflected yet (missing or old options), the app shows it as soon as BSData is updated — Settings → Data shows the version you have.
+**Where the data comes from:** units, points and wargear come from the community BSData project (wh40k-11e), checked for updates once a day. Settings → Data shows the version you have.
+
+> **The BSData repository is currently offline.** Army data you already downloaded keeps working and is never deleted or replaced because the source can't be reached — the app just says it's using the data saved on your device. A new device can get the data by [moving it from another device](#moving-from-the-old-address), or by choosing another source under Settings → Advanced → *Data source*. Keep a backup either way.
 - **Log:** everything that happened.
 - **Notes:** tap the Notes bar to open or close your notes; they're kept for the whole game.
 - Pinned stratagems are always listed at the top, whatever the phase. Opening a unit and coming back keeps your place.
@@ -133,7 +146,7 @@ What's shared: whose turn it is and the current phase, everyone's CP, every team
 - **You can only change your own (or your team's) CP, score and missions.** You see theirs update as they type.
 - **End the game:** the host ends it for everyone (⋯ menu). Other players can *End the game on my phone* to save the result and stop following.
 - **Turn off live changes** (⋯ menu): unlinks your phone. You keep everyone's army and score as they were and can change anything yourself. *Reconnect* joins again.
-- Phones connect directly to each other; nothing is stored online. Everyone needs internet during the game, and the host's game must stay open.
+- Phones talk through the app's server, which only passes messages between them and stores nothing. Everyone needs internet during the game, and the host's game must stay open. If a phone's connection silently dies (screen locked, Wi-Fi to mobile data), both sides notice within seconds and reconnect by themselves — no reset needed.
 - **Lost the host?** Keep playing: everything works on your phone (phases, turn, CP, score, missions). When the host is back, your phone sends what you changed: your team's CP, score, missions and disposition, and the turn if you got further. The other team's numbers always come from the host, so nothing of theirs is overwritten.
 
 ### Table layouts
@@ -164,11 +177,12 @@ Pick a faction and enter how many models you own, have built and have painted. F
 - **Your data on this device** — how many lists, games and pins are stored, how much space is used, and whether the browser has agreed to keep it.
 - **Data** — check for updates (also happens daily by itself; only files that changed are downloaded); use a different data source.
 - **Extra rules** — refresh stratagems and Core Rules from Wahapedia, or import Wahapedia CSV files / a saved Core Rules page by hand.
-- **Live games** — optional own connection server.
+- **Live games** — optional own PeerJS server (only needed if you don't want to use the app's server).
+- **Moving address** — send everything to a new address, or bring it in from the old one.
 - **Backup** — save all lists, games, collection, pins and layouts to a file, and restore them on another device.
 
 **Where your data is kept.** Lists, games, pins, collection, layouts and the downloaded game data are stored in the browser's own database (IndexedDB) for this site, on this phone only — nothing is uploaded, there are no accounts. That means:
-- Each browser has its own copy: Chrome and Samsung Internet on the same phone don't share lists, and the hosted app and a local copy on your PC don't either. The installed app (Add to Home screen) shares Chrome's data.
+- Each browser and each web address has its own copy: Chrome and Samsung Internet on the same phone don't share lists, and neither do the old and new addresses (see *Moving*). On Android the installed app shares Chrome's data; on iPhone the installed app has its own, separate from Safari.
 - Clearing the browser's site data, or uninstalling it, deletes everything. A browser can also clear it by itself when the phone is low on space — the app asks the browser to keep it (Settings → *Your data on this device* shows whether it agreed).
 - It is **not** the browser cache: clearing *cached images and files* doesn't touch it; clearing *site data* / *cookies and site data* for the site does.
 - **Keep a backup** now and then: Lists reminds you every two weeks. **Save a backup** opens the phone's share sheet so the file can go straight to Google Drive, iCloud Files or email (elsewhere it downloads). Settings → Backup restores it on any device.
@@ -180,6 +194,10 @@ Pick a faction and enter how many models you own, have built and have painted. F
 **Is it free?** Yes, no accounts and no ads.
 
 **Does it work offline?** Yes, after the first start. Live games need internet.
+
+**Live game says connected but changes don't arrive?** This was a bug in older versions (a phone whose link died silently stayed "connected"). Update the app (it offers *Reload* when a new version is ready); links are now checked every few seconds.
+
+**I cleared my browser and the army data won't download.** The BSData source is offline (see *Where the data comes from*). Restore your backup file for your lists, and bring the army data from another device with Settings → *Moving address*.
 
 **Why is a unit or rule missing or wrong?** The data comes from the community; it may not be updated yet. Settings → Data → Check for updates.
 
