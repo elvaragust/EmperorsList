@@ -75,7 +75,8 @@ export async function syncAllFactions(force = false): Promise<void> {
     const cached = new Map((await cachedMetas(src)).map((f) => [realPath(f), f]));
     const shas = state.shas ?? {};
     // A new commit usually changes one or two files: compare each file's own id, not the commit.
-    const todo = state.files.filter((p) => {
+    // The source can't be reached (e.g. taken down): downloading would only fail file by file. Keep what's here.
+    const todo = unreachable ? [] : state.files.filter((p) => {
       const m = cached.get(p);
       if (!m) return true;
       // Files cached before ids were kept: up to date if they're from this commit.
@@ -94,7 +95,9 @@ export async function syncAllFactions(force = false): Promise<void> {
       await new Promise((r) => setTimeout(r, 50));
     });
     if (done) clearIndexCache();
-    if (errors.length) throw errors[0];
+    // Files the source lists but no longer serves (404) are skipped: the rest of the data still works.
+    const real = errors.filter((e) => !/\((404|410)\)$/.test(e instanceof Error ? e.message : ''));
+    if (real.length) throw real[0];
     set({ running: false, current: undefined, finishedAt: Date.now(), notice: unreachable && cached.size ? UNREACHABLE : undefined });
   } catch (e) {
     // Any saved data counts: with none from this source, screens fall back to another source's (see pickSource).
@@ -104,9 +107,11 @@ export async function syncAllFactions(force = false): Promise<void> {
       set({ running: false, current: undefined, finishedAt: Date.now(), notice: UNREACHABLE });
       return;
     }
-    set({ running: false, current: undefined, error: storageMessage(e) });
+    set({ running: false, current: undefined, error: !saved && /no longer available|\((404|410)\)$/.test(e instanceof Error ? e.message : '') ? NO_DATA : storageMessage(e) });
   }
 }
+
+const NO_DATA = 'The army data source is offline, so this device has no army data yet. Bring it from a device that has it: Settings → Moving address.';
 
 /**
  * Where the built-in Wahapedia extras (stratagems, Core Rules, mission cards) are read from:
