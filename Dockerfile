@@ -12,7 +12,9 @@ RUN npm ci --prefix server --no-audit --no-fund
 # "/" unless served under a sub-path. VITE_RELAY_URL makes live games go through this server.
 ARG BASE_PATH=/
 ARG VITE_RELAY_URL=/relay
-ENV BASE_PATH=$BASE_PATH VITE_RELAY_URL=$VITE_RELAY_URL
+# Stratagems, Core Rules and mission text are read from the GitHub Pages copy, so this server never hosts rules text.
+ARG VITE_EXTRAS_URL=https://elvaragust.github.io/EmperorsList/wahapedia/
+ENV BASE_PATH=$BASE_PATH VITE_RELAY_URL=$VITE_RELAY_URL VITE_EXTRAS_URL=$VITE_EXTRAS_URL
 RUN npm test && npm run build
 
 FROM node:24.22.3-alpine

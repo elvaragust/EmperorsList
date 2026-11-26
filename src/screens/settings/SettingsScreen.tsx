@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { RELAY_URL } from '@/sync/relayUrl';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState } from 'react';
 import { db } from '@/data/db';
@@ -359,7 +360,9 @@ export function SettingsScreen() {
       <div className="card">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 14 }}>
           <div className="small">
-            Phones in a live game talk to each other directly. A free public PeerJS server only introduces them. If it's ever down, you can run your own and enter it here (every player needs the same setting).
+            {RELAY_URL
+              ? "Live games go through this app's server, which only passes messages between the phones and keeps nothing. Only if you'd rather have phones talk to each other directly, enter a PeerJS server here (every player needs the same setting)."
+              : "Phones in a live game talk to each other directly. A free public PeerJS server only introduces them. If it's ever down, you can run your own and enter it here (every player needs the same setting)."}
           </div>
           <label className="field" style={{ margin: 0 }}>
             <span>Own PeerJS server (optional)</span>

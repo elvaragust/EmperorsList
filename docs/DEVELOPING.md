@@ -46,9 +46,9 @@ Put it behind a TLS reverse proxy (Caddy, nginx); WebSockets must be passed thro
 
 Environment: `PORT` (8080), `STATIC_DIR`, `DATA_DIR` (`/data`), `ALLOWED_ORIGINS` (comma-separated other origins allowed to use the relay and upload parcels — e.g. the old GitHub Pages origin; same-origin is always allowed), `TRUST_PROXY=1` (take the client IP from `X-Forwarded-For` for rate limits), `TRANSFER_MAX_MB` (80), `TRANSFER_TTL_H` (48).
 
-Build args: `BASE_PATH` (`/`), `VITE_RELAY_URL` (`/relay`; empty = PeerJS/WebRTC as on GitHub Pages).
+Build args: `BASE_PATH` (`/`), `VITE_RELAY_URL` (`/relay`; empty = PeerJS/WebRTC as on GitHub Pages), `VITE_EXTRAS_URL` (the Pages `wahapedia/` folder).
 
-**What the server never does:** download, store or serve game data. Wahapedia extras (`scripts/wahapedia.mjs` etc.) are not run in the Docker build; without them the app still works and players can import the CSVs in Settings.
+**What the server never does:** download, store or serve game data. Wahapedia extras (`scripts/wahapedia.mjs` etc.) are not run in the Docker build; the image reads them from the GitHub Pages copy instead (`VITE_EXTRAS_URL`, Pages allows cross-origin reads). Without them the app still works and players can import the CSVs in Settings.
 
 ## Build-time switches
 
@@ -56,6 +56,7 @@ Build args: `BASE_PATH` (`/`), `VITE_RELAY_URL` (`/relay`; empty = PeerJS/WebRTC
 |---|---|
 | `BASE_PATH` | Path the app is served from (`/EmperorsList/` on Pages). |
 | `VITE_RELAY_URL` | Live games go through this relay (`/relay`, or a full `wss://…/relay` to share one relay between addresses). Unset = PeerJS. |
+| `VITE_EXTRAS_URL` | Where stratagems, Core Rules and mission text are read from. Unset = `wahapedia/` next to the app. |
 | `VITE_NEW_HOME` | The app has moved: shows a *new home* banner and *Move my data* pointing at this address. |
 
 The Pages workflow passes the repo variables `RELAY_URL` and `NEW_HOME` (Settings → Secrets and variables → Actions → Variables) through to these, so the old address can use the new server's relay and point players at it without code changes.

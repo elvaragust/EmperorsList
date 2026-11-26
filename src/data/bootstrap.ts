@@ -108,6 +108,16 @@ export async function syncAllFactions(force = false): Promise<void> {
   }
 }
 
+/**
+ * Where the built-in Wahapedia extras (stratagems, Core Rules, mission cards) are read from:
+ * next to the app by default (the GitHub Pages build publishes them there), or VITE_EXTRAS_URL —
+ * the self-hosted build points this at the Pages copy so its own server never hosts rules text.
+ */
+const EXTRAS_URL = (() => {
+  const v = (import.meta.env.VITE_EXTRAS_URL as string | undefined) ?? '';
+  return v ? (v.endsWith('/') ? v : `${v}/`) : `${import.meta.env.BASE_URL}wahapedia/`;
+})();
+
 const WP_KEY = 'emperorslist.wahapediaStamp';
 /** Bump when the import itself changes, so every device reads the files again. */
 const IMPORT_VERSION = 2;
@@ -125,7 +135,7 @@ const WP_FILES: [keyof WahapediaFiles, string][] = [
  * whenever the site has a newer copy.
  */
 export async function syncWahapedia(force = false): Promise<{ imported: number } | undefined> {
-  const base = `${import.meta.env.BASE_URL}wahapedia/`;
+  const base = EXTRAS_URL;
   try {
     const stampRes = await fetch(`${base}Last_update.csv`, { cache: 'no-cache' });
     if (!stampRes.ok) return undefined;
@@ -176,7 +186,7 @@ const MISSION_KEY = 'emperorslist.missionsStamp';
 /** Mission-deck card text, published next to the app by the build (scripts/missions.mjs). */
 export async function syncMissions(force = false): Promise<number | undefined> {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}wahapedia/missions.json`, { cache: 'no-cache' });
+    const res = await fetch(`${EXTRAS_URL}missions.json`, { cache: 'no-cache' });
     if (!res.ok) return undefined;
     const body = (await res.json()) as { fetchedAt?: string; cards?: MissionCard[] };
     const stamp = body.fetchedAt ?? '';
